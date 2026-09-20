@@ -93,7 +93,6 @@ def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
     st.markdown("---")
 
     # ==================== PHẦN 2: DANH SÁCH SẢN LƯỢNG & HÌNH ẢNH ====================
-    # SỬA LỖI TẠI ĐÂY: Thêm tham số số 2 vào st.columns() để phân chia cột chính xác
     col_title_1, col_title_2 = st.columns(2)
     with col_title_1:
         st.markdown("<h3 style='color: #1e3a8a;'>Danh Sách Sản Lượng & Hình Ảnh</h3>", unsafe_allow_html=True)
@@ -152,23 +151,12 @@ def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
 
             selected_to_delete = []
 
-            if current_user_role == "Admin":
-                st.markdown("<br>", unsafe_allow_html=True)
-                del_c1, del_c2, del_c3 = st.columns([2.5, 1.2, 1.2])
-                
-                with del_c2:
-                    st.markdown("<div style='margin-top: 5px;'>", unsafe_allow_html=True)
-                    confirm_all = st.checkbox("Xác nhận xóa tất cả trong này", key="chk_confirm_all_del")
-                    st.markdown("</div>", unsafe_allow_html=True)
-                with del_c3:
-                    btn_del_all = st.button("🗑️ Xóa tất cả cả trang này", use_container_width=True, key="btn_del_page_all")
-
             # --- KHỐI THỂ CONTAINER HIỂN THỊ BẢN GHI ---
             for idx, row in page_df.iterrows():
                 display_stt = start_idx + page_df.index.get_loc(idx) + 1
                 
                 with st.container(border=True):
-                    main_c1, main_c2 = st.columns()
+                    main_c1, main_c2 = st.columns([4, 1])
                     
                     with main_c1:
                         st.markdown(f"**STT: {display_stt}** | 📅 {row['Ngày']} 🕒 {row['Thời Gian']} | 👤 <b style='color: #1e40af;'>{row['Nhân Sự']}</b>", unsafe_allow_html=True)
@@ -177,6 +165,17 @@ def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
                         note_text = row['Ghi Chú'] if pd.notna(row['Ghi Chú']) and str(row['Ghi Chú']).strip() else "Không có ghi chú"
                         st.markdown(f"<span style='color: #64748b; font-size: 0.9rem;'>💬 {note_text}</span>", unsafe_allow_html=True)
                         
+                        # Hiển thị hình ảnh nếu có
+                        if "Hình Ảnh" in row and pd.notna(row["Hình Ảnh"]) and str(row["Hình Ảnh"]).strip():
+                            urls = [u.strip() for u in str(row["Hình Ảnh"]).split(",") if u.strip()]
+                            if urls:
+                                img_cols = st.columns(min(len(urls), 4))
+                                for i, url in enumerate(urls[:4]):
+                                    with img_cols[i]:
+                                        st.image(url, use_container_width=True)
+                    
+                    with main_c2:
                         if current_user_role == "Admin":
-                            st.markdown("<br>", unsafe_allow_html=True)
-                            if st.checkbox(f"Chọn xóa bản ghi STT {display_stt}", key=f"chk_del_{row['db_id']}"):
+                            # Nút bấm xóa trực tiếp từng bản ghi bằng update_production_log_deleted_status
+                            if st.button("🗑️ Xóa", key=f"btn_del_{row.get('db_id', idx)}", use_container_width=True):
+                                db_id = row.get('db_id') or row.get('STT') # Dự phòng trường hợp tên cột ID của bạn
