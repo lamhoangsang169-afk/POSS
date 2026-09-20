@@ -2,8 +2,7 @@
 import os
 import sys
 
-# ==================== CẤU HÌNH ĐƯỜNG DẪN TƯƠNG THÍCH WINDOWS & LINUX ====================
-# Tính toán động đường dẫn ngược ra thư mục gốc từ vị trí file con này
+# ==================== ĐIỀU HƯỚNG ĐƯỜNG DẪN ĐỘNG (SỬA LỖI WINDOWS & LINUX) ====================
 current_file_dir = os.path.dirname(os.path.abspath(__file__))
 root_project_dir = os.path.dirname(os.path.dirname(current_file_dir))
 
@@ -13,14 +12,28 @@ if root_project_dir not in sys.path:
 import streamlit as st
 import pandas as pd
 import datetime
-from utils import VN_TIMEZONE
-from database import (
-    get_production_logs_db,
-    add_production_log_db,
-    update_production_log_deleted_status,
-    upload_multiple_images_to_storage,
-    get_attendance_db
-)
+
+# Thay đổi cách gọi từ thư mục gốc thông qua việc nạp module cha
+try:
+    from database import (
+        get_production_logs_db,
+        add_production_log_db,
+        update_production_log_deleted_status,
+        upload_multiple_images_to_storage,
+        get_attendance_db
+    )
+    from utils import VN_TIMEZONE
+except ImportError:
+    # Phương án dự phòng cưỡng ép nạp trực tiếp module từ thư mục chạy hệ thống
+    sys.path.append(os.getcwd())
+    from database import (
+        get_production_logs_db,
+        add_production_log_db,
+        update_production_log_deleted_status,
+        upload_multiple_images_to_storage,
+        get_attendance_db
+    )
+    from utils import VN_TIMEZONE
 
 def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
     now_vn = datetime.datetime.now(VN_TIMEZONE)
