@@ -116,12 +116,10 @@ def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
             st.cache_data.clear()
             st.rerun()
     
-    # Đọc database sản lượng
     input_df = get_production_logs_db(is_deleted=False, limit_rows=1000)
     if input_df is None:
         input_df = pd.DataFrame()
 
-    # Ánh xạ động tên cột
     col_ngay = find_column_case_insensitive(input_df, ["Ngày", "ngay", "ngày làm việc", "Ngày làm việc"])
     col_gio = find_column_case_insensitive(input_df, ["Thời Gian", "thoi_gian", "giờ", "gio", "Thời gian"])
     col_nhan_su = find_column_case_insensitive(input_df, ["Nhân Sự", "nhan_su", "nhân sự thực hiện", "Nhân sự"])
@@ -132,7 +130,7 @@ def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
     col_ghi_chu = find_column_case_insensitive(input_df, ["Ghi Chú", "ghi_chu", "note", "Ghi chú"])
     col_hinh_anh = find_column_case_insensitive(input_df, ["Hình Ảnh", "hinh_anh", "img_urls", "Hình ảnh"])
 
-    # === ĐƯA BỘ LỌC RA NGOÀI VÒNG ĐIỀU KIỆN: ĐẢM BẢO LUÔN HIỂN THỊ 100% ===
+    # === ĐÃ FIX LỖI THỤT LỀ: Đảm bảo căn lề chuẩn 4 dấu cách tự động thống nhất toàn khối lệnh ===
     filter_col1, filter_col2, filter_col3, filter_col4, filter_col5, filter_col6 = st.columns([1.2, 1.2, 0.8, 1.5, 1.5, 1.5])
     
     with filter_col1:
@@ -153,7 +151,6 @@ def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
 
     filtered_df = input_df.copy()
     
-    # Tiến hành xử lý lọc dữ liệu nếu dataframe có phần tử
     if not filtered_df.empty:
         if col_ngay in filtered_df.columns:
             try:
@@ -178,3 +175,4 @@ def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
                 pass
 
         if selected_staff != "Tất cả" and col_nhan_su in filtered_df.columns:
+            filtered_df = filtered_df[filtered_df[col_nhan_su] == selected_staff]
