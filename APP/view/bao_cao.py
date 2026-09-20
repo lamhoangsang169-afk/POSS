@@ -69,23 +69,33 @@ def render_bao_cao(current_menu_name):
 
     # --- TÍNH TOÁN BẢNG TỔNG KẾT THEO NHÂN SỰ ---
     summary_staff = prod_df.groupby("Nhân Sự").agg(
-        📊_Số_Lượng_Thực_Tế=("Số Lượng", "sum"),
-        🎯_Tổng_Điểm=("Tổng Điểm", "sum")
+        so_luong_thuc_te=("Số Lượng", "sum"),
+        tong_diem_tich_luy=("Tổng Điểm", "sum")
     ).reset_index()
 
-    total_all_points = summary_staff["🎯_Tổng_Điểm"].sum()
+    total_all_points = summary_staff["tong_diem_tich_luy"].sum()
     if total_all_points > 0:
-        summary_staff["📈_Tỷ_Lệ_Hiệu_Suất"] = (summary_staff["🎯_Tổng_Điểm"] / total_all_points * 100).round(2).astype(str) + "%"
+        summary_staff["ty_le_hieu_suat"] = (summary_staff["tong_diem_tich_luy"] / total_all_points * 100).round(2)
     else:
-        summary_staff["📈_Tỷ_Lệ_Hiệu_Suất"] = "0%"
+        summary_staff["ty_le_hieu_suat"] = 0.0
 
     # Xếp hạng nhân sự theo tổng điểm từ cao xuống thấp
-    summary_staff = summary_staff.sort_values(by="🎯_Tổng_Điểm", ascending=False).reset_index(drop=True)
+    summary_staff = summary_staff.sort_values(by="tong_diem_tich_luy", ascending=False).reset_index(drop=True)
     summary_staff.insert(0, "Xếp Hạng (Top)", [f"🏆 Top {i+1}" for i in range(len(summary_staff))])
 
-    # Hiển thị Bảng 1 lên giao diện
-    st.markdown("### 📋 Bảng Tổng Kết Hiệu Suất Theo Nhân Sự")
-    st.dataframe(summary_staff, use_container_width=True, hide_index=True)
+    # Hiển thị Bảng 1 lên giao diện giống hệt mẫu của bạn
+    st.markdown("### 📋 Bảng Tổng Kết Theo Nhân Sự")
+    
+    # Đổi tên cột hiển thị trực quan cho người xem
+    display_table1 = summary_staff.rename(columns={
+        "Nhân Sự": "Nhân Sự",
+        "so_luong_thuc_te": "Số Lượng Thực Tế",
+        "tong_diem_tich_luy": "Tổng Điểm",
+        "ty_le_hieu_suat": "Hiệu Suất"
+    })
+    # Thêm ký tự % vào cột hiệu suất hiển thị
+    display_table1["Hiệu Suất"] = display_table1["Hiệu Suất"].astype(str) + "%"
+    st.dataframe(display_table1, use_container_width=True, hide_index=True)
 
     st.markdown("---")
 
@@ -102,18 +112,21 @@ def render_bao_cao(current_menu_name):
     cross_df = pd.merge(summary_staff, time_staff, on="Nhân Sự", how="left").fillna(0)
     
     # Tính toán các chỉ số phân tích sâu
-    cross_df["⏱️ Tổng Số Phút Làm"] = cross_df["Số Phút Làm Việc"].astype(int)
-    cross_df["⚡ Điểm Mỗi Phút"] = (cross_df["🎯_Tổng_Điểm"] / cross_df["⏱️ Tổng Số Phút Làm"].replace(0, 1)).round(3)
+    cross_df["tong_phut_lam"] = cross_df["Số Phút Làm Việc"].astype(int)
+    cross_df["diem_moi_phut"] = (cross_df["tong_diem_tich_luy"] / cross_df["tong_phut_lam"].replace(0, 1)).round(3)
     
-    # Đổi tên cột hiển thị cho gọn gàng giống mẫu của bạn
+    # Kết xuất các cột hiển thị đúng cấu trúc đối chiếu
     cross_display = cross_df[[
-        "Xếp Hạng (Top)", "Nhân Sự", "⏱️ Tổng Số Phút Làm", 
-        "📊_Số_Lượng_Thực_Tế", "🎯_Tổng_Điểm", "⚡ Điểm Mỗi Phút", "📈_Tỷ_Lệ_Hiệu_Suất"
+        "Xếp Hạng (Top)", "Nhân Sự", "tong_phut_lam", 
+        "so_luong_thuc_te", "tong_diem_tich_luy", "diem_moi_phut", "ty_le_hieu_suat"
     ]].rename(columns={
-        "📊_Số_Lượng_Thực_Tế": "Tổng Sản Lượng",
-        "🎯_Tổng_Điểm": "Tổng Điểm Tích Lũy",
-        "📈_Tỷ_Lệ_Hiệu_Suất": "Tỷ Lệ Đóng Góp (%)"
+        "tong_phut_lam": "Tổng Số Phút Làm",
+        "so_luong_thuc_te": "Tổng Sản Lượng Thực Tế",
+        "tong_diem_tich_luy": "Tổng Điểm",
+        "diem_moi_phut": "Điểm Mỗi Phút",
+        "ty_le_hieu_suat": "Hiệu Suất Sản Lượng (%)"
     })
+    cross_display["Hiệu Suất Sản Lượng (%)"] = cross_display["Hiệu Suất Sản Lượng (%)"].astype(str) + "%"
     
     st.dataframe(cross_display, use_container_width=True, hide_index=True)
 
@@ -122,14 +135,14 @@ def render_bao_cao(current_menu_name):
     # --- KHỐI BIỂU ĐỒ TRÒN (PIE CHART) & CHI TIẾT TỶ LỆ ---
     st.markdown("### 📌 Chi Tiết Điểm Số & Tỷ Lệ Đóng Góp")
     
-    chart_col, text_col = st.columns([1, 2])
+    chart_col, text_col = st.columns(2)
     
     with chart_col:
-        # Sử dụng thư viện Plotly để vẽ biểu đồ tròn hiển thị % đẹp mắt như ảnh mẫu
+        # Sử dụng thư viện Plotly vẽ biểu đồ hình quạt (Pie) hiển thị tỷ lệ phần trăm
         fig = go.Figure(data=[go.Pie(
             labels=summary_staff["Nhân Sự"],
-            values=summary_staff["🎯_Tổng_Điểm"],
-            hole=0.3, # Biểu đồ dạng Donut như mẫu
+            values=summary_staff["tong_diem_tich_luy"],
+            hole=0.3, # Tạo lỗ rỗng ở giữa dạng hình bánh Donut giống mẫu
             textinfo='percent+label' if len(summary_staff) <= 3 else 'percent',
             marker=dict(colors=['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728'])
         )])
@@ -142,6 +155,6 @@ def render_bao_cao(current_menu_name):
         
     with text_col:
         st.markdown("<br>", unsafe_allow_html=True)
-        # Hiển thị khối danh sách ghi chú tỷ lệ ở bên cạnh
+        # Hiển thị khối danh sách văn bản mô tả tỷ lệ chi tiết ở bên cạnh
         for idx, row in summary_staff.iterrows():
-            st.info(f"🔹 **{row['Xếp Hạng (Top)']}**: {row['Nhân Sự']} đạt **{row['🎯_Tổng_Điểm']:,.1f} điểm** (Chiếm tỷ lệ **{row['📈_Tỷ_Lệ_Hiệu_Suất']}** toàn hệ thống).")
+            st.info(f"🔹 **{row['Xếp Hạng (Top)']}**: {row['Nhân Sự']} đạt **{row['tong_diem_tich_luy']:,.1f} điểm** (Chiếm tỷ lệ **{row['ty_le_hieu_suat']}%** toàn hệ thống).")
