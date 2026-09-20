@@ -28,6 +28,16 @@ VN_TIMEZONE = utils_module.VN_TIMEZONE
 get_production_logs_by_date_range = db_module.get_production_logs_by_date_range
 get_attendance_db = db_module.get_attendance_db
 
+def clean_name(full_name):
+    """Hàm rút gọn tên nhân sự (Ví dụ: Nguyễn Hữu Khang Tôn Đức -> Đức) giống như hình mẫu"""
+    if not full_name:
+        return ""
+    name_parts = str(full_name).strip().split()
+    if name_parts:
+        # Lấy từ cuối cùng trong chuỗi tên làm tên rút gọn
+        return name_parts[-1]
+    return full_name
+
 def render_bao_cao(current_menu_name):
     st.subheader(f"📊 {current_menu_name}")
     
@@ -75,7 +85,7 @@ def render_bao_cao(current_menu_name):
 
     total_all_points = summary_staff["tong_diem_tich_luy"].sum()
     if total_all_points > 0:
-        summary_staff["ty_le_hieu_suat"] = (summary_staff["tong_diem_tich_luy"] / total_all_points * 100).round(2)
+        summary_staff["ty_le_hieu_suat"] = (summary_staff["tong_diem_tich_luy"] / total_all_points * 100).round(1)
     else:
         summary_staff["ty_le_hieu_suat"] = 0.0
 
@@ -83,17 +93,14 @@ def render_bao_cao(current_menu_name):
     summary_staff = summary_staff.sort_values(by="tong_diem_tich_luy", ascending=False).reset_index(drop=True)
     summary_staff.insert(0, "Xếp Hạng (Top)", [f"🏆 Top {i+1}" for i in range(len(summary_staff))])
 
-    # Hiển thị Bảng 1 lên giao diện giống hệt mẫu của bạn
+    # Hiển thị Bảng 1 lên giao diện
     st.markdown("### 📋 Bảng Tổng Kết Theo Nhân Sự")
-    
-    # Đổi tên cột hiển thị trực quan cho người xem
     display_table1 = summary_staff.rename(columns={
         "Nhân Sự": "Nhân Sự",
         "so_luong_thuc_te": "Số Lượng Thực Tế",
         "tong_diem_tich_luy": "Tổng Điểm",
         "ty_le_hieu_suat": "Hiệu Suất"
     })
-    # Thêm ký tự % vào cột hiệu suất hiển thị
     display_table1["Hiệu Suất"] = display_table1["Hiệu Suất"].astype(str) + "%"
     st.dataframe(display_table1, use_container_width=True, hide_index=True)
 
@@ -101,21 +108,15 @@ def render_bao_cao(current_menu_name):
 
     # --- TÍNH TOÁN BẢNG ĐỐI CHIẾU THỜI GIAN VÀ SẢN LƯỢNG ---
     st.markdown("### 👥 Bảng Đối Chiếu Thời Gian Làm Việc & Sản Lượng")
-    
-    # Tính tổng số phút đi làm của từng nhân sự từ bảng chấm công lọc được
     if not att_filtered.empty and "Nhân Sự" in att_filtered.columns:
         time_staff = att_filtered.groupby("Nhân Sự")["Số Phút Làm Việc"].sum().reset_index()
     else:
         time_staff = pd.DataFrame(columns=["Nhân Sự", "Số Phút Làm Việc"])
 
-    # Gộp bảng sản lượng và bảng thời gian lại với nhau
     cross_df = pd.merge(summary_staff, time_staff, on="Nhân Sự", how="left").fillna(0)
-    
-    # Tính toán các chỉ số phân tích sâu
     cross_df["tong_phut_lam"] = cross_df["Số Phút Làm Việc"].astype(int)
     cross_df["diem_moi_phut"] = (cross_df["tong_diem_tich_luy"] / cross_df["tong_phut_lam"].replace(0, 1)).round(3)
     
-    # Kết xuất các cột hiển thị đúng cấu trúc đối chiếu
     cross_display = cross_df[[
         "Xếp Hạng (Top)", "Nhân Sự", "tong_phut_lam", 
         "so_luong_thuc_te", "tong_diem_tich_luy", "diem_moi_phut", "ty_le_hieu_suat"
@@ -127,34 +128,47 @@ def render_bao_cao(current_menu_name):
         "ty_le_hieu_suat": "Hiệu Suất Sản Lượng (%)"
     })
     cross_display["Hiệu Suất Sản Lượng (%)"] = cross_display["Hiệu Suất Sản Lượng (%)"].astype(str) + "%"
-    
     st.dataframe(cross_display, use_container_width=True, hide_index=True)
 
     st.markdown("---")
 
     # --- KHỐI BIỂU ĐỒ TRÒN (PIE CHART) & CHI TIẾT TỶ LỆ ---
-    st.markdown("### 📌 Chi Tiết Điểm Số & Tỷ Lệ Đóng Góp")
-    
-    chart_col, text_col = st.columns(2)
+    chart_col, text_col = st.columns([1, 1.2])
     
     with chart_col:
-        # Sử dụng thư viện Plotly vẽ biểu đồ hình quạt (Pie) hiển thị tỷ lệ phần trăm
+        # Bổ sung 2 nút bấm xuất file ở phía trên biểu đồ giống mẫu của bạn
+        st.button("📥 Xuất File & Lưu Cloud", use_container_width=True, key="btn_export_cloud")
+        st.button("💾 Tải File Về Máy", use_container_width=True, key="btn_download_local")
+        
+        # Áp dụng rút gọn tên cho nhãn biểu đồ tròn
+        short_labels = [clean_name(name) for name in summary_staff["Nhân Sự"]]
+        
+        # Sửa màu sắc tương ứng chuẩn xác theo hình mẫu (Xanh dương, Đỏ, Xanh lá)
+        color_palette = ['#3b82f6', '#ef4444', '#10b981', '#f59e0b', '#8b5cf6']
+        
         fig = go.Figure(data=[go.Pie(
-            labels=summary_staff["Nhân Sự"],
+            labels=short_labels,
             values=summary_staff["tong_diem_tich_luy"],
-            hole=0.3, # Tạo lỗ rỗng ở giữa dạng hình bánh Donut giống mẫu
-            textinfo='percent+label' if len(summary_staff) <= 3 else 'percent',
-            marker=dict(colors=['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728'])
+            textinfo='percent',
+            textfont_size=15,
+            marker=dict(colors=color_palette, line=dict(color='#ffffff', width=2))
         )])
         fig.update_layout(
             showlegend=False,
-            margin=dict(t=10, b=10, l=10, r=10),
-            height=260
+            margin=dict(t=15, b=15, l=15, r=15),
+            height=280
         )
         st.plotly_chart(fig, use_container_width=True)
         
     with text_col:
+        st.markdown("### 📌 Chi Tiết Điểm Số & Tỷ Lệ")
         st.markdown("<br>", unsafe_allow_html=True)
-        # Hiển thị khối danh sách văn bản mô tả tỷ lệ chi tiết ở bên cạnh
+        
+        # Hiển thị khối văn bản được làm gọn tên nhân sự và màu biểu tượng như mẫu
+        color_markers = ["🔵", "🔴", "🟢", "🟡", "🟣"]
         for idx, row in summary_staff.iterrows():
-            st.info(f"🔹 **{row['Xếp Hạng (Top)']}**: {row['Nhân Sự']} đạt **{row['tong_diem_tich_luy']:,.1f} điểm** (Chiếm tỷ lệ **{row['ty_le_hieu_suat']}%** toàn hệ thống).")
+            short_name = clean_name(row['Nhân Sự'])
+            marker = color_markers[idx % len(color_markers)]
+            
+            # Format chuỗi văn bản: "[Màu] Tên: Số_điểm điểm (Tỷ_lệ%)"
+            st.info(f"{marker} **{short_name}**: {row['tong_diem_tich_luy']:,.1f} điểm ({row['ty_le_hieu_suat']}%)")
