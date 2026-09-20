@@ -43,9 +43,7 @@ def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
         att_df_check = get_attendance_db()
         active_staff = []
         
-        # === ĐÃ SỬA LỖI Ở ĐÂY: Tối ưu bộ lọc nhân sự động linh hoạt, không phân biệt hoa thường ===
         if not att_df_check.empty and "Giờ Ra Ca" in att_df_check.columns:
-            # Lọc lấy những dòng có trạng thái ra ca là "Chưa kết thúc" hoặc trống
             active_rows = att_df_check[att_df_check["Giờ Ra Ca"].astype(str).str.lower().str.contains("chưa kết thúc|nan|none|^$", na=True)]
             if not active_rows.empty and "Nhân Sự" in active_rows.columns:
                 active_staff = active_rows["Nhân Sự"].dropna().unique().tolist()
@@ -63,9 +61,26 @@ def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
                     staff_options = ["--- Vui lòng chọn nhân sự ---"] + active_staff
                     nhan_su = st.selectbox("Nhân sự thực hiện", staff_options)
                 with f_col3:
+                    # === ĐÃ SỬA LỖI KEYERROR Ở ĐÂY: Bảo vệ code an toàn nếu thiếu tên cột ===
                     rules_df = st.session_state.get("rules_df", pd.DataFrame())
-                    raw_tasks = rules_df["Hạng Mục Công Việc"].tolist() if not rules_df.empty else []
-                    danh_sach_hang_muc = [str(t).strip() for t in raw_tasks if pd.notna(t) and str(t).strip() and str(t).strip().lower() not in ["nan", "none"]]
+                    danh_sach_hang_muc = []
+                    
+                    if not rules_df.empty:
+                        # Thử lấy cột chuẩn, nếu lỗi sẽ tự động tìm kiếm cột chứa chữ "hạng mục" hoặc lấy cột đầu tiên
+                        target_col = None
+                        for col in rules_df.columns:
+                            if str(col).lower() in ["hạng mục công việc", "hang_muc_cong_viec", "hang_muc"]:
+                                target_col = col
+                                break
+                        if not target_col:
+                            target_col = rules_df.columns[0] # Lấy đại cột đầu tiên nếu không thấy
+                        
+                        raw_tasks = rules_df[target_col].tolist()
+                        danh_sach_hang_muc = [str(t).strip() for t in raw_tasks if pd.notna(t) and str(t).strip() and str(t).strip().lower() not in ["nan", "none"]]
+                    
+                    if not danh_sach_hang_muc:
+                        danh_sach_hang_muc = ["Chưa có dữ liệu định mức công việc"]
+                        
                     hang_muc = st.selectbox("Hạng mục công việc", danh_sach_hang_muc)
                     
                 record_images = st.file_uploader("Tải ảnh đính kèm (Tối đa 4 ảnh)", type=["png", "jpg", "jpeg"], accept_multiple_files=True, key="record_img")
@@ -84,6 +99,9 @@ def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
                     if nhan_su == "--- Vui lòng chọn nhân sự ---":
                         is_valid = False
                         st.error("⚠️ Vui lòng chọn đúng tên nhân sự thực hiện!")
+                    elif hang_muc == "Chưa có dữ liệu định mức công việc":
+                        is_valid = False
+                        st.error("⚠️ Không thể báo cáo sản lượng do hệ thống trống danh mục định mức!")
                     elif req_img and not record_images: 
                         is_valid = False
                         st.error("⚠️ Vui lòng tải lên ảnh đính kèm!")
@@ -98,11 +116,20 @@ def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
                         st.error("⚠️ Bắt buộc phải nhập nội dung vào phần Ghi chú khi chọn 'Công việc phát sinh'!")
 
                     if is_valid:
-                        row_rule = rules_df[rules_df["Hạng Mục Công Việc"] == hang_muc] if not rules_df.empty else pd.DataFrame()
-                        he_so = float(row_rule["Hệ Số Điểm"].values) if not row_rule.empty else 1.0
-                        don_vi = row_rule["Đơn Vị"].values if not row_rule.empty else "Cái"
-                        tong_diem = so_luong * he_so
+                        # Tìm hệ số điểm an toàn
+                        he_so = 1.0
+                        don_vi = "Cái"
+                        if not rules_df.empty and target_col in rules_df.columns:
+                            row_rule = rules_df[rules_df[target_col] == hang_muc]
+                            if not row_rule.empty:
+                                # Thử tìm cột hệ số điểm động
+                                for col in row_rule.columns:
+                                    if "hệ số" in str(col).lower() or "he_so" in str(col).lower():
+                                        he_so = float(row_rule[col].values[0]) if pd.notna(row_rule[col].values[0]) else 1.0
+                                    if "đơn vị" in str(col).lower() or "don_vi" in str(col).lower():
+                                        don_vi = str(row_rule[col].values[0]) if pd.notna(row_rule[col].values[0]) else "Cái"
                         
+                        tong_diem = so_luong * he_so
                         img_urls = upload_multiple_images_to_storage(record_images) if record_images else ""
                         current_time_str = datetime.datetime.now(VN_TIMEZONE).strftime("%H:%M:%S")
                         
