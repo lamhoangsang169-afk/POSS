@@ -23,8 +23,8 @@ get_rules_db = db_module.get_rules_db
 supabase = db_module.supabase
 
 def render_dinh_muc_cong_viec(current_menu_name, current_user_role, user_perms):
-    # Tiêu đề nghiệp vụ giống hệt bản cũ của bạn
-    col_h1, col_h2 = st.columns()
+    # === ĐÃ SỬA LỖI Ở ĐÂY: Thêm số 2 vào st.columns để phân chia thành 2 cột hợp lệ ===
+    col_h1, col_h2 = st.columns(2)
     with col_h1:
         st.subheader(f"📋 {current_menu_name}")
     with col_h2:
