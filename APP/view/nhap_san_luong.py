@@ -25,7 +25,7 @@ def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
     
     st.subheader(f"{current_menu_name} ({today_str})")
 
-    # --- KHỐI 1: FORM CẬP NHẬT SẢN LƯỢNG (GIỮ NGUYÊN LOGIC GỐC CỦA BẠN) ---
+    # --- KHỐI 1: FORM CẬP NHẬT SẢN LƯỢNG (GIỮ NGUYÊN LOGIC GỐC) ---
     is_admin = (current_user_role == "Admin" or user_perms.get("perm_input", False))
     
     att_df_check = get_attendance_db()
@@ -40,9 +40,6 @@ def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
     elif not active_staff:
         st.warning("⚠️ Hiện tại chưa có nhân sự nào **Check-in (Vào ca)** hoặc các ca trước chưa kết thúc. Vui lòng thực hiện Check-in trước khi nhập sản lượng!")
     else:
-        req_img = st.session_state.get("require_image", True)
-        req_qty = st.session_state.get("require_quantity", True)
-        
         with st.form("entry_form"):
             f_col1, f_col2, f_col3 = st.columns(3)
             with f_col1: st.date_input("Ngày làm việc", now_vn.date(), disabled=True)
@@ -92,7 +89,7 @@ def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
     input_df = get_production_logs_db(is_deleted=False, limit_rows=1000)
     
     if not input_df.empty:
-        # Bộ lọc hàng ngang
+        # Khởi tạo bộ lọc hàng ngang
         filter_col1, filter_col2, filter_col3, filter_col4, filter_col5 = st.columns([1.2, 1.2, 0.8, 1.5, 1.5])
         
         with filter_col1: start_filter_date = st.date_input("Từ ngày", datetime.date(2026, 8, 14), key="f_start_date")
@@ -112,23 +109,23 @@ def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
 
         filtered_df = input_df.copy()
         
-        # 1. Lọc theo khoảng ngày an toàn
+        # 1. Lọc theo khoảng ngày (Sử dụng chuỗi an toàn tuyệt đối)
         col_ngay = next((c for c in filtered_df.columns if str(c).lower().strip() in ["ngày", "ngay"]), "")
         if col_ngay:
             try:
-                filtered_df["Ngày_DT"] = pd.to_datetime(filtered_df[col_ngay], errors='coerce').dt.date
-                if filtered_df["Ngày_DT"].notna().any():
-                    filtered_df = filtered_df[(filtered_df["Ngày_DT"] >= start_filter_date) & (filtered_df["Ngày_DT"] <= end_filter_date)]
+                filtered_df["_ngay_str"] = filtered_df[col_ngay].astype(str).str.strip()
+                s_str = start_filter_date.strftime("%Y-%m-%d")
+                e_str = end_filter_date.strftime("%Y-%m-%d")
+                filtered_df = filtered_df[(filtered_df["_ngay_str"] >= s_str) & (filtered_df["_ngay_str"] <= e_str)]
             except:
                 pass
         
-        # 2. Lọc theo giờ
+        # 2. Lọc theo giờ hoạt động
         col_gio = next((c for c in filtered_df.columns if str(c).lower().strip() in ["thời gian", "giờ", "gio", "thoi_gian"]), "")
         if filter_by_time and col_gio:
             try:
-                current_hour = now_vn.hour
-                filtered_df["Hour_Int"] = pd.to_datetime(filtered_df[col_gio], errors='coerce').dt.hour
-                filtered_df = filtered_df[filtered_df["Hour_Int"] == current_hour]
+                current_hour_str = f"{now_vn.hour:02d}:"
+                filtered_df = filtered_df[filtered_df[col_gio].astype(str).str.contains(current_hour_str, na=False)]
             except:
                 pass
 
@@ -143,7 +140,7 @@ def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
         if total_records > 0:
             selected_to_delete = []
 
-            # THANH PHÂN TRANG (PAGINATION)
+            # QUẢN LÝ PHÂN TRANG (PAGINATION)
             records_per_page = 10
             total_pages = (total_records + records_per_page - 1) // records_per_page
             
@@ -170,15 +167,16 @@ def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
 
             st.markdown("<br>", unsafe_allow_html=True)
 
-            # VÒNG LẶP HIỂN THỊ CÁC THẺ BẢN GHI
+            # VÒNG LẶP RENDER DANH SÁCH THẺ CONTAINER
             for idx, row in page_df.iterrows():
                 display_stt = start_idx + page_df.index.get_loc(idx) + 1
-                id_col = "db_id" if "db_id" in filtered_df.columns else ("id" if "id" in filtered_df.columns else filtered_df.columns)
+                id_col = "db_id" if "db_id" in filtered_df.columns else ("id" if "id" in filtered_df.columns else filtered_df.columns[0])
                 row_id = row[id_col]
                 
                 with st.container(border=True):
-                    main_c1, main_c2 = st.columns([4, 1])
+                    main_c1, main_c2 = st.columns([4, 1.5]) # Định dạng tỷ lệ cột tối ưu cho ảnh và chữ
                     
                     with main_c1:
                         val_ngay = row[col_ngay] if col_ngay else today_str
                         val_gio = row.get(col_gio, "00:00:00")
+                        val_user = row.get(col_nhan_su, "")
