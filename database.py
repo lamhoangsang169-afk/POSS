@@ -250,7 +250,7 @@ def get_rules_db():
         pass
     return pd.DataFrame()
 
-# ==================== CÁC HÀM QUẢN LÝ ĐỊNH MỨC CÔNG VIỆC (MỚI BỔ SUNG BƯỚC 1) ====================
+# ==================== CÁC HÀM QUẢN LÝ ĐỊNH MỨC CÔNG VIỆC ====================
 
 def add_rule_db(hang_muc, he_so, don_vi, ghi_chu=""):
     """Thêm một hạng mục định mức mới vào bảng 'rules'"""
@@ -291,3 +291,4 @@ def delete_rule_db(db_id):
     if supabase is None:
         return None
     try:
+        response = supabase.table("rules").delete().eq("id", db_id).execute()
