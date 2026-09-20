@@ -12,7 +12,6 @@ from database import (
 )
 
 def find_column_case_insensitive(df, target_names):
-    """Tìm tên cột thực tế trong DataFrame không phân biệt hoa thường hoặc dấu gạch dưới"""
     if df.empty:
         return ""
     cols = [str(c).strip().lower() for c in df.columns]
@@ -27,26 +26,6 @@ def find_column_case_insensitive(df, target_names):
             if target_no_space == c_clean:
                 return df.columns[i]
     return df.columns[0] if len(df.columns) > 0 else ""
-
-def parse_to_date_object(date_val):
-    """Chuyển đổi linh hoạt mọi kiểu dữ liệu ngày từ Google Sheets thành datetime.date"""
-    if isinstance(date_val, (datetime.date, datetime.datetime)):
-        return date_val if isinstance(date_val, datetime.date) else date_val.date()
-    
-    date_str = str(date_val).strip()
-    for fmt in ('%Y-%m-%d', '%d/%m/%Y', '%m/%d/%Y', '%Y/%m/%d'):
-        try:
-            return datetime.datetime.strptime(date_str, fmt).date()
-        except ValueError:
-            continue
-            
-    # Xử lý chuỗi chứa giờ phía sau (ví dụ: 2026-09-20 00:00:00)
-    if " " in date_str:
-        try:
-            return datetime.datetime.strptime(date_str.split(" ")[0], '%Y-%m-%d').date()
-        except ValueError:
-            pass
-    return None
 
 def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
     now_vn = datetime.datetime.now(VN_TIMEZONE)
@@ -136,10 +115,9 @@ def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
             st.cache_data.clear()
             st.rerun()
     
-    # === SỬA ĐỔI QUAN TRỌNG: Gọi hàm đồng bộ tham số cũ chính xác để Google Sheets trả về dữ liệu gốc ===
+    # Đồng bộ gọi hàm từ database gốc
     input_df = get_production_logs_db(is_deleted=False, limit_rows=150)
     if input_df is None or input_df.empty:
-        # Cơ chế dự phòng gọi không điều kiện nếu cấu trúc bảng thay đổi tham số
         try:
             input_df = get_production_logs_db()
         except:
@@ -155,7 +133,7 @@ def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
     col_ghi_chu = find_column_case_insensitive(input_df, ["Ghi Chú", "ghi_chu", "note", "Ghi chú"])
     col_hinh_anh = find_column_case_insensitive(input_df, ["Hình Ảnh", "hinh_anh", "img_urls", "Hình ảnh"])
 
-    # Giao diện bộ lọc thanh ngang chuẩn tỉ lệ UX hình mẫu của bạn
+    # Giao diện bộ lọc ngang
     filter_col1, filter_col2, filter_col3, filter_col4, filter_col5, filter_col6 = st.columns([1.2, 1.2, 0.8, 1.5, 1.5, 1.5])
     
     with filter_col1:
@@ -176,7 +154,28 @@ def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
 
     filtered_df = input_df.copy()
     
-    # Xử lý lọc dữ liệu nâng cao tránh việc sập hoặc trống danh sách
+    # Tiến hành xử lý lọc dữ liệu an toàn chuỗi
     if not filtered_df.empty:
         if col_ngay and col_ngay in filtered_df.columns:
             try:
+                filtered_df["_str_date"] = filtered_df[col_ngay].astype(str).str.strip()
+                # Chuyển đổi start/end sang dạng chuỗi chuẩn so sánh văn bản an toàn
+                s_str = start_filter_date.strftime('%Y-%m-%d')
+                e_str = end_filter_date.strftime('%Y-%m-%d')
+                # Hỗ trợ định dạng chuỗi VN (dd/mm/yyyy)
+                if "/" in filtered_df["_str_date"].iloc[0]:
+                    s_str = start_filter_date.strftime('%d/%m/%Y')
+                    e_str = end_filter_date.strftime('%d/%m/%Y')
+                temp_df = filtered_df[(filtered_df["_str_date"] >= s_str) & (filtered_df["_str_date"] <= e_str)]
+                if not temp_df.empty:
+                    filtered_df = temp_df
+            except:
+                pass
+        
+        if filter_by_time and col_gio and col_gio in filtered_df.columns:
+            try:
+                current_hour_str = f"{now_vn.hour:02d}:"
+                filtered_df = filtered_df[filtered_df[col_gio].astype(str).str.contains(current_hour_str, na=False)]
+            except:
+                pass
+
