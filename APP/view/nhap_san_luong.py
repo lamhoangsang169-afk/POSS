@@ -2,11 +2,13 @@
 import os
 import sys
 
-# ==================== SỬA LỖI ĐƯỜNG DẪN IMPORT (BẮT BUỘC) ====================
-# Thêm thư mục gốc vào danh sách tìm kiếm để nhận diện database và utils
-root_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-if root_dir not in sys.path:
-    sys.path.insert(0, root_dir)
+# ==================== ÉP ĐƯỜNG DẪN ĐIỀU HƯỚNG NGƯỢC (BẮT BUỘC) ====================
+# Tính toán động thư mục gốc từ vị trí file con này
+current_file_dir = os.path.dirname(os.path.abspath(__file__))
+root_project_dir = os.path.dirname(os.path.dirname(current_file_dir))
+
+if root_project_dir not in sys.path:
+    sys.path.insert(0, root_project_dir)
 
 import streamlit as st
 import pandas as pd
