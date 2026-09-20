@@ -1,3 +1,4 @@
+# database.py
 import streamlit as st
 import pandas as pd
 from supabase import create_client, Client
@@ -158,7 +159,6 @@ def load_folders_db():
     return default_folders
 
 def update_production_log_deleted_status(db_ids, is_deleted):
-    """Cập nhật trạng thái xóa"""
     if supabase is None or not db_ids:
         return None
     try:
@@ -170,13 +170,11 @@ def update_production_log_deleted_status(db_ids, is_deleted):
         return None
 
 def upload_multiple_images_to_storage(uploaded_files):
-    """Hàm lưu trữ ảnh"""
     if not uploaded_files:
         return ""
     return "image_placeholder_url.png"
 
 def permanent_delete_db(db_ids):
-    """Xóa vĩnh viễn trong thùng rác"""
     if supabase is None or not db_ids:
         return None
     try:
@@ -188,7 +186,6 @@ def permanent_delete_db(db_ids):
         return None
 
 def add_attendance_log_db(ngay, nhan_su, gio_vao):
-    """Hàm xử lý khi nhân viên bấm Check-in"""
     if supabase is None:
         return None
     try:
@@ -207,7 +204,6 @@ def add_attendance_log_db(ngay, nhan_su, gio_vao):
         return None
 
 def update_attendance_checkout_db(db_id, gio_ra, so_phut, ghi_chu=""):
-    """Hàm xử lý khi nhân viên bấm Check-out"""
     if supabase is None:
         return None
     try:
@@ -224,20 +220,21 @@ def update_attendance_checkout_db(db_id, gio_ra, so_phut, ghi_chu=""):
 
 @st.cache_data(ttl=600, show_spinner=False)
 def get_rules_db():
-    """Lấy danh sách hạng mục định mức công việc"""
+    """Lấy danh sách hạng mục định mức công việc hỗ trợ đồng bộ đa dạng tên cột"""
     if supabase is None:
         return pd.DataFrame()
     try:
         res = supabase.table("rules").select("*").execute()
         if res.data:
             df = pd.DataFrame(res.data)
-            df = df.rename(columns={
-                "id": "db_id", 
-                "hang_muc_cong_viec": "Hạng Mục Công Việc",
-                "he_so_diem": "Hệ Số Điểm", 
-                "don_vi": "Đơn Vị",
-                "ghi_chu": "Ghi Chú"
-            })
+            rename_map = {}
+            if "hang_muc" in df.columns: rename_map["hang_muc"] = "Hạng Mục Công Việc"
+            if "hang_muc_cong_viec" in df.columns: rename_map["hang_muc_cong_viec"] = "Hạng Mục Công Việc"
+            if "he_so_diem" in df.columns: rename_map["he_so_diem"] = "Hệ Số Điểm"
+            if "don_vi" in df.columns: rename_map["don_vi"] = "Đơn Vị"
+            if "ghi_chu" in df.columns: rename_map["ghi_chu"] = "Ghi Chú"
+            
+            df = df.rename(columns=rename_map)
             return df
     except Exception as e:
         st.error(f"Lỗi khi tải bảng định mức: {e}")
@@ -245,7 +242,6 @@ def get_rules_db():
     return pd.DataFrame()
 
 def add_rule_db(hang_muc, he_so, don_vi, ghi_chu=""):
-    """Thêm một hạng mục định mức mới"""
     if supabase is None:
         return None
     try:
@@ -262,7 +258,6 @@ def add_rule_db(hang_muc, he_so, don_vi, ghi_chu=""):
         return None
 
 def update_rule_db(db_id, hang_muc, he_so, don_vi, ghi_chu=""):
-    """Cập nhật hạng mục định mức"""
     if supabase is None:
         return None
     try:
@@ -279,7 +274,6 @@ def update_rule_db(db_id, hang_muc, he_so, don_vi, ghi_chu=""):
         return None
 
 def delete_rule_db(db_id):
-    """Xóa hoàn toàn một hạng mục định mức"""
     if supabase is None:
         return None
     try:
