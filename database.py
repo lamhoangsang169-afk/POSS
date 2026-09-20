@@ -39,20 +39,28 @@ def get_staff_list_db():
     return []
 
 @st.cache_data(ttl=600, show_spinner=False)
-def get_rules_df_db():
-    if supabase is None:
-        return pd.DataFrame(columns=["id", "stt", "Hạng Mục Công Việc", "Đơn Vị", "Hệ Số Điểm", "Ghi Chú"])
+def add_production_log_db(ngay, gio, nhan_su, hang_muc, anh, don_vi, so_luong, he_so, tong_diem, ghi_chu):
     try:
-        res = supabase.table("rules").select("*").order("stt", desc=False).execute()
-        if res.data:
-            df = pd.DataFrame(res.data)
-            rename_map = {}
-            if "hang_muc" in df.columns: rename_map["hang_muc"] = "Hạng Mục Công Việc"
-            if "don_vi" in df.columns: rename_map["don_vi"] = "Đơn Vị"
-            if "he_so_diem" in df.columns: rename_map["he_so_diem"] = "Hệ Số Điểm"
-            if "ghi_chu" in df.columns: rename_map["ghi_chu"] = "Ghi Chú"
-            df = df.rename(columns=rename_map)
-            return df
+        data = {
+            "Ngày": ngay,
+            "Giờ": gio,
+            "Nhân Sự": nhan_su,
+            "Hạng Mục Công Việc": hang_muc,
+            "Hình Ảnh": anh,
+            "Đơn Vi": don_vi,
+            "Số Lượng Thực Tế": so_luong,
+            "Hệ Số Điểm": he_so,
+            "Tổng Điểm": tong_diem,
+            "Ghi Chú": ghi_chu,
+            "is_deleted": False
+        }
+        # Thay 'production_logs' bằng đúng tên bảng (Table) của bạn trên Supabase nếu có khác biệt
+        response = st.session_state["supabase"].table("production_logs").insert(data).execute()
+        return response
+    except Exception as e:
+        st.error(f"Lỗi database: {e}")
+        return None
+
     except Exception:
         pass
     return pd.DataFrame(columns=["id", "stt", "Hạng Mục Công Việc", "Đơn Vị", "Hệ Số Điểm", "Ghi Chú"])
