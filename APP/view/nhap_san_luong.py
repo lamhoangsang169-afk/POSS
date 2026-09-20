@@ -19,13 +19,12 @@ def find_column_case_insensitive(df, target_names):
         if target_clean in cols:
             idx = cols.index(target_clean)
             return df.columns[idx]
-        # Thử bỏ dấu gạch dưới hoặc khoảng trắng để tìm kiếm sâu
         target_no_space = target_clean.replace(" ", "").replace("_", "")
         for i, c in enumerate(cols):
             c_clean = c.replace(" ", "").replace("_", "")
             if target_no_space == c_clean:
                 return df.columns[i]
-    return None
+    return df.columns[0] if len(df.columns) > 0 else None
 
 def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
     now_vn = datetime.datetime.now(VN_TIMEZONE)
@@ -119,15 +118,15 @@ def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
     
     if not input_df.empty:
         # Ánh xạ động các cột để chống lỗi lệch tên cột trong Database/Google Sheets
-        col_ngay = find_column_case_insensitive(input_df, ["Ngày", "ngay", "ngày làm việc"])
-        col_gio = find_column_case_insensitive(input_df, ["Thời Gian", "thoi_gian", "giờ", "gio"])
-        col_nhan_su = find_column_case_insensitive(input_df, ["Nhân Sự", "nhan_su", "nhân sự thực hiện"])
-        col_hang_muc = find_column_case_insensitive(input_df, ["Hạng Mục Công Việc", "hang_muc_cong_viec", "hạng mục", "hang_muc"])
-        col_so_luong = find_column_case_insensitive(input_df, ["Số Lượng Thực Tế", "Số Lượng", "so_luong", "qty"])
-        col_don_vi = find_column_case_insensitive(input_df, ["Đơn Vị", "don_vi", "unit"])
-        col_tong_diem = find_column_case_insensitive(input_df, ["Tổng Điểm", "tong_diem", "điểm", "diem"])
-        col_ghi_chu = find_column_case_insensitive(input_df, ["Ghi Chú", "ghi_chu", "note"])
-        col_hinh_anh = find_column_case_insensitive(input_df, ["Hình Ảnh", "hinh_anh", "img_urls"])
+        col_ngay = find_column_case_insensitive(input_df, ["Ngày", "ngay", "ngày làm việc", "Ngày làm việc"])
+        col_gio = find_column_case_insensitive(input_df, ["Thời Gian", "thoi_gian", "giờ", "gio", "Thời gian"])
+        col_nhan_su = find_column_case_insensitive(input_df, ["Nhân Sự", "nhan_su", "nhân sự thực hiện", "Nhân sự"])
+        col_hang_muc = find_column_case_insensitive(input_df, ["Hạng Mục Công Việc", "hang_muc_cong_viec", "hạng mục", "hang_muc", "Hạng mục"])
+        col_so_luong = find_column_case_insensitive(input_df, ["Số Lượng Thực Tế", "Số Lượng", "so_luong", "qty", "Số lượng"])
+        col_don_vi = find_column_case_insensitive(input_df, ["Đơn Vị", "don_vi", "unit", "Đơn vị"])
+        col_tong_diem = find_column_case_insensitive(input_df, ["Tổng Điểm", "tong_diem", "điểm", "diem", "Tổng điểm"])
+        col_ghi_chu = find_column_case_insensitive(input_df, ["Ghi Chú", "ghi_chu", "note", "Ghi chú"])
+        col_hinh_anh = find_column_case_insensitive(input_df, ["Hình Ảnh", "hinh_anh", "img_urls", "Hình ảnh"])
 
         # Bộ lọc ngang tích hợp phân trang góc phải chuẩn tỉ lệ UX hình mẫu
         filter_col1, filter_col2, filter_col3, filter_col4, filter_col5, filter_col6 = st.columns([1.2, 1.2, 0.8, 1.5, 1.5, 1.5])
@@ -150,17 +149,15 @@ def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
 
         filtered_df = input_df.copy()
         
-        # Tiến hành lọc dữ liệu an toàn dựa trên chuỗi chữ của Google Sheets
+        # Tiến hành lọc dữ liệu an toàn, bảo lưu dữ liệu nếu bộ lọc ngày lỗi chuỗi văn bản
         if col_ngay:
             try:
                 parsed_dates = pd.to_datetime(filtered_df[col_ngay], errors='coerce').dt.date
                 nas = parsed_dates.isna()
                 if nas.any():
-                    filtered_df.loc[nas, "_ngay_parsed"] = pd.to_datetime(filtered_df.loc[nas, col_ngay], format='%d/%m/%Y', errors='coerce').dt.date
-                else:
-                    filtered_df["_ngay_parsed"] = parsed_dates
+                    parsed_dates[nas] = pd.to_datetime(filtered_df.loc[nas, col_ngay], format='%d/%m/%Y', errors='coerce').dt.date
                 
-                temp_df = filtered_df[(filtered_df["_ngay_parsed"] >= start_filter_date) & (filtered_df["_ngay_parsed"] <= end_filter_date)]
+                temp_df = filtered_df[(parsed_dates >= start_filter_date) & (parsed_dates <= end_filter_date)]
                 if not temp_df.empty:
                     filtered_df = temp_df
             except:
@@ -178,3 +175,4 @@ def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
         if selected_task != "Tất cả" and col_hang_muc:
             filtered_df = filtered_df[filtered_df[col_hang_muc] == selected_task]
 
+        total_records = len(filtered_df)
