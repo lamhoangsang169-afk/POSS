@@ -37,6 +37,24 @@ def clean_name(full_name):
         return name_parts[-1]
     return full_name
 
+def convert_minutes_to_work_days(total_minutes, minutes_per_day=480):
+    """
+    Hàm cải tiến quy đổi tổng số phút thành chuỗi chi tiết 'X ngày Y phút'.
+    Mặc định 1 ngày công tiêu chuẩn = 8 tiếng = 480 phút (Bạn có thể sửa số này theo quy định công ty).
+    """
+    if total_minutes <= 0:
+        return "0 ngày"
+    
+    days = int(total_minutes // minutes_per_day)
+    remaining_minutes = int(total_minutes % minutes_per_day)
+    
+    if days > 0 and remaining_minutes > 0:
+        return f"{days} ngày {remaining_minutes} phút"
+    elif days > 0:
+        return f"{days} ngày"
+    else:
+        return f"{remaining_minutes} phút"
+
 def render_bao_cao(current_menu_name):
     st.subheader(f"📊 {current_menu_name}")
     
@@ -70,7 +88,6 @@ def render_bao_cao(current_menu_name):
 
     if not att_df.empty:
         att_df["Số Phút Làm Việc"] = pd.to_numeric(att_df["Số Phút Làm Việc"], errors='coerce').fillna(0)
-        # Lọc bảng chấm công theo khoảng ngày được chọn
         att_df["Ngày_DT"] = pd.to_datetime(att_df["Ngày"], errors='coerce')
         att_filtered = att_df[(att_df["Ngày_DT"].dt.date >= start_date) & (att_df["Ngày_DT"].dt.date <= end_date)]
     else:
@@ -88,7 +105,6 @@ def render_bao_cao(current_menu_name):
     else:
         summary_staff["ty_le_hieu_suat"] = 0.0
 
-    # Xếp hạng nhân sự theo tổng điểm từ cao xuống thấp
     summary_staff = summary_staff.sort_values(by="tong_diem_tich_luy", ascending=False).reset_index(drop=True)
     summary_staff.insert(0, "Xếp Hạng (Top)", [f"🏆 Top {i+1}" for i in range(len(summary_staff))])
 
@@ -108,28 +124,25 @@ def render_bao_cao(current_menu_name):
     # --- TÍNH TOÁN BẢNG ĐỐI CHIẾU THỜI GIAN VÀ SẢN LƯỢNG ---
     st.markdown("### 👥 Bảng Đối Chiếu Thời Gian Làm Việc & Sản Lượng")
     
-    # === ĐÃ BỔ SUNG: Tính tổng số phút và đếm số ngày làm việc duy nhất của từng nhân sự ===
     if not att_filtered.empty and "Nhân Sự" in att_filtered.columns:
         time_staff = att_filtered.groupby("Nhân Sự").agg(
-            tong_phut_lam_viec=("Số Phút Làm Việc", "sum"),
-            so_ngay_lam_viec=("Ngày", "nunique") # Đếm số ngày chấm công khác nhau
+            tong_phut_lam_viec=("Số Phút Làm Việc", "sum")
         ).reset_index()
     else:
-        time_staff = pd.DataFrame(columns=["Nhân Sự", "tong_phut_lam_viec", "so_ngay_lam_viec"])
+        time_staff = pd.DataFrame(columns=["Nhân Sự", "tong_phut_lam_viec"])
 
     # Gộp bảng sản lượng và bảng chấm công nâng cao
     cross_df = pd.merge(summary_staff, time_staff, on="Nhân Sự", how="left").fillna(0)
-    
     cross_df["tong_phut_lam"] = cross_df["tong_phut_lam_viec"].astype(int)
-    cross_df["so_ngay_lam"] = cross_df["so_ngay_lam_viec"].astype(int)
     cross_df["diem_moi_phut"] = (cross_df["tong_diem_tich_luy"] / cross_df["tong_phut_lam"].replace(0, 1)).round(3)
     
-    # Thêm cột Số Ngày Làm Việc vào lưới hiển thị đối chiếu đúng cấu trúc
+    # === ÁP DỤNG CẢI TIẾN: Quy đổi tổng số phút thành chuỗi chi tiết "X ngày Y phút" ===
+    cross_df["Số Ngày Làm Việc"] = cross_df["tong_phut_lam"].apply(lambda x: convert_minutes_to_work_days(x, minutes_per_day=480))
+    
     cross_display = cross_df[[
-        "Xếp Hạng (Top)", "Nhân Sự", "so_ngay_lam", "tong_phut_lam", 
+        "Xếp Hạng (Top)", "Nhân Sự", "Số Ngày Làm Việc", "tong_phut_lam", 
         "so_luong_thuc_te", "tong_diem_tich_luy", "diem_moi_phut", "ty_le_hieu_suat"
     ]].rename(columns={
-        "so_ngay_lam": "Số Ngày Làm Việc",
         "tong_phut_lam": "Tổng Số Phút Làm",
         "so_luong_thuc_te": "Tổng Sản Lượng Thực Tế",
         "tong_diem_tich_luy": "Tổng Điểm",
