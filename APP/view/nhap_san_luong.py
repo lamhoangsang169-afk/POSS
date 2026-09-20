@@ -10,7 +10,6 @@ import datetime
 current_file_dir = os.path.dirname(os.path.abspath(__file__))
 root_project_dir = os.path.dirname(os.path.dirname(current_file_dir))
 
-# Hàm nạp file python động bất chấp môi trường Windows/Linux
 def load_module_from_path(module_name, file_path):
     spec = importlib.util.spec_from_file_location(module_name, file_path)
     module = importlib.util.module_from_spec(spec)
@@ -18,14 +17,12 @@ def load_module_from_path(module_name, file_path):
     spec.loader.exec_module(module)
     return module
 
-# Nạp database.py và utils.py từ thư mục gốc dự án
 db_path = os.path.join(root_project_dir, "database.py")
 utils_path = os.path.join(root_project_dir, "utils.py")
 
 db_module = load_module_from_path("database", db_path)
 utils_module = load_module_from_path("utils", utils_path)
 
-# Trích xuất các hàm và biến cần thiết để sử dụng trong giao diện
 VN_TIMEZONE = utils_module.VN_TIMEZONE
 get_production_logs_db = db_module.get_production_logs_db
 add_production_log_db = db_module.add_production_log_db
@@ -111,7 +108,8 @@ def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
 
     st.markdown("---")
     
-    col_title_1, col_title_2 = st.columns()
+    # === ĐÃ SỬA LỖI Ở ĐÂY: Thêm số 2 vào st.columns để phân chia thành 2 cột hợp lệ ===
+    col_title_1, col_title_2 = st.columns(2)
     with col_title_1:
         st.subheader("Danh Sách Sản Lượng & Hình Ảnh")
     with col_title_2:
