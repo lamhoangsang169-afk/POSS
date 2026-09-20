@@ -61,7 +61,7 @@ def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
                 staff_options = ["--- Vui lòng chọn nhân sự ---"] + active_staff
                 nhan_su = st.selectbox("Nhân sự thực hiện", staff_options)
             with f_col3:
-                # Nạp dữ liệu định mức trực tiếp từ hàm database hệ thống của bạn
+                # Nạp dữ liệu định mức chuẩn xác vào session_state
                 rules_df = st.session_state.get("rules_df", pd.DataFrame())
                 if rules_df.empty and get_rules_db is not None:
                     try:
@@ -100,7 +100,7 @@ def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
     st.markdown("---")
 
     # ==================== PHẦN 2: DANH SÁCH SẢN LƯỢNG & HÌNH ẢNH ====================
-    col_title_1, col_title_2 = st.columns([5, 1])
+    col_title_1, col_title_2 = st.columns()
     with col_title_1:
         st.markdown("<h3 style='color: #1e3a8a;'>Danh Sách Sản Lượng & Hình Ảnh</h3>", unsafe_allow_html=True)
     with col_title_2:
@@ -133,31 +133,29 @@ def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
         with filter_col4:
             selected_staff = st.selectbox("Lọc theo Nhân Sự", all_staffs, key="f_staff")
         with filter_col5:
-            selected_task = st.selectbox("Lọc theo Hạng Mục", all_tasks, key="f_task")
+            selected_task = st.selectbox("Lockey theo Hạng Mục", all_tasks, key="f_task")
 
         # Tiến hành lọc dữ liệu
         filtered_df = raw_input_df.copy()
-        try:
-            filtered_df["_ngay_str"] = filtered_df["Grid"].astype(str).str.strip()
-            # Dự phòng nếu tên cột là Ngày
-            if "Ngày" in filtered_df.columns:
-                filtered_df["_ngay_str"] = filtered_df["Ngày"].astype(str).str.strip()
-            s_str = start_filter_date.strftime("%Y-%m-%d")
-            e_str = end_filter_date.strftime("%Y-%m-%d")
-            filtered_df = filtered_df[(filtered_df["_ngay_str"] >= s_str) & (filtered_df["_ngay_str"] <= e_str)]
-        except:
-            pass
         
-        if filter_by_time:
+        # === SỬA ĐỔI QUAN TRỌNG: Ép ngày chuẩn datetime để bộ lọc không xóa nhầm dữ liệu ===
+        if "Ngày" in filtered_df.columns:
+            try:
+                filtered_df["_ngay_parsed"] = pd.to_datetime(filtered_df["Ngày"], errors='coerce').dt.date
+                filtered_df = filtered_df[(filtered_df["_ngay_parsed"] >= start_filter_date) & (filtered_df["_ngay_parsed"] <= end_filter_date)]
+            except:
+                pass
+        
+        if filter_by_time and "Thời Gian" in filtered_df.columns:
             try:
                 current_hour_str = f"{now_vn.hour:02d}:"
                 filtered_df = filtered_df[filtered_df["Thời Gian"].astype(str).str.contains(current_hour_str, na=False)]
             except:
                 pass
 
-        if selected_staff != "Tất cả":
+        if selected_staff != "Tất cả" and "Nhân Sự" in filtered_df.columns:
             filtered_df = filtered_df[filtered_df["Nhân Sự"] == selected_staff]
-        if selected_task != "Tất cả":
+        if selected_task != "Tất cả" and "Hạng Mục Công Việc" in filtered_df.columns:
             filtered_df = filtered_df[filtered_df["Hạng Mục Công Việc"] == selected_task]
 
         total_records = len(filtered_df)
@@ -180,7 +178,7 @@ def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
             # Khối nút thao tác xóa hàng loạt cho Admin giống thiết kế của bạn
             if current_user_role == "Admin":
                 st.markdown("<br>", unsafe_allow_html=True)
-                btn_c1, btn_c2 = st.columns([5, 1])
+                btn_c1, btn_c2 = st.columns()
                 with btn_c1:
                     btn_delete_selected = st.button("🗑️ Xóa các dòng đã chọn", use_container_width=True, type="primary", key="btn_del_selected_final")
                 with btn_c2:
@@ -188,5 +186,3 @@ def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
                     confirm_all = st.checkbox("Xác nhận xóa tất cả các trang này", key="chk_confirm_all_del")
                 
                 st.markdown("<div style='margin-top: 10px;'></div>", unsafe_allow_html=True)
-                btn_del_all = st.button("🗑️ Xóa tất cả cả trang này", use_container_width=True, key="btn_del_page_all")
-
