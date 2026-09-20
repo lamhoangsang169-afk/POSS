@@ -2,19 +2,15 @@ import os
 import sys
 import streamlit as st
 
-# ==================== PHÁ VỠ BỘ NHỚ ĐỆM ĐƯỜNG DẪN (ANTI-CACHE) ====================
+# ==================== CẤU HÌNH ĐƯỜNG DẪN HỆ THỐNG GỐC ====================
 current_dir = os.path.dirname(os.path.abspath(__file__))
-
-# Ép hệ thống nhận diện thư mục gốc chứa database.py và utils.py
 if current_dir not in sys.path:
     sys.path.insert(0, current_dir)
 
-# Ép hệ thống nhận diện thư mục con APP/view chứa các trang nghiệp vụ
 view_path = os.path.join(current_dir, "APP", "view")
 if view_path not in sys.path:
     sys.path.insert(0, view_path)
 
-# Khai báo biến môi trường hệ thống cho Linux
 os.environ["PYTHONPATH"] = current_dir
 
 # ==================== IMPORT CÁC TRANG NGHIỆP VỤ TỪ APP/view ====================
@@ -25,7 +21,10 @@ import thu_muc_bao_cao
 import dinh_muc_cong_viec
 import thung_rac
 
-# Giả lập biến quyền user_perms và vai trò user_role để tránh lỗi crash nếu chưa định nghĩa
+# Cấu hình hiển thị trang web Streamlit
+st.set_page_config(page_title="Hệ Thống Quản Lý POSS", page_icon="🏭", layout="wide")
+
+# Khởi tạo các biến quyền và vai trò mặc định trong Session State nếu chưa có
 if "user_perms" not in st.session_state:
     st.session_state["user_perms"] = {"perm_input": True, "perm_rules": True}
 if "user_role" not in st.session_state:
@@ -34,23 +33,42 @@ if "user_role" not in st.session_state:
 user_perms = st.session_state["user_perms"]
 current_user_role = st.session_state["user_role"]
 
+# ==================== THIẾT KẾ GIAO DIỆN THANH MENU BÊN TRÁI (SIDEBAR) ====================
+st.sidebar.title("🏭 Hệ Thống POSS")
+st.sidebar.write(f"👤 Vai trò: **{current_user_role}**")
+st.sidebar.markdown("---")
+
+# Tạo danh sách menu lựa chọn cho người dùng
+menu_options = [
+    "1. Nhập Sản Lượng",
+    "⏱️ Chấm Công Ca Làm Việc",
+    "📊 Báo Cáo & Biểu Đồ",
+    "📂 Thư Mục Báo Cáo",
+    "📋 Định Mức Công Việc",
+    "🗑️ Thùng Rác"
+]
+choice = st.sidebar.radio("📌 Danh Mục Nghiệp Vụ", menu_options)
+
+# ==================== ĐIỀU HƯỚNG VÀ HIỂN THỊ NỘI DUNG CHÍNH ====================
 @st.fragment
 def render_main_content(current_menu_name):
-    # ==================== ĐIỀU HƯỚNG CÁC TRANG NGHIỆP VỤ ====================
-    if current_menu_name in ["1. Nhập Sản Lượng", "input_production"]:
+    if current_menu_name == "1. Nhập Sản Lượng":
         nhap_san_luong.render_nhap_san_luong(current_menu_name, current_user_role, user_perms)
         
     elif current_menu_name == "⏱️ Chấm Công Ca Làm Việc":
         cham_cong.render_cham_cong(current_menu_name, current_user_role)
         
-    elif current_menu_name in ["📊 Báo Cáo & Biểu Đồ", "report"]:
+    elif current_menu_name == "📊 Báo Cáo & Biểu Đồ":
         bao_cao.render_bao_cao(current_menu_name)
         
-    elif current_menu_name in ["📂 Thư Mục Báo Cáo", "report_folder"]:
+    elif current_menu_name == "📂 Thư Mục Báo Cáo":
         thu_muc_bao_cao.render_thu_muc_bao_cao(current_menu_name)
         
-    elif current_menu_name in ["📋 Định Mức Công Việc", "rules"]:
+    elif current_menu_name == "📋 Định Mức Công Việc":
         dinh_muc_cong_viec.render_dinh_muc_cong_viec(current_menu_name, current_user_role, user_perms)
         
-    elif current_menu_name in ["🗑️ Thùng Rác", "trash"]:
+    elif current_menu_name == "🗑️ Thùng Rác":
         thung_rac.render_thung_rac(current_menu_name, current_user_role)
+
+# Kích hoạt gọi hàm hiển thị nội dung trang được chọn lên màn hình chính
+render_main_content(choice)
