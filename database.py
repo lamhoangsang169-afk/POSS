@@ -61,7 +61,8 @@ def add_production_log_db(ngay, gio, nhan_su, hang_muc, anh, don_vi, so_luong, h
         st.error(f"Lỗi database: {e}")
         return None
 
-def get_production_logs_db(is_deleted=False, limit_rows=150):
+def get_production_logs_db(is_deleted=False, limit_rows=1000):
+    """Tăng limit_rows lên 1000 để tải đầy đủ toàn bộ bản ghi từ Supabase"""
     if supabase is None:
         return pd.DataFrame()
     try:
@@ -220,7 +221,6 @@ def update_attendance_checkout_db(db_id, gio_ra, so_phut, ghi_chu=""):
 
 @st.cache_data(ttl=600, show_spinner=False)
 def get_rules_db():
-    """Lấy danh sách hạng mục định mức công việc hỗ trợ đồng bộ đa dạng tên cột"""
     if supabase is None:
         return pd.DataFrame()
     try:
