@@ -1,3 +1,15 @@
+# view/thung_rac.py
+import os
+import sys
+
+# ==================== SỬA LỖI ĐƯỜNG DẪN IMPORT (BẮT BUỘC) ====================
+# Ép Python tìm ngược ra thư mục gốc để thấy file database.py và utils.py
+current_file_dir = os.path.dirname(os.path.abspath(__file__))
+root_project_dir = os.path.dirname(os.path.dirname(current_file_dir))
+
+if root_project_dir not in sys.path:
+    sys.path.insert(0, root_project_dir)
+
 import streamlit as st
 from database import (
     get_production_logs_db,
@@ -7,9 +19,9 @@ from database import (
 
 def render_thung_rac(current_menu_name, current_user_role):
     col_trash_h1, col_trash_h2 = st.columns([3, 1])
-    with col_trash_h1:
+    with col_att_h1 if 'col_att_h1' in locals() else col_trash_h1:
         st.header(current_menu_name)
-    with col_trash_h2:
+    with col_att_h2 if 'col_att_h2' in locals() else col_trash_h2:
         if st.button("🔄 Làm mới dữ liệu", use_container_width=True, key="btn_refresh_trash"):
             st.cache_data.clear()
             st.rerun()
@@ -23,7 +35,7 @@ def render_thung_rac(current_menu_name, current_user_role):
         if not trash_df.empty:
             with st.form("trash_form"):
                 for idx, row in trash_df.iterrows():
-                    st.markdown(f'<div style="background: rgba(255,255,255,0.85); padding: 8px 10px; border-radius: 6px; border: 1px solid rgba(0,0,0,0.1); margin-bottom: 4px; font-size: 0.85rem;"><b>STT: {row['STT']}</b> | 📅 {row['Ngày']} | 👤 <b>{row['Nhân Sự']}</b> | 📌 {row['Hạng Mục Công Việc']} ({row['Số Lượng']} {row['Đơn Vị']})</div>', unsafe_allow_html=True)
+                    st.markdown(f'<div style="background: rgba(255,255,255,0.85); padding: 8px 10px; border-radius: 6px; border: 1px solid rgba(0,0,0,0.1); margin-bottom: 4px; font-size: 0.85rem;"><b>STT: {row["STT"]}</b> | 📅 {row["Ngày"]} | 👤 <b>{row["Nhân Sự"]}</b> | 📌 {row["Hạng Mục Công Việc"]} ({row["Số Lượng"]} {row["Đơn Vị"]})</div>', unsafe_allow_html=True)
                     trash_df.loc[idx, "Chọn"] = st.checkbox(f"Chọn sản lượng STT {row['STT']}", key=f"t_{row['db_id']}")
                     
                 c1, c2 = st.columns(2)
