@@ -80,7 +80,7 @@ def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
 
     st.markdown("---")
     
-    # --- KHỐI 2: LƯỚI THẺ SẢN LƯỢNG VÀ BỘ LỌC NGANG CHUẨN UX GIAO DIỆN ---
+    # ==================== PHẦN 2: DANH SÁCH SẢN LƯỢNG & HÌNH ẢNH ====================
     col_title_1, col_title_2 = st.columns(2)
     with col_title_1:
         st.markdown("<h3 style='color: #1e3a8a;'>Danh Sách Sản Lượng & Hình Ảnh</h3>", unsafe_allow_html=True)
@@ -112,11 +112,23 @@ def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
 
         filtered_df = input_df.copy()
         
+        # 1. Lọc theo khoảng ngày
         col_ngay = next((c for c in filtered_df.columns if str(c).lower().strip() in ["ngày", "ngay"]), "")
         if col_ngay:
             filtered_df["Ngày_DT"] = pd.to_datetime(filtered_df[col_ngay], errors='coerce').dt.date
             filtered_df = filtered_df[(filtered_df["Ngày_DT"] >= start_filter_date) & (filtered_df["Ngày_DT"] <= end_filter_date)]
         
+        # === ĐÃ KÍCH HOẠT: Logic bộ lọc theo giờ thực tế (Lọc các bản ghi phát sinh trong vòng 1 tiếng qua) ===
+        col_gio = next((c for c in filtered_df.columns if str(c).lower().strip() in ["thời gian", "giờ", "gio", "thoi_gian"]), "")
+        if filter_by_time and col_gio:
+            current_hour = now_vn.hour
+            def matches_current_hour(val):
+                try:
+                    return int(str(val).split(":")[0]) == current_hour
+                except:
+                    return False
+            filtered_df = filtered_df[filtered_df[col_gio].apply(matches_current_hour)]
+
         if selected_staff != "Tất cả" and col_nhan_su in filtered_df.columns:
             filtered_df = filtered_df[filtered_df[col_nhan_su] == selected_staff]
         if selected_task != "Tất cả" and col_hang_muc in filtered_df.columns:
@@ -128,16 +140,26 @@ def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
         if total_records > 0:
             selected_to_delete = []
 
-            # === ĐÃ FIX TRIỆT ĐỂ: Đồng bộ chính xác khung chứa nút xóa và hộp chọn ngang hàng giống ảnh cũ ===
+            # === THANH PHÂN TRANG (PAGINATION Đã khôi phục chuẩn xác) ===
+            records_per_page = 10
+            total_pages = (total_records + records_per_page - 1) // records_per_page
+            
+            # Khởi tạo thanh chọn số trang dạng hộp nhập/chọn ngay trên giao diện chính
+            page_col1, page_col2 = st.columns([4, 1])
+            with page_col2:
+                page_number = st.number_input(f"Trang (1/{total_pages})", min_value=1, max_value=total_pages, value=1, step=1, key="num_page_selector")
+            
+            start_idx = (page_number - 1) * records_per_page
+            end_idx = min(start_idx + records_per_page, total_records)
+            page_df = filtered_df.iloc[start_idx:end_idx]
+
+            # Khối nút xóa hàng loạt của Admin phía trên
             if current_user_role == "Admin":
                 st.markdown("<br>", unsafe_allow_html=True)
-                
-                # Nút bấm lớn màu đỏ xóa các dòng được chọn (Đặt riêng biệt phía trên)
                 btn_delete_selected = st.button("🗑️ Xóa Các Bản Ghi Đã Chọn", use_container_width=True, type="primary", key="btn_del_selected_new")
                 
                 st.markdown("<div style='margin-top: 10px;'></div>", unsafe_allow_html=True)
                 
-                # Cấu trúc hàng phụ chứa ô tích chọn xác nhận và nút xóa tất cả trang
                 del_c1, del_c2 = st.columns([2.5, 2.5])
                 with del_c1:
                     st.markdown("<div style='margin-top: 5px;'>", unsafe_allow_html=True)
@@ -148,26 +170,10 @@ def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
 
             st.markdown("<br>", unsafe_allow_html=True)
 
-            # === HIỂN THỊ CÁC THẺ CONTAINER BẢN GHI ===
-            for idx, row in filtered_df.iterrows():
-                display_stt = filtered_df.index.get_loc(idx) + 1
-                id_col = "db_id" if "db_id" in filtered_df.columns else ("id" if "id" in filtered_df.columns else filtered_df.columns[0])
+            # === HIỂN THỊ CÁC THẺ CONTAINER BẢN GHI (Kèm hình ảnh và Checkbox chọn xóa) ===
+            for idx, row in page_df.iterrows():
+                display_stt = start_idx + page_df.index.get_loc(idx) + 1
+                id_col = "db_id" if "db_id" in filtered_df.columns else ("id" if "id" in filtered_df.columns else filtered_df.columns)
                 row_id = row[id_col]
                 
                 with st.container(border=True):
-                    main_c1, main_c2 = st.columns([4, 1])
-                    
-                    with main_c1:
-                        # Bóc tách tên trường động từ dataframe tránh lỗi lệch tên cột DB
-                        val_ngay = row[col_ngay] if col_ngay else today_str
-                        val_gio = row.get("Thời Gian", row.get("Giờ", row.get("thoi_gian", "00:00:00")))
-                        val_user = row.get(col_nhan_su, "")
-                        val_task = row.get(col_hang_muc, "")
-                        val_qty = row.get("Số Lượng Thực Tế", row.get("Số Lượng", row.get("so_luong", 0)))
-                        val_unit = row.get("Đơn Vị", row.get("don_vi", "Cái"))
-                        val_score = row.get("Tổng Điểm", row.get("tong_diem", 0.0))
-                        val_note = row.get("Ghi Chú", row.get("ghi_chu", ""))
-                        
-                        st.markdown(f"**STT: {display_stt}** | 📅 {val_ngay} 🕒 {val_gio} | 👤 <b style='color: #1e40af;'>{val_user}</b>", unsafe_allow_html=True)
-                        st.markdown(f"🏗️ **{val_task}** | 📦 {int(val_qty)} {val_unit} | ⭐ **{float(val_score):.1f} điểm**")
-                        
