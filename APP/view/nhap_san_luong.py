@@ -11,6 +11,22 @@ from database import (
     get_attendance_db
 )
 
+def find_column_case_insensitive(df, target_names):
+    """Tìm tên cột thực tế trong DataFrame không phân biệt hoa thường hoặc dấu gạch dưới"""
+    cols = [str(c).strip().lower() for c in df.columns]
+    for target in target_names:
+        target_clean = target.strip().lower()
+        if target_clean in cols:
+            idx = cols.index(target_clean)
+            return df.columns[idx]
+        # Thử bỏ dấu gạch dưới hoặc khoảng trắng để tìm kiếm sâu
+        target_no_space = target_clean.replace(" ", "").replace("_", "")
+        for i, c in enumerate(cols):
+            c_clean = c.replace(" ", "").replace("_", "")
+            if target_no_space == c_clean:
+                return df.columns[i]
+    return None
+
 def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
     now_vn = datetime.datetime.now(VN_TIMEZONE)
     today_str = str(now_vn.date())
@@ -77,8 +93,8 @@ def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
 
                     if is_valid:
                         row_rule = rules_df[rules_df["Hạng Mục Công Việc"] == hang_muc] if not rules_df.empty else pd.DataFrame()
-                        he_so = float(row_rule["Hệ Số Điểm"].values[0]) if not row_rule.empty else 1.0
-                        don_vi = row_rule["Đơn Vị"].values[0] if not row_rule.empty else "Cái"
+                        he_so = float(row_rule["Hệ Số Điểm"].values) if not row_rule.empty else 1.0
+                        don_vi = row_rule["Đơn Vị"].values if not row_rule.empty else "Cái"
                         tong_diem = so_luong * he_so
                         
                         img_urls = upload_multiple_images_to_storage(record_images) if record_images else ""
@@ -91,7 +107,7 @@ def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
     st.markdown("---")
     
     # ==================== PHẦN 2: DANH SÁCH BẢN GHI THEO THIẾT KẾ UX HÌNH MẪU ====================
-    col_title_1, col_title_2 = st.columns([3, 1])
+    col_title_1, col_title_2 = st.columns(2)
     with col_title_1:
         st.markdown("<h3 style='color: #1e3a8a; margin: 0;'>Danh Sách Sản Lượng & Hình Ảnh</h3>", unsafe_allow_html=True)
     with col_title_2:
@@ -99,10 +115,20 @@ def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
             st.cache_data.clear()
             st.rerun()
     
-    # Tải lượng dữ liệu lớn an toàn để hỗ trợ phân trang cho 476 bản ghi
     input_df = get_production_logs_db(is_deleted=False, limit_rows=1000)
     
     if not input_df.empty:
+        # Ánh xạ động các cột để chống lỗi lệch tên cột trong Database/Google Sheets
+        col_ngay = find_column_case_insensitive(input_df, ["Ngày", "ngay", "ngày làm việc"])
+        col_gio = find_column_case_insensitive(input_df, ["Thời Gian", "thoi_gian", "giờ", "gio"])
+        col_nhan_su = find_column_case_insensitive(input_df, ["Nhân Sự", "nhan_su", "nhân sự thực hiện"])
+        col_hang_muc = find_column_case_insensitive(input_df, ["Hạng Mục Công Việc", "hang_muc_cong_viec", "hạng mục", "hang_muc"])
+        col_so_luong = find_column_case_insensitive(input_df, ["Số Lượng Thực Tế", "Số Lượng", "so_luong", "qty"])
+        col_don_vi = find_column_case_insensitive(input_df, ["Đơn Vị", "don_vi", "unit"])
+        col_tong_diem = find_column_case_insensitive(input_df, ["Tổng Điểm", "tong_diem", "điểm", "diem"])
+        col_ghi_chu = find_column_case_insensitive(input_df, ["Ghi Chú", "ghi_chu", "note"])
+        col_hinh_anh = find_column_case_insensitive(input_df, ["Hình Ảnh", "hinh_anh", "img_urls"])
+
         # Bộ lọc ngang tích hợp phân trang góc phải chuẩn tỉ lệ UX hình mẫu
         filter_col1, filter_col2, filter_col3, filter_col4, filter_col5, filter_col6 = st.columns([1.2, 1.2, 0.8, 1.5, 1.5, 1.5])
         
@@ -114,68 +140,41 @@ def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
             st.markdown("<div style='margin-top: 32px;'></div>", unsafe_allow_html=True)
             filter_by_time = st.checkbox("Lọc theo Giờ", key="f_by_time")
             
-        all_staffs = ["Tất cả"] + sorted(input_df["Nhân Sự"].dropna().unique().tolist()) if "Nhân Sự" in input_df.columns else ["Tất cả"]
-        all_tasks = ["Tất cả"] + sorted(input_df["Hạng Mục Công Việc"].dropna().unique().tolist()) if "Hạng Mục Công Việc" in input_df.columns else ["Tất cả"]
+        all_staffs = ["Tất cả"] + sorted(input_df[col_nhan_su].dropna().unique().tolist()) if col_nhan_su else ["Tất cả"]
+        all_tasks = ["Tất cả"] + sorted(input_df[col_hang_muc].dropna().unique().tolist()) if col_hang_muc else ["Tất cả"]
         
         with filter_col4:
             selected_staff = st.selectbox("Lọc theo Nhân Sự", all_staffs, key="f_staff")
         with filter_col5:
             selected_task = st.selectbox("Lọc theo Hạng Mục", all_tasks, key="f_task")
 
-        # Tiến hành lọc dữ liệu an toàn dựa trên chuỗi chữ của Google Sheets
         filtered_df = input_df.copy()
         
-        if "Ngày" in filtered_df.columns:
+        # Tiến hành lọc dữ liệu an toàn dựa trên chuỗi chữ của Google Sheets
+        if col_ngay:
             try:
-                # Ép ngày an toàn, nếu lỗi chuỗi thì bỏ qua bộ lọc ngày để giữ dữ liệu gốc hiển thị
-                parsed_dates = pd.to_datetime(filtered_df["Ngày"], errors='coerce').dt.date
+                parsed_dates = pd.to_datetime(filtered_df[col_ngay], errors='coerce').dt.date
                 nas = parsed_dates.isna()
                 if nas.any():
-                    parsed_dates[nas] = pd.to_datetime(filtered_df.loc[nas, "Ngày"], format='%d/%m/%Y', errors='coerce').dt.date
+                    filtered_df.loc[nas, "_ngay_parsed"] = pd.to_datetime(filtered_df.loc[nas, col_ngay], format='%d/%m/%Y', errors='coerce').dt.date
+                else:
+                    filtered_df["_ngay_parsed"] = parsed_dates
                 
-                temp_df = filtered_df[(parsed_dates >= start_filter_date) & (parsed_dates <= end_filter_date)]
+                temp_df = filtered_df[(filtered_df["_ngay_parsed"] >= start_filter_date) & (filtered_df["_ngay_parsed"] <= end_filter_date)]
                 if not temp_df.empty:
                     filtered_df = temp_df
             except:
                 pass
         
-        if filter_by_time and "Thời Gian" in filtered_df.columns:
+        if filter_by_time and col_gio:
             try:
                 current_hour_str = f"{now_vn.hour:02d}:"
-                filtered_df = filtered_df[filtered_df["Thời Gian"].astype(str).str.contains(current_hour_str, na=False)]
+                filtered_df = filtered_df[filtered_df[col_gio].astype(str).str.contains(current_hour_str, na=False)]
             except:
                 pass
 
-        if selected_staff != "Tất cả" and "Nhân Sự" in filtered_df.columns:
-            filtered_df = filtered_df[filtered_df["Nhân Sự"] == selected_staff]
-        if selected_task != "Tất cả" and "Hạng Mục Công Việc" in filtered_df.columns:
-            filtered_df = filtered_df[filtered_df["Hạng Mục Công Việc"] == selected_task]
+        if selected_staff != "Tất cả" and col_nhan_su:
+            filtered_df = filtered_df[filtered_df[col_nhan_su] == selected_staff]
+        if selected_task != "Tất cả" and col_hang_muc:
+            filtered_df = filtered_df[filtered_df[col_hang_muc] == selected_task]
 
-        total_records = len(filtered_df)
-        st.warning(f"📋 Trong khoảng ngày có: **{total_records} bản ghi**")
-
-        if total_records > 0:
-            # QUẢN LÝ PHÂN TRANG (PAGINATION)
-            records_per_page = 10
-            total_pages = (total_records + records_per_page - 1) // records_per_page
-            
-            with filter_col6:
-                page_number = st.number_input(f"Trang hiển thị (1/{total_pages})", min_value=1, max_value=total_pages, value=1, step=1, key="num_page_selector")
-            
-            start_idx = (page_number - 1) * records_per_page
-            end_idx = min(start_idx + records_per_page, total_records)
-            page_df = filtered_df.iloc[start_idx:end_idx]
-
-            selected_to_delete = []
-
-            # Khối nút bấm thao tác xóa dành cho Quản trị viên (Admin)
-            if current_user_role == "Admin":
-                st.markdown("<br>", unsafe_allow_html=True)
-                btn_c1, btn_c2 = st.columns(2)
-                with btn_c1:
-                    btn_delete_selected = st.button("🗑️ Xóa các dòng đã chọn", use_container_width=True, type="primary", key="btn_del_selected_final")
-                with btn_c2:
-                    st.markdown("<div style='margin-top: 6px;'></div>", unsafe_allow_html=True)
-                    confirm_all = st.checkbox("Xác nhận xóa tất cả các trang này", key="chk_confirm_all_del")
-                
-                st.markdown("<div style='margin-top: 10px;'></div>", unsafe_allow_html=True)
