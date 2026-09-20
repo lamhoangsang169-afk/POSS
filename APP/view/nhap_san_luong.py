@@ -29,6 +29,7 @@ add_production_log_db = db_module.add_production_log_db
 update_production_log_deleted_status = db_module.update_production_log_deleted_status
 upload_multiple_images_to_storage = db_module.upload_multiple_images_to_storage
 get_attendance_db = db_module.get_attendance_db
+get_rules_db = db_module.get_rules_db # <--- Đã thêm hàm lấy định mức từ database
 
 def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
     now_vn = datetime.datetime.now(VN_TIMEZONE)
@@ -62,10 +63,21 @@ def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
                 staff_options = ["--- Vui lòng chọn nhân sự ---"] + active_staff
                 nhan_su = st.selectbox("Nhân sự thực hiện", staff_options)
             with f_col3:
+                # --- ĐÃ CẬP NHẬT: TỰ ĐỘNG TẢI VÀ ĐỒNG BỘ ĐỊNH MỨC TỪ DATABASE ---
                 rules_df = st.session_state.get("rules_df", pd.DataFrame())
+                if rules_df.empty:
+                    try:
+                        rules_df = get_rules_db()
+                        st.session_state["rules_df"] = rules_df
+                    except Exception:
+                        pass
+
                 raw_tasks = rules_df["Hạng Mục Công Việc"].tolist() if not rules_df.empty and "Hạng Mục Công Việc" in rules_df.columns else []
-                danh_sach_hang_muc = [str(t).strip() for t in raw_tasks if pd.notna(t) and str(t).strip()]
-                if not danh_sach_hang_muc: danh_sach_hang_muc = ["Chưa có dữ liệu định mức"]
+                danh_sach_hang_muc = [str(t).strip() for t in raw_tasks if pd.notna(t) and str(t).strip() and str(t).strip().lower() not in ["nan", "none"]]
+                
+                if not danh_sach_hang_muc: 
+                    danh_sach_hang_muc = ["Chưa có dữ liệu định mức"]
+                
                 hang_muc = st.selectbox("Hạng mục công việc", danh_sach_hang_muc)
                 
             record_images = st.file_uploader("Tải ảnh đính kèm (Tối đa 4 ảnh)", type=["png", "jpg", "jpeg"], accept_multiple_files=True, key="record_img")
@@ -92,7 +104,7 @@ def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
 
     st.markdown("---")
 
-    # ==================== PHẦN 2: DANH SÁCH SẢN LƯỢNG & HÌNH ẢNH (BẢN CŨ CỦA BẠN) ====================
+    # ==================== PHẦN 2: DANH SÁCH SẢN LƯỢNG & HÌNH ẢNH ====================
     col_title_1, col_title_2 = st.columns([3, 1])
     with col_title_1:
         st.markdown("<h3 style='color: #1e3a8a;'>Danh Sách Sản Lượng & Hình Ảnh</h3>", unsafe_allow_html=True)
@@ -101,11 +113,9 @@ def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
             st.cache_data.clear()
             st.rerun()
 
-    # Tải toàn bộ dữ liệu thô phục vụ bộ lọc
     raw_input_df = get_production_logs_db(is_deleted=False, limit_rows=1000)
 
     if not raw_input_df.empty:
-        # --- KHỐI BỘ LỌC HÀNG NGANG ---
         filter_col1, filter_col2, filter_col3, filter_col4, filter_col5 = st.columns([1.2, 1.2, 0.8, 1.5, 1.5])
         
         with filter_col1:
@@ -116,7 +126,6 @@ def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
             st.markdown("<br>", unsafe_allow_html=True)
             filter_by_time = st.checkbox("Lọc theo Giờ", key="f_by_time")
             
-        # Lấy danh sách duy nhất để bỏ vào Selectbox lọc
         all_staffs = ["Tất cả"] + sorted(raw_input_df["Nhân Sự"].dropna().unique().tolist())
         all_tasks = ["Tất cả"] + sorted(raw_input_df["Hạng Mục Công Việc"].dropna().unique().tolist())
         
@@ -125,7 +134,6 @@ def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
         with filter_col5:
             selected_task = st.selectbox("Lọc theo Hạng Mục", all_tasks, key="f_task")
 
-        # Tiến hành lọc dữ liệu dựa trên các ô cấu hình trên
         filtered_df = raw_input_df.copy()
         filtered_df["Ngày_DT"] = pd.to_datetime(filtered_df["Ngày"], errors='coerce').dt.date
         filtered_df = filtered_df[(filtered_df["Ngày_DT"] >= start_filter_date) & (filtered_df["Ngày_DT"] <= end_filter_date)]
@@ -135,47 +143,25 @@ def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
         if selected_task != "Tất cả":
             filtered_df = filtered_df[filtered_df["Hạng Mục Công Việc"] == selected_task]
 
-        # Thông báo số lượng bản ghi
         total_records = len(filtered_df)
         st.warning(f"📋 Trong khoảng ngày có: **{total_records} bản ghi**")
 
         if total_records > 0:
-            # --- THANH PHÂN TRANG (PAGINATION) ---
             records_per_page = 10
             total_pages = (total_records + records_per_page - 1) // records_per_page
             
-            st.sidebar.markdown("---") # Đưa thanh phân trang vào sidebar hoặc góc trên tùy chọn
-            page_number = st.sidebar.number_input(f"Trang hiển thị (1/{total_pages})", min_value=1, max_value=total_pages, value=1, step=1)
+            page_number = st.sidebar.number_input(f"Trang hiển thị (1/{total_pages})", min_value=1, max_value=max(total_pages, 1), value=1, step=1)
             
             start_idx = (page_number - 1) * records_per_page
             end_idx = min(start_idx + records_per_page, total_records)
             page_df = filtered_df.iloc[start_idx:end_idx]
 
-            # --- KHỐI THAO TÁC XÓA HÀNG LOẠT ---
-            if current_user_role == "Admin":
-                st.markdown("<div style='background-color: #f1f5f9; padding: 10px; border-radius: 8px; margin-bottom: 15px;'>", unsafe_allow_html=True)
-                del_c1, del_c2, del_c3 = st.columns([2.5, 1.2, 1.2])
-                
-                selected_to_delete = []
-                
-                with del_c2:
-                    st.markdown("<div style='margin-top: 5px;'>", unsafe_allow_html=True)
-                    confirm_all = st.checkbox("Xác nhận xóa tất cả trong này", key="chk_confirm_all_del")
-                with del_c3:
-                    btn_del_all = st.button("🗑️ Xóa tất cả cả trang này", use_container_width=True, key="btn_del_page_all")
-                
-                st.markdown("</div>", unsafe_allow_html=True)
-
-            # --- KHỐI THẺ CONTAINER HIỂN THỊ BẢN GHI (GIỐNG 100% BẢN CŨ) ---
             for idx, row in page_df.iterrows():
                 display_stt = start_idx + page_df.index.get_loc(idx) + 1
                 
                 with st.container(border=True):
-                    # Chia bố cục ngang: nội dung chữ bên trái, nút và ảnh bên phải
                     main_c1, main_c2 = st.columns([5, 1])
                     
                     with main_c1:
                         st.markdown(f"**STT: {display_stt}** | 📅 {row['Ngày']} 🕒 {row['Thời Gian']} | 👤 <b style='color: #1e40af;'>{row['Nhân Sự']}</b>", unsafe_allow_html=True)
                         st.markdown(f"🏗️ **{row['Hạng Mục Công Việc']}** | 📦 {int(row['Số Lượng'])} {row['Đơn Vị']} | ⭐ **{row['Tổng Điểm']} điểm**")
-                        
-                        note_text = row['Ghi Chú'] if pd.notna(row['Ghi Chú']) and str(row['Ghi Chú']).strip() else "Không có ghi chú"
