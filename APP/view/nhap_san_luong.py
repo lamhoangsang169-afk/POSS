@@ -92,6 +92,7 @@ def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
     input_df = get_production_logs_db(is_deleted=False, limit_rows=1000)
     
     if not input_df.empty:
+        # Bộ lọc hàng ngang chuẩn xác
         filter_col1, filter_col2, filter_col3, filter_col4, filter_col5 = st.columns([1.2, 1.2, 0.8, 1.5, 1.5])
         
         with filter_col1: start_filter_date = st.date_input("Từ ngày", datetime.date(2026, 8, 14), key="f_start_date")
@@ -137,7 +138,7 @@ def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
             records_per_page = 10
             total_pages = (total_records + records_per_page - 1) // records_per_page
             
-            page_col1, page_col2 = st.columns([4, 1])
+            page_col1, page_col2 = st.columns()
             with page_col2:
                 page_number = st.number_input(f"Trang (1/{total_pages})", min_value=1, max_value=total_pages, value=1, step=1, key="num_page_selector")
             
@@ -167,11 +168,10 @@ def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
                 row_id = row[id_col]
                 
                 with st.container(border=True):
-                    main_c1, main_c2 = st.columns([4, 1])
+                    main_c1, main_c2 = st.columns([4, 1]) # Chia tỉ lệ 4:1 để ảnh và nút gọn đẹp bên phải
                     
                     with main_c1:
                         val_ngay = row[col_ngay] if col_ngay else today_str
                         val_gio = row.get(col_gio, "00:00:00")
                         val_user = row.get(col_nhan_su, "")
                         val_task = row.get(col_hang_muc, "")
-                        val_qty = row.get("Số Lượng Thực Tế", row.get("Số Lượng", row.get("so_luong", 0)))
