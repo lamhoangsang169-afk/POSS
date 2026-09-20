@@ -38,7 +38,8 @@ def render_cham_cong(current_menu_name, current_user_role):
     today_str = str(now_vn.date())
     current_time_str = now_vn.strftime("%H:%M:%S")
 
-    col_att_h1, col_att_h2 = st.columns()
+    # === ĐÃ SỬA LỖI Ở ĐÂY: Thêm số 2 vào st.columns để phân chia thành 2 cột hợp lệ ===
+    col_att_h1, col_att_h2 = st.columns(2)
     with col_att_h1:
         st.subheader(f"{current_menu_name} ({today_str})")
     with col_att_h2:
