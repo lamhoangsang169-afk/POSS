@@ -14,7 +14,7 @@ from database import (
 def find_column_case_insensitive(df, target_names):
     """Tìm tên cột thực tế trong DataFrame không phân biệt hoa thường hoặc dấu gạch dưới"""
     if df.empty:
-        return target_names[0]
+        return target_names
     cols = [str(c).strip().lower() for c in df.columns]
     for target in target_names:
         target_clean = target.strip().lower()
@@ -26,7 +26,7 @@ def find_column_case_insensitive(df, target_names):
             c_clean = c.replace(" ", "").replace("_", "")
             if target_no_space == c_clean:
                 return df.columns[i]
-    return df.columns[0] if len(df.columns) > 0 else target_names[0]
+    return df.columns if len(df.columns) > 0 else target_names
 
 def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
     now_vn = datetime.datetime.now(VN_TIMEZONE)
@@ -116,13 +116,13 @@ def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
             st.cache_data.clear()
             st.rerun()
     
-    # Gọi hàm nạp gốc không điều kiện ràng buộc
+    # Gọi hàm nạp dữ liệu gốc
     try:
         input_df = get_production_logs_db()
     except:
         input_df = pd.DataFrame()
         
-    # === GIẢI PHÁP AN TOÀN TUYỆT ĐỐI: Tạo Mock Data tự động nếu database trống để kích hoạt UI hiển thị mẫu ===
+    # Tạo dữ liệu mẫu tạm thời nếu kết nối cơ sở dữ liệu trống để kích hoạt UI hiển thị
     if input_df is None or input_df.empty:
         input_df = pd.DataFrame([
             {"Ngày": today_str, "Thời Gian": "08:15:30", "Nhân Sự": "Nguyễn Văn A", "Hạng Mục Công Việc": "Đóng gói sản phẩm loại 1", "Số Lượng": 120, "Đơn Vị": "Cái", "Tổng Điểm": 120, "Ghi Chú": "Hàng chuẩn đẹp", "Hình Ảnh": ""},
@@ -135,7 +135,7 @@ def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
     col_nhan_su = find_column_case_insensitive(input_df, ["Nhân Sự", "nhan_su", "nhân sự thực hiện", "Nhân sự"])
     col_hang_muc = find_column_case_insensitive(input_df, ["Hạng Mục Công Việc", "hang_muc_cong_viec", "hạng mục", "hang_muc", "Hạng mục"])
     col_so_luong = find_column_case_insensitive(input_df, ["Số Lượng Thực Tế", "Số Lượng", "so_luong", "qty", "Số lượng"])
-    col_don_ vi = find_column_case_insensitive(input_df, ["Đơn Vị", "don_vi", "unit", "Đơn vị"])
+    col_don_vi = find_column_case_insensitive(input_df, ["Đơn Vị", "don_vi", "unit", "Đơn vị"])  # Đã fix khoảng trắng lỗi cú pháp ở đây
     col_tong_diem = find_column_case_insensitive(input_df, ["Tổng Điểm", "tong_diem", "điểm", "diem", "Tổng điểm"])
     col_ghi_chu = find_column_case_insensitive(input_df, ["Ghi Chú", "ghi_chu", "note", "Ghi chú"])
     col_hinh_anh = find_column_case_insensitive(input_df, ["Hình Ảnh", "hinh_anh", "img_urls", "Hình ảnh"])
