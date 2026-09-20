@@ -92,7 +92,6 @@ def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
     input_df = get_production_logs_db(is_deleted=False, limit_rows=1000)
     
     if not input_df.empty:
-        # Bộ lọc hàng ngang chuẩn xác
         filter_col1, filter_col2, filter_col3, filter_col4, filter_col5 = st.columns([1.2, 1.2, 0.8, 1.5, 1.5])
         
         with filter_col1: start_filter_date = st.date_input("Từ ngày", datetime.date(2026, 8, 14), key="f_start_date")
@@ -112,22 +111,16 @@ def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
 
         filtered_df = input_df.copy()
         
-        # 1. Lọc theo khoảng ngày
         col_ngay = next((c for c in filtered_df.columns if str(c).lower().strip() in ["ngày", "ngay"]), "")
         if col_ngay:
             filtered_df["Ngày_DT"] = pd.to_datetime(filtered_df[col_ngay], errors='coerce').dt.date
             filtered_df = filtered_df[(filtered_df["Ngày_DT"] >= start_filter_date) & (filtered_df["Ngày_DT"] <= end_filter_date)]
         
-        # === ĐÃ KÍCH HOẠT: Logic bộ lọc theo giờ thực tế (Lọc các bản ghi phát sinh trong vòng 1 tiếng qua) ===
         col_gio = next((c for c in filtered_df.columns if str(c).lower().strip() in ["thời gian", "giờ", "gio", "thoi_gian"]), "")
         if filter_by_time and col_gio:
             current_hour = now_vn.hour
-            def matches_current_hour(val):
-                try:
-                    return int(str(val).split(":")[0]) == current_hour
-                except:
-                    return False
-            filtered_df = filtered_df[filtered_df[col_gio].apply(matches_current_hour)]
+            filtered_df["Hour_Int"] = pd.to_datetime(filtered_df[col_gio], errors='coerce').dt.hour
+            filtered_df = filtered_df[filtered_df["Hour_Int"] == current_hour]
 
         if selected_staff != "Tất cả" and col_nhan_su in filtered_df.columns:
             filtered_df = filtered_df[filtered_df[col_nhan_su] == selected_staff]
@@ -140,11 +133,10 @@ def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
         if total_records > 0:
             selected_to_delete = []
 
-            # === THANH PHÂN TRANG (PAGINATION Đã khôi phục chuẩn xác) ===
+            # THANH PHÂN TRANG (PAGINATION)
             records_per_page = 10
             total_pages = (total_records + records_per_page - 1) // records_per_page
             
-            # Khởi tạo thanh chọn số trang dạng hộp nhập/chọn ngay trên giao diện chính
             page_col1, page_col2 = st.columns([4, 1])
             with page_col2:
                 page_number = st.number_input(f"Trang (1/{total_pages})", min_value=1, max_value=total_pages, value=1, step=1, key="num_page_selector")
@@ -153,11 +145,9 @@ def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
             end_idx = min(start_idx + records_per_page, total_records)
             page_df = filtered_df.iloc[start_idx:end_idx]
 
-            # Khối nút xóa hàng loạt của Admin phía trên
             if current_user_role == "Admin":
                 st.markdown("<br>", unsafe_allow_html=True)
                 btn_delete_selected = st.button("🗑️ Xóa Các Bản Ghi Đã Chọn", use_container_width=True, type="primary", key="btn_del_selected_new")
-                
                 st.markdown("<div style='margin-top: 10px;'></div>", unsafe_allow_html=True)
                 
                 del_c1, del_c2 = st.columns([2.5, 2.5])
@@ -170,10 +160,18 @@ def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
 
             st.markdown("<br>", unsafe_allow_html=True)
 
-            # === HIỂN THỊ CÁC THẺ CONTAINER BẢN GHI (Kèm hình ảnh và Checkbox chọn xóa) ===
+            # VÒNG LẶP HIỂN THỊ CÁC THẺ CONTAINER BẢN GHI
             for idx, row in page_df.iterrows():
                 display_stt = start_idx + page_df.index.get_loc(idx) + 1
                 id_col = "db_id" if "db_id" in filtered_df.columns else ("id" if "id" in filtered_df.columns else filtered_df.columns)
                 row_id = row[id_col]
                 
                 with st.container(border=True):
+                    main_c1, main_c2 = st.columns([4, 1])
+                    
+                    with main_c1:
+                        val_ngay = row[col_ngay] if col_ngay else today_str
+                        val_gio = row.get(col_gio, "00:00:00")
+                        val_user = row.get(col_nhan_su, "")
+                        val_task = row.get(col_hang_muc, "")
+                        val_qty = row.get("Số Lượng Thực Tế", row.get("Số Lượng", row.get("so_luong", 0)))
