@@ -157,7 +157,7 @@ def load_folders_db():
         pass
     return default_folders
 
-# ==================== BỔ SUNG CÁC HÀM CÒN THIẾU ====================
+# ==================== CÁC HÀM QUẢN LÝ THÙNG RÁC ====================
 
 def update_production_log_deleted_status(db_ids, is_deleted):
     """Cập nhật trạng thái xóa (chuyển vào thùng rác hoặc khôi phục)"""
@@ -226,7 +226,7 @@ def update_attendance_checkout_db(db_id, gio_ra, so_phut, ghi_chu=""):
         st.error(f"Lỗi Check-out: {e}")
         return None
 
-# ==================== HÀM LẤY ĐỊNH MỨC CÔNG VIỆC (MỚI BỔ SUNG BƯỚC 1) ====================
+# ==================== HÀM LẤY ĐỊNH MỨC CÔNG VIỆC ====================
 
 @st.cache_data(ttl=600, show_spinner=False)
 def get_rules_db():
@@ -249,3 +249,45 @@ def get_rules_db():
         st.error(f"Lỗi khi tải bảng định mức: {e}")
         pass
     return pd.DataFrame()
+
+# ==================== CÁC HÀM QUẢN LÝ ĐỊNH MỨC CÔNG VIỆC (MỚI BỔ SUNG BƯỚC 1) ====================
+
+def add_rule_db(hang_muc, he_so, don_vi, ghi_chu=""):
+    """Thêm một hạng mục định mức mới vào bảng 'rules'"""
+    if supabase is None:
+        return None
+    try:
+        data = {
+            "hang_muc_cong_viec": hang_muc,
+            "he_so_diem": he_so,
+            "don_vi": don_vi,
+            "ghi_chu": ghi_chu
+        }
+        response = supabase.table("rules").insert(data).execute()
+        return response
+    except Exception as e:
+        st.error(f"Lỗi thêm định mức: {e}")
+        return None
+
+def update_rule_db(db_id, hang_muc, he_so, don_vi, ghi_chu=""):
+    """Cập nhật hạng mục định mức hiện có theo ID"""
+    if supabase is None:
+        return None
+    try:
+        data = {
+            "hang_muc_cong_viec": hang_muc,
+            "he_so_diem": he_so,
+            "don_vi": don_vi,
+            "ghi_chu": ghi_chu
+        }
+        response = supabase.table("rules").update(data).eq("id", db_id).execute()
+        return response
+    except Exception as e:
+        st.error(f"Lỗi cập nhật định mức: {e}")
+        return None
+
+def delete_rule_db(db_id):
+    """Xóa hoàn toàn một hạng mục định mức khỏi bảng 'rules'"""
+    if supabase is None:
+        return None
+    try:
