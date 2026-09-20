@@ -1,6 +1,7 @@
 import os
 import sys
 import streamlit as st
+import pandas as pd
 
 # ==================== CẤU HÌNH ĐƯỜNG DẪN HỆ THỐNG GỐC ====================
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -20,6 +21,7 @@ import bao_cao
 import thu_muc_bao_cao
 import dinh_muc_cong_viec
 import thung_rac
+from database import get_rules_db # <--- Đã thêm import hàm lấy định mức
 
 # Cấu hình hiển thị trang web Streamlit
 st.set_page_config(page_title="Hệ Thống Quản Lý POSS", page_icon="🏭", layout="wide")
@@ -29,6 +31,13 @@ if "user_perms" not in st.session_state:
     st.session_state["user_perms"] = {"perm_input": True, "perm_rules": True}
 if "user_role" not in st.session_state:
     st.session_state["user_role"] = "Admin"
+
+# ==================== BỔ SUNG KHỞI TẠO RULES_DF VÀO SESSION STATE ====================
+if "rules_df" not in st.session_state:
+    try:
+        st.session_state["rules_df"] = get_rules_db()
+    except Exception:
+        st.session_state["rules_df"] = pd.DataFrame()
 
 user_perms = st.session_state["user_perms"]
 current_user_role = st.session_state["user_role"]
