@@ -25,7 +25,7 @@ def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
     
     st.subheader(f"{current_menu_name} ({today_str})")
 
-    # --- KHỐI 1: FORM CẬP NHẬT SẢN LƯỢNG (GIỮ NGUYÊN LOGIC GỐC CỦA BẠN) ---
+    # --- KHỐI 1: FORM CẬP NHẬT SẢN LƯỢNG ---
     is_admin = (current_user_role == "Admin" or user_perms.get("perm_input", False))
     
     att_df_check = get_attendance_db()
@@ -40,9 +40,6 @@ def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
     elif not active_staff:
         st.warning("⚠️ Hiện tại chưa có nhân sự nào **Check-in (Vào ca)** hoặc các ca trước chưa kết thúc. Vui lòng thực hiện Check-in trước khi nhập sản lượng!")
     else:
-        req_img = st.session_state.get("require_image", True)
-        req_qty = st.session_state.get("require_quantity", True)
-        
         with st.form("entry_form"):
             f_col1, f_col2, f_col3 = st.columns(3)
             with f_col1: st.date_input("Ngày làm việc", now_vn.date(), disabled=True)
@@ -50,10 +47,25 @@ def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
                 staff_options = ["--- Vui lòng chọn nhân sự ---"] + active_staff
                 nhan_su = st.selectbox("Nhân sự thực hiện", staff_options)
             with f_col3:
+                # === SỬA ĐỔI QUAN TRỌNG: Tự động dự phòng nạp dữ liệu định mức nếu session bị trống ===
                 rules_df = st.session_state.get("rules_df", pd.DataFrame())
+                
+                # Nếu trống, thử nạp lại từ cache cấu hình tổng của app hoặc từ database kết nối sheet
+                if rules_df.empty:
+                    try:
+                        from database import get_rules_db
+                        rules_df = get_rules_db()
+                        st.session_state["rules_df"] = rules_df
+                    except:
+                        pass
+                
                 raw_tasks = rules_df["Hạng Mục Công Việc"].tolist() if not rules_df.empty and "Hạng Mục Công Việc" in rules_df.columns else []
                 danh_sach_hang_muc = [str(t).strip() for t in raw_tasks if pd.notna(t) and str(t).strip()]
-                if not danh_sach_hang_muc: danh_sach_hang_muc = ["Chưa có dữ liệu định mức"]
+                
+                # Nếu vẫn trống, hiển thị cảnh báo hướng dẫn đồng bộ dữ liệu
+                if not danh_sach_hang_muc: 
+                    danh_sach_hang_muc = ["⚠️ Vui lòng nhấn nút Làm mới dữ liệu phía dưới"]
+                
                 hang_muc = st.selectbox("Hạng mục công việc", danh_sach_hang_muc)
                 
             record_images = st.file_uploader("Tải ảnh đính kèm (Tối đa 4 ảnh)", type=["png", "jpg", "jpeg"], accept_multiple_files=True, key="record_img")
@@ -64,7 +76,7 @@ def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
                 
             submitted = st.form_submit_button("📊 Báo Cáo Sản Lượng", use_container_width=True)
 
-            if submitted and nhan_su != "--- Vui lòng chọn nhân sự ---" and hang_muc != "Chưa có dữ liệu định mức":
+            if submitted and nhan_su != "--- Vui lòng chọn nhân sự ---" and "⚠️" not in hang_muc:
                 row_rule = rules_df[rules_df["Hạng Mục Công Việc"] == hang_muc] if not rules_df.empty else pd.DataFrame()
                 he_so = float(row_rule["Hệ Số Điểm"].values) if not row_rule.empty and "Hệ Số Điểm" in row_rule.columns else 1.0
                 don_vi = str(row_rule["Đơn Vị"].values) if not row_rule.empty and "Đơn Vị" in row_rule.columns else "Cái"
@@ -80,19 +92,25 @@ def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
 
     st.markdown("---")
     
-    # --- KHỐI 2: LƯỚI THẺ SẢN LƯỢNG VÀ BỘ LỌC NGANG CHUẨN UX GIAO DIỆN ---
+    # ==================== PHẦN 2: DANH SÁCH SẢN LƯỢNG & HÌNH ẢNH ====================
     col_title_1, col_title_2 = st.columns(2)
     with col_title_1:
         st.markdown("<h3 style='color: #1e3a8a;'>Danh Sách Sản Lượng & Hình Ảnh</h3>", unsafe_allow_html=True)
     with col_title_2:
         if st.button("🔄 Làm mới dữ liệu", use_container_width=True, key="btn_refresh_input"):
             st.cache_data.clear()
+            # Đồng bộ lại toàn bộ danh mục từ Google Sheets khi nhấn làm mới
+            try:
+                from database import get_rules_db
+                st.session_state["rules_df"] = get_rules_db()
+            except:
+                pass
             st.rerun()
     
     input_df = get_production_logs_db(is_deleted=False, limit_rows=1000)
     
     if not input_df.empty:
-        # Bộ lọc hàng ngang chuẩn xác
+        # Khởi tạo bộ lọc hàng ngang
         filter_col1, filter_col2, filter_col3, filter_col4, filter_col5 = st.columns([1.2, 1.2, 0.8, 1.5, 1.5])
         
         with filter_col1: start_filter_date = st.date_input("Từ ngày", datetime.date(2026, 8, 14), key="f_start_date")
@@ -112,11 +130,26 @@ def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
 
         filtered_df = input_df.copy()
         
+        # 1. Lọc theo khoảng ngày an toàn
         col_ngay = next((c for c in filtered_df.columns if str(c).lower().strip() in ["ngày", "ngay"]), "")
         if col_ngay:
-            filtered_df["Ngày_DT"] = pd.to_datetime(filtered_df[col_ngay], errors='coerce').dt.date
-            filtered_df = filtered_df[(filtered_df["Ngày_DT"] >= start_filter_date) & (filtered_df["Ngày_DT"] <= end_filter_date)]
+            try:
+                filtered_df["_ngay_str"] = filtered_df[col_ngay].astype(str).str.strip()
+                s_str = start_filter_date.strftime("%Y-%m-%d")
+                e_str = end_filter_date.strftime("%Y-%m-%d")
+                filtered_df = filtered_df[(filtered_df["_ngay_str"] >= s_str) & (filtered_df["_ngay_str"] <= e_str)]
+            except:
+                pass
         
+        # 2. Lọc theo giờ hoạt động
+        col_gio = next((c for c in filtered_df.columns if str(c).lower().strip() in ["thời gian", "giờ", "gio", "thoi_gian"]), "")
+        if filter_by_time and col_gio:
+            try:
+                current_hour_str = f"{now_vn.hour:02d}:"
+                filtered_df = filtered_df[filtered_df[col_gio].astype(str).str.contains(current_hour_str, na=False)]
+            except:
+                pass
+
         if selected_staff != "Tất cả" and col_nhan_su in filtered_df.columns:
             filtered_df = filtered_df[filtered_df[col_nhan_su] == selected_staff]
         if selected_task != "Tất cả" and col_hang_muc in filtered_df.columns:
@@ -128,17 +161,24 @@ def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
         if total_records > 0:
             selected_to_delete = []
 
-            # === ĐÃ FIX TRIỆT ĐỂ: Đồng bộ chính xác khung chứa nút xóa và hộp chọn ngang hàng giống ảnh cũ ===
+            # PHÂN TRANG
+            records_per_page = 10
+            total_pages = (total_records + records_per_page - 1) // records_per_page
+            
+            page_col1, page_col2 = st.columns(2)
+            with page_col2:
+                page_number = st.number_input(f"Trang (1/{total_pages})", min_value=1, max_value=total_pages, value=1, step=1, key="num_page_selector")
+            
+            start_idx = (page_number - 1) * records_per_page
+            end_idx = min(start_idx + records_per_page, total_records)
+            page_df = filtered_df.iloc[start_idx:end_idx]
+
             if current_user_role == "Admin":
                 st.markdown("<br>", unsafe_allow_html=True)
-                
-                # Nút bấm lớn màu đỏ xóa các dòng được chọn (Đặt riêng biệt phía trên)
                 btn_delete_selected = st.button("🗑️ Xóa Các Bản Ghi Đã Chọn", use_container_width=True, type="primary", key="btn_del_selected_new")
-                
                 st.markdown("<div style='margin-top: 10px;'></div>", unsafe_allow_html=True)
                 
-                # Cấu trúc hàng phụ chứa ô tích chọn xác nhận và nút xóa tất cả trang
-                del_c1, del_c2 = st.columns([2.5, 2.5])
+                del_c1, del_c2 = st.columns(2)
                 with del_c1:
                     st.markdown("<div style='margin-top: 5px;'>", unsafe_allow_html=True)
                     confirm_all = st.checkbox("Xác nhận xóa tất cả trong này", key="chk_confirm_all_del")
@@ -146,28 +186,3 @@ def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
                 with del_c2:
                     btn_del_all = st.button("🗑️ Xóa tất cả cả trang này", use_container_width=True, key="btn_del_page_all")
 
-            st.markdown("<br>", unsafe_allow_html=True)
-
-            # === HIỂN THỊ CÁC THẺ CONTAINER BẢN GHI ===
-            for idx, row in filtered_df.iterrows():
-                display_stt = filtered_df.index.get_loc(idx) + 1
-                id_col = "db_id" if "db_id" in filtered_df.columns else ("id" if "id" in filtered_df.columns else filtered_df.columns[0])
-                row_id = row[id_col]
-                
-                with st.container(border=True):
-                    main_c1, main_c2 = st.columns([4, 1])
-                    
-                    with main_c1:
-                        # Bóc tách tên trường động từ dataframe tránh lỗi lệch tên cột DB
-                        val_ngay = row[col_ngay] if col_ngay else today_str
-                        val_gio = row.get("Thời Gian", row.get("Giờ", row.get("thoi_gian", "00:00:00")))
-                        val_user = row.get(col_nhan_su, "")
-                        val_task = row.get(col_hang_muc, "")
-                        val_qty = row.get("Số Lượng Thực Tế", row.get("Số Lượng", row.get("so_luong", 0)))
-                        val_unit = row.get("Đơn Vị", row.get("don_vi", "Cái"))
-                        val_score = row.get("Tổng Điểm", row.get("tong_diem", 0.0))
-                        val_note = row.get("Ghi Chú", row.get("ghi_chu", ""))
-                        
-                        st.markdown(f"**STT: {display_stt}** | 📅 {val_ngay} 🕒 {val_gio} | 👤 <b style='color: #1e40af;'>{val_user}</b>", unsafe_allow_html=True)
-                        st.markdown(f"🏗️ **{val_task}** | 📦 {int(val_qty)} {val_unit} | ⭐ **{float(val_score):.1f} điểm**")
-                        
