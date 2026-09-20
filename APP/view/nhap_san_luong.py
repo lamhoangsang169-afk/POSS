@@ -259,13 +259,10 @@ def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
                             if urls:
                                 sub_cols = st.columns(min(len(urls), 4), gap="small")
                                 for i, u in enumerate(urls):
-                                   with sub_cols[i]:
-                                       try:
-            with st.popover("🔍", help="Xem ảnh lớn"): 
-                st.image(u, use_container_width=True)
-            st.image(u, width=40)
-        except Exception:
-            st.markdown("<small style='color: red;'>Lỗi tải ảnh</small>", unsafe_allow_html=True)
+                                    with sub_cols[i]:
+                                        with st.popover("🔍", help="Xem ảnh lớn"): 
+                                            st.image(u, use_container_width=True)
+                                        st.image(u, width=40)
                         else:
                             st.markdown("<small style='color: gray;'>Không ảnh</small>", unsafe_allow_html=True)
                     st.markdown("---")
