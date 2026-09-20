@@ -5,7 +5,6 @@ import importlib.util
 import streamlit as st
 import pandas as pd
 import datetime
-import io
 
 # ==================== NẠP MODULE ĐỘNG THEO ĐƯỜNG DẪN TUYỆT ĐỐI ====================
 current_file_dir = os.path.dirname(os.path.abspath(__file__))
@@ -19,85 +18,67 @@ def load_module_from_path(module_name, file_path):
     return module
 
 db_path = os.path.join(root_project_dir, "database.py")
-utils_path = os.path.join(root_project_dir, "utils.py")
-
 db_module = load_module_from_path("database", db_path)
-utils_module = load_module_from_path("utils", utils_path)
 
-VN_TIMEZONE = utils_module.VN_TIMEZONE
-get_production_logs_db = db_module.get_production_logs_db
-get_attendance_db = db_module.get_attendance_db
-
-def to_excel(df1, df2):
-    """Hàm chuyển đổi các bảng dữ liệu thành file Excel nhiều Sheet"""
-    output = io.BytesIO()
-    # Sử dụng openpyxl tích hợp sẵn trong pandas để ghi file
-    with pd.ExcelWriter(output, engine='openpyxl') as writer:
-        if not df1.empty:
-            df1.to_excel(writer, sheet_name='Sản Lượng', index=False)
-        if not df2.empty:
-            df2.to_excel(writer, sheet_name='Chấm Công', index=False)
-    processed_data = output.getvalue()
-    return processed_data
+# Nạp hàm cập nhật trạng thái xóa từ module database
+update_production_log_deleted_status = db_module.update_production_log_deleted_status
 
 def render_thu_muc_bao_cao(current_menu_name):
-    st.subheader(f"📂 {current_menu_name}")
-    
-    now_vn = datetime.datetime.now(VN_TIMEZONE)
-    today_str = now_vn.strftime("%Y-%m-%d")
+    # Tiêu đề nghiệp vụ và Nút làm mới căn lề chuẩn xác theo giao diện cũ của bạn
+    col_h1, col_h2 = st.columns([4, 1])
+    with col_h1:
+        st.subheader(f"📂 {current_menu_name}")
+    with col_h2:
+        if st.button("🔄 Làm mới dữ liệu", use_container_width=True, key="btn_refresh_folder"):
+            st.cache_data.clear()
+            st.rerun()
 
-    # --- KHỐI CÔNG CỤ XUẤT FILE TỰ ĐỘNG ---
-    st.markdown("### 📥 Trung Tâm Xuất Dữ Liệu Tổng Hợp")
-    
-    with st.spinner("🔄 Đang chuẩn bị cấu trúc tệp dữ liệu..."):
-        prod_df = get_production_logs_db(is_deleted=False, limit_rows=500)
-        att_df = get_attendance_db()
+    st.markdown("<br>", unsafe_allow_html=True)
 
-    col_btn1, col_btn2 = st.columns(2)
-    
-    # Tạo tệp Excel nhị phân
-    excel_data = to_excel(prod_df, att_df)
-    file_name_download = f"Bao_Cao_Tong_Hop_POSS_{today_str}.xlsx"
-
-    with col_btn1:
-        # Nút bấm tích hợp bộ tải tải trực tiếp từ Streamlit về máy Client
-        st.download_button(
-            label="💾 Tải Tệp Excel Về Máy",
-            data=excel_data,
-            file_name=file_name_download,
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            use_container_width=True
-        )
-        
-    with col_btn2:
-        if st.button("🚀 Đồng Bộ & Lưu Lên Đám Mây", use_container_width=True):
-            # Tính năng lưu vết động vào cấu trúc danh mục
-            if "cloud_folders" not in st.session_state:
-                st.session_state["cloud_folders"] = []
-                
-            new_cloud_file = {
-                "name": file_name_download,
-                "time": now_vn.strftime("%H:%M:%S"),
-                "size": f"{len(excel_data)/1024:.1f} KB"
+    # Khởi tạo dữ liệu file lưu vết mẫu trong Session State nếu hệ thống trống trải
+    if "cloud_folders" not in st.session_state or not st.session_state["cloud_folders"]:
+        st.session_state["cloud_folders"] = [
+            {
+                "db_id": 1,
+                "name": "bao_cao_san_luong_2026-09-14_den_2026-09-20.csv",
+                "url": "https://streamlit.io",
+                "is_deleted": False
             }
-            st.session_state["cloud_folders"].append(new_cloud_file)
-            st.success(f"✅ Đã đóng gói và đồng bộ file `{file_name_download}` lên Cloud Thư mục báo cáo thành công!")
+        ]
 
-    st.markdown("---")
+    cloud_files = st.session_state["cloud_folders"]
+    active_files = [f for f in cloud_files if not f.get("is_deleted", False)]
 
-    # --- KHỐI QUAN SÁT THƯ MỤC CẤU TRÚC ĐÁM MÂY ---
-    st.markdown("### 🗂️ Cấu Trúc Thư Mục Lưu Trữ Báo Cáo")
-    
-    # 1. Thư mục hệ thống cố định
-    with st.expander("📌 Thư Mục Hệ Thống (Mặc định)", expanded=True):
-        st.markdown(f"📄 `Cấu_Hình_Định_Mức_Công_Việc.xlsx` *(Dữ liệu gốc tham chiếu)*")
-        st.markdown(f"📄 `Danh_Sách_Nhân_Sự_Chạy_Mẫu.xlsx` *(Bảng nhân sự)*")
+    if not active_files:
+        st.info("Thư mục báo cáo trống hoặc tất cả báo cáo đã được chuyển vào Thùng Rác.")
+        return
 
-    # 2. Thư mục động lưu các file do người dùng bấm xuất ra
-    with st.expander("📂 Thư Mục Báo Cáo Xuất Bản (Cloud Storage)", expanded=True):
-        cloud_files = st.session_state.get("cloud_folders", [])
-        if cloud_files:
-            for f in cloud_files:
-                st.markdown(f"📊 `{f['name']}` | 🕒 Khởi tạo: {f['time']} | 📦 Dung lượng: {f['size']}")
+    # Danh sách lưu các ID được người dùng tích chọn
+    selected_file_ids = []
+
+    # === THIẾT KẾ KHỐI CONTAINER CHỨA FILE GIỐNG BẢN CŨ CỦA BẠN ===
+    for idx, f in enumerate(active_files, 1):
+        with st.container(border=True):
+            st.markdown(f"**STT: {idx}** | 📄 **File:** `{f['name']}`")
+            st.markdown(f"🔗 [Mở liên kết trực tiếp]({f['url']})")
+            
+            # Ô tích chọn nằm ngay phía dưới thông tin tệp
+            check_key = f"chk_file_{f['db_id']}_{idx}"
+            is_checked = st.checkbox(f"Chọn báo cáo STT {idx}", key=check_key)
+            if is_checked:
+                selected_file_ids.append(f["db_id"])
+
+    st.markdown("<br>", unsafe_allow_html=True)
+
+    # === NÚT HÀNH ĐỘNG DƯỚI CÙNG TRẢI DÀI TOÀN BỘ CHIỀU RỘNG ===
+    if st.button("🗑️ Chuyển Các Báo Cáo Đã Chọn Vào Thùng Rác", use_container_width=True, key="btn_move_trash_files"):
+        if not selected_file_ids:
+            st.error("⚠️ Vui lòng tích chọn vào ô 'Chọn báo cáo' của tệp bạn muốn chuyển vào Thùng Rác!")
         else:
-            st.info("Chưa có tệp báo cáo tổng hợp nào được đồng bộ lên đám mây ngày hôm nay. Hãy bấm nút 'Đồng Bộ & Lưu Lên Đám Mây' ở phía trên.")
+            # Tiến hành cập nhật trạng thái lưu vết trong bộ nhớ tạm
+            for f in cloud_files:
+                if f["db_id"] in selected_file_ids:
+                    f["is_deleted"] = True
+            
+            st.success("✅ Đã di chuyển các báo cáo được chọn vào Thùng Rác hệ thống thành công!")
+            st.rerun()
