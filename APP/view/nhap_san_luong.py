@@ -85,8 +85,8 @@ def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
 
             if submitted and nhan_su != "--- Vui lòng chọn nhân sự ---" and hang_muc != "Chưa có dữ liệu định mức":
                 row_rule = rules_df[rules_df["Hạng Mục Công Việc"] == hang_muc] if not rules_df.empty else pd.DataFrame()
-                he_so = float(row_rule["Hệ Số Điểm"].values[0]) if not row_rule.empty and "Hệ Số Điểm" in row_rule.columns else 1.0
-                don_vi = str(row_rule["Đơn Vị"].values[0]) if not row_rule.empty and "Đơn Vị" in row_rule.columns else "Cái"
+                he_so = float(row_rule["Hệ Số Điểm"].values) if not row_rule.empty and "Hệ Số Điểm" in row_rule.columns else 1.0
+                don_vi = str(row_rule["Đơn Vị"].values) if not row_rule.empty and "Đơn Vị" in row_rule.columns else "Cái"
                 tong_diem = so_luong * he_so
                 
                 img_urls = upload_multiple_images_to_storage(record_images) if record_images else ""
@@ -100,7 +100,8 @@ def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
     st.markdown("---")
 
     # ==================== PHẦN 2: DANH SÁCH SẢN LƯỢNG & HÌNH ẢNH ====================
-    col_title_1, col_title_2 = st.columns()
+    # === ĐÃ FIX LỖI TYPEERROR: Truyền số cột cụ thể vào st.columns ===
+    col_title_1, col_title_2 = st.columns(2)
     with col_title_1:
         st.markdown("<h3 style='color: #1e3a8a;'>Danh Sách Sản Lượng & Hình Ảnh</h3>", unsafe_allow_html=True)
     with col_title_2:
@@ -133,15 +134,20 @@ def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
         with filter_col4:
             selected_staff = st.selectbox("Lọc theo Nhân Sự", all_staffs, key="f_staff")
         with filter_col5:
-            selected_task = st.selectbox("Lockey theo Hạng Mục", all_tasks, key="f_task")
+            selected_task = st.selectbox("Lọc theo Hạng Mục", all_tasks, key="f_task")
 
         # Tiến hành lọc dữ liệu
         filtered_df = raw_input_df.copy()
         
-        # === SỬA ĐỔI QUAN TRỌNG: Ép ngày chuẩn datetime để bộ lọc không xóa nhầm dữ liệu ===
+        # === ĐÃ SỬA: Lọc ngày thông minh tự nhận diện chuỗi VN và chuỗi Quốc tế ===
         if "Ngày" in filtered_df.columns:
             try:
+                # Thử parse theo kiểu quốc tế trước YYYY-MM-DD, nếu lỗi chuyển sang DD/MM/YYYY
                 filtered_df["_ngay_parsed"] = pd.to_datetime(filtered_df["Ngày"], errors='coerce').dt.date
+                nas = filtered_df["_ngay_parsed"].isna()
+                if nas.any():
+                    filtered_df.loc[nas, "_ngay_parsed"] = pd.to_datetime(filtered_df.loc[nas, "Ngày"], format='%d/%m/%Y', errors='coerce').dt.date
+                
                 filtered_df = filtered_df[(filtered_df["_ngay_parsed"] >= start_filter_date) & (filtered_df["_ngay_parsed"] <= end_filter_date)]
             except:
                 pass
@@ -175,14 +181,10 @@ def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
 
             selected_to_delete = []
 
-            # Khối nút thao tác xóa hàng loạt cho Admin giống thiết kế của bạn
+            # Khối nút thao tác xóa hàng loạt cho Admin
             if current_user_role == "Admin":
                 st.markdown("<br>", unsafe_allow_html=True)
-                btn_c1, btn_c2 = st.columns()
+                btn_c1, btn_c2 = st.columns(2)
                 with btn_c1:
                     btn_delete_selected = st.button("🗑️ Xóa các dòng đã chọn", use_container_width=True, type="primary", key="btn_del_selected_final")
                 with btn_c2:
-                    st.markdown("<div style='margin-top: 6px;'></div>", unsafe_allow_html=True)
-                    confirm_all = st.checkbox("Xác nhận xóa tất cả các trang này", key="chk_confirm_all_del")
-                
-                st.markdown("<div style='margin-top: 10px;'></div>", unsafe_allow_html=True)
