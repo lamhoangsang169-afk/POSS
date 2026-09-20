@@ -39,12 +39,16 @@ def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
     if current_user_role != "Admin" and not user_perms.get("perm_input", False):
         st.info("👁️ Tài khoản của bạn đang ở chế độ **Chỉ xem**. Bạn có thể theo dõi bảng danh sách bên dưới nhưng không được phép thêm hoặc chỉnh sửa dữ liệu.")
     else:
+        # Lấy lịch sử chấm công từ database
         att_df_check = get_attendance_db()
-        checked_in_set = set()
-        if not att_df_check.empty:
-            checked_in_set = set(att_df_check[att_df_check["Giờ Ra Ca"] == "Chưa kết thúc"]["Nhân Sự"].tolist())
-
-        active_staff = [s for s in st.session_state.get("staff_list", []) if s in checked_in_set]
+        active_staff = []
+        
+        # === ĐÃ SỬA LỖI Ở ĐÂY: Tối ưu bộ lọc nhân sự động linh hoạt, không phân biệt hoa thường ===
+        if not att_df_check.empty and "Giờ Ra Ca" in att_df_check.columns:
+            # Lọc lấy những dòng có trạng thái ra ca là "Chưa kết thúc" hoặc trống
+            active_rows = att_df_check[att_df_check["Giờ Ra Ca"].astype(str).str.lower().str.contains("chưa kết thúc|nan|none|^$", na=True)]
+            if not active_rows.empty and "Nhân Sự" in active_rows.columns:
+                active_staff = active_rows["Nhân Sự"].dropna().unique().tolist()
 
         if not active_staff:
             st.warning(f"⚠️ Hiện tại chưa có nhân sự nào **Check-in (Vào ca)** hoặc các ca trước chưa kết thúc. Vui lòng thực hiện Check-in trước khi nhập sản lượng!")
@@ -108,7 +112,6 @@ def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
 
     st.markdown("---")
     
-    # === ĐÃ SỬA LỖI Ở ĐÂY: Thêm số 2 vào st.columns để phân chia thành 2 cột hợp lệ ===
     col_title_1, col_title_2 = st.columns(2)
     with col_title_1:
         st.subheader("Danh Sách Sản Lượng & Hình Ảnh")
