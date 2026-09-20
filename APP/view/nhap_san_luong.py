@@ -86,8 +86,8 @@ def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
 
             if submitted and nhan_su != "--- Vui lòng chọn nhân sự ---" and "Chưa có dữ liệu" not in hang_muc:
                 row_rule = rules_df[rules_df["Hạng Mục Công Việc"] == hang_muc] if not rules_df.empty else pd.DataFrame()
-                he_so = float(row_rule["Hệ Số Điểm"].values[0]) if not row_rule.empty and "Hệ Số Điểm" in row_rule.columns else 1.0
-                don_vi = str(row_rule["Đơn Vị"].values[0]) if not row_rule.empty and "Đơn Vị" in row_rule.columns else "Cái"
+                he_so = float(row_rule["Hệ Số Điểm"].values) if not row_rule.empty and "Hệ Số Điểm" in row_rule.columns else 1.0
+                don_vi = str(row_rule["Đơn Vị"].values) if not row_rule.empty and "Đơn Vị" in row_rule.columns else "Cái"
                 tong_diem = so_luong * he_so
                 
                 img_urls = upload_multiple_images_to_storage(record_images) if record_images else ""
@@ -139,23 +139,20 @@ def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
         # Tiến hành lọc dữ liệu
         filtered_df = raw_input_df.copy()
         
-        # === SỬA ĐỔI QUAN TRỌNG NHẤT: Bộ lọc ngày có bọc dự phòng an toàn để bảo toàn 476 bản ghi gốc ===
+        # === ĐÃ SỬA: Sắp xếp lề chuẩn xác 100% không còn lỗi IndentationError ===
         if "Ngày" in filtered_df.columns:
             try:
-                # Thử chuyển đổi định dạng ngày linh hoạt
                 parsed_dates = pd.to_datetime(filtered_df["Ngày"], errors='coerce').dt.date
                 nas = parsed_dates.isna()
                 if nas.any():
-                    parsed_dates[nas] = pd.to_datetime(filtered_df.loc[nas, "Ngày"], format='%d/%m/%Y', errors='coerce').dt.date
+                    # Sửa khoảng trắng lề chuẩn chỉnh cho hàm lọc chuỗi ngày
+                    parsed_dates.loc[nas] = pd.to_datetime(filtered_df.loc[nas, "Ngày"], format='%d/%m/%Y', errors='coerce').dt.date
                 
-                # Tạo bảng tạm kiểm tra điều kiện lọc
                 temp_df = filtered_df[(parsed_dates >= start_filter_date) & (parsed_dates <= end_filter_date)]
-                
-                # Nếu lọc ngày xong không bị trống dữ liệu hoàn toàn thì áp dụng bảng đã lọc
                 if not temp_df.empty:
                     filtered_df = temp_df
             except:
-                pass # Gặp lỗi định dạng chuỗi văn bản thì bỏ qua bộ lọc ngày để ưu tiên hiển thị thông tin gốc
+                pass
         
         if filter_by_time and "Thời Gian" in filtered_df.columns:
             try:
@@ -191,3 +188,6 @@ def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
                 st.markdown("<br>", unsafe_allow_html=True)
                 btn_c1, btn_c2 = st.columns(2)
                 with btn_c1:
+                    btn_delete_selected = st.button("🗑️ Xóa các dòng đã chọn", use_container_width=True, type="primary", key="btn_del_selected_final")
+                with btn_c2:
+                    st.markdown("<div style='margin-top: 6px;'></div>", unsafe_allow_html=True)
