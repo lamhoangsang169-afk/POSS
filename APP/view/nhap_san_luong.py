@@ -100,7 +100,6 @@ def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
     st.markdown("---")
 
     # ==================== PHẦN 2: DANH SÁCH SẢN LƯỢNG & HÌNH ẢNH ====================
-    # === ĐÃ FIX LỖI TYPEERROR: Truyền số cột cụ thể vào st.columns ===
     col_title_1, col_title_2 = st.columns(2)
     with col_title_1:
         st.markdown("<h3 style='color: #1e3a8a;'>Danh Sách Sản Lượng & Hình Ảnh</h3>", unsafe_allow_html=True)
@@ -139,15 +138,13 @@ def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
         # Tiến hành lọc dữ liệu
         filtered_df = raw_input_df.copy()
         
-        # === ĐÃ SỬA: Lọc ngày thông minh tự nhận diện chuỗi VN và chuỗi Quốc tế ===
+        # === ĐÃ FIX TRIỆT ĐỂ LỖI THỤT LỀ INDENTATIONERROR ===
         if "Ngày" in filtered_df.columns:
             try:
-                # Thử parse theo kiểu quốc tế trước YYYY-MM-DD, nếu lỗi chuyển sang DD/MM/YYYY
                 filtered_df["_ngay_parsed"] = pd.to_datetime(filtered_df["Ngày"], errors='coerce').dt.date
                 nas = filtered_df["_ngay_parsed"].isna()
                 if nas.any():
                     filtered_df.loc[nas, "_ngay_parsed"] = pd.to_datetime(filtered_df.loc[nas, "Ngày"], format='%d/%m/%Y', errors='coerce').dt.date
-                
                 filtered_df = filtered_df[(filtered_df["_ngay_parsed"] >= start_filter_date) & (filtered_df["_ngay_parsed"] <= end_filter_date)]
             except:
                 pass
@@ -188,3 +185,6 @@ def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
                 with btn_c1:
                     btn_delete_selected = st.button("🗑️ Xóa các dòng đã chọn", use_container_width=True, type="primary", key="btn_del_selected_final")
                 with btn_c2:
+                    st.markdown("<div style='margin-top: 6px;'></div>", unsafe_allow_html=True)
+                    confirm_all = st.checkbox("Xác nhận xóa tất cả các trang này", key="chk_confirm_all_del")
+                
