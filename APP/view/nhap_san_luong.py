@@ -13,6 +13,8 @@ from database import (
 
 def find_column_case_insensitive(df, target_names):
     """Tìm tên cột thực tế trong DataFrame không phân biệt hoa thường hoặc dấu gạch dưới"""
+    if df.empty:
+        return target_names[0]
     cols = [str(c).strip().lower() for c in df.columns]
     for target in target_names:
         target_clean = target.strip().lower()
@@ -24,7 +26,7 @@ def find_column_case_insensitive(df, target_names):
             c_clean = c.replace(" ", "").replace("_", "")
             if target_no_space == c_clean:
                 return df.columns[i]
-    return df.columns[0] if len(df.columns) > 0 else None
+    return df.columns[0] if len(df.columns) > 0 else target_names[0]
 
 def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
     now_vn = datetime.datetime.now(VN_TIMEZONE)
@@ -44,7 +46,7 @@ def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
         active_staff = [s for s in st.session_state.get("staff_list", []) if s in checked_in_set]
 
         if not active_staff:
-            st.warning(f"⚠️ Hiện tại chưa có nhân sự nào **Check-in (Vào ca)** hoặc các ca trước chưa kết thúc. Vui lòng thực hiện Check-in trước khi nhập sản lượng!")
+            st.warning("⚠️ Hiện tại chưa có nhân sự nào **Check-in (Vào ca)** hoặc các ca trước chưa kết thúc. Vui lòng thực hiện Check-in trước khi nhập sản lượng!")
         else:
             req_img = st.session_state.get("require_image", True)
             req_qty = st.session_state.get("require_quantity", True)
@@ -114,65 +116,65 @@ def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
             st.cache_data.clear()
             st.rerun()
     
+    # Đọc database sản lượng
     input_df = get_production_logs_db(is_deleted=False, limit_rows=1000)
+    if input_df is None:
+        input_df = pd.DataFrame()
+
+    # Ánh xạ động tên cột
+    col_ngay = find_column_case_insensitive(input_df, ["Ngày", "ngay", "ngày làm việc", "Ngày làm việc"])
+    col_gio = find_column_case_insensitive(input_df, ["Thời Gian", "thoi_gian", "giờ", "gio", "Thời gian"])
+    col_nhan_su = find_column_case_insensitive(input_df, ["Nhân Sự", "nhan_su", "nhân sự thực hiện", "Nhân sự"])
+    col_hang_muc = find_column_case_insensitive(input_df, ["Hạng Mục Công Việc", "hang_muc_cong_viec", "hạng mục", "hang_muc", "Hạng mục"])
+    col_so_luong = find_column_case_insensitive(input_df, ["Số Lượng Thực Tế", "Số Lượng", "so_luong", "qty", "Số lượng"])
+    col_don_vi = find_column_case_insensitive(input_df, ["Đơn Vị", "don_vi", "unit", "Đơn vị"])
+    col_tong_diem = find_column_case_insensitive(input_df, ["Tổng Điểm", "tong_diem", "điểm", "diem", "Tổng điểm"])
+    col_ghi_chu = find_column_case_insensitive(input_df, ["Ghi Chú", "ghi_chu", "note", "Ghi chú"])
+    col_hinh_anh = find_column_case_insensitive(input_df, ["Hình Ảnh", "hinh_anh", "img_urls", "Hình ảnh"])
+
+    # === ĐƯA BỘ LỌC RA NGOÀI VÒNG ĐIỀU KIỆN: ĐẢM BẢO LUÔN HIỂN THỊ 100% ===
+    filter_col1, filter_col2, filter_col3, filter_col4, filter_col5, filter_col6 = st.columns([1.2, 1.2, 0.8, 1.5, 1.5, 1.5])
     
-    if not input_df.empty:
-        # Ánh xạ động các cột để chống lỗi lệch tên cột trong Database/Google Sheets
-        col_ngay = find_column_case_insensitive(input_df, ["Ngày", "ngay", "ngày làm việc", "Ngày làm việc"])
-        col_gio = find_column_case_insensitive(input_df, ["Thời Gian", "thoi_gian", "giờ", "gio", "Thời gian"])
-        col_nhan_su = find_column_case_insensitive(input_df, ["Nhân Sự", "nhan_su", "nhân sự thực hiện", "Nhân sự"])
-        col_hang_muc = find_column_case_insensitive(input_df, ["Hạng Mục Công Việc", "hang_muc_cong_viec", "hạng mục", "hang_muc", "Hạng mục"])
-        col_so_luong = find_column_case_insensitive(input_df, ["Số Lượng Thực Tế", "Số Lượng", "so_luong", "qty", "Số lượng"])
-        col_don_vi = find_column_case_insensitive(input_df, ["Đơn Vị", "don_vi", "unit", "Đơn vị"])
-        col_tong_diem = find_column_case_insensitive(input_df, ["Tổng Điểm", "tong_diem", "điểm", "diem", "Tổng điểm"])
-        col_ghi_chu = find_column_case_insensitive(input_df, ["Ghi Chú", "ghi_chu", "note", "Ghi chú"])
-        col_hinh_anh = find_column_case_insensitive(input_df, ["Hình Ảnh", "hinh_anh", "img_urls", "Hình ảnh"])
+    with filter_col1:
+        start_filter_date = st.date_input("Từ ngày", now_vn.date() - datetime.timedelta(days=30), key="f_start_date")
+    with filter_col2:
+        end_filter_date = st.date_input("Đến ngày", now_vn.date(), key="f_end_date")
+    with filter_col3:
+        st.markdown("<div style='margin-top: 32px;'></div>", unsafe_allow_html=True)
+        filter_by_time = st.checkbox("Lọc theo Giờ", key="f_by_time")
+        
+    all_staffs = ["Tất cả"] + sorted(input_df[col_nhan_su].dropna().unique().tolist()) if (not input_df.empty and col_nhan_su in input_df.columns) else ["Tất cả"]
+    all_tasks = ["Tất cả"] + sorted(input_df[col_hang_muc].dropna().unique().tolist()) if (not input_df.empty and col_hang_muc in input_df.columns) else ["Tất cả"]
+    
+    with filter_col4:
+        selected_staff = st.selectbox("Lọc theo Nhân Sự", all_staffs, key="f_staff")
+    with filter_col5:
+        selected_task = st.selectbox("Lọc theo Hạng Mục", all_tasks, key="f_task")
 
-        # Bộ lọc ngang tích hợp phân trang góc phải chuẩn tỉ lệ UX hình mẫu
-        filter_col1, filter_col2, filter_col3, filter_col4, filter_col5, filter_col6 = st.columns([1.2, 1.2, 0.8, 1.5, 1.5, 1.5])
-        
-        with filter_col1:
-            start_filter_date = st.date_input("Từ ngày", now_vn.date() - datetime.timedelta(days=30), key="f_start_date")
-        with filter_col2:
-            end_filter_date = st.date_input("Đến ngày", now_vn.date(), key="f_end_date")
-        with filter_col3:
-            st.markdown("<div style='margin-top: 32px;'></div>", unsafe_allow_html=True)
-            filter_by_time = st.checkbox("Lọc theo Giờ", key="f_by_time")
-            
-        all_staffs = ["Tất cả"] + sorted(input_df[col_nhan_su].dropna().unique().tolist()) if col_nhan_su else ["Tất cả"]
-        all_tasks = ["Tất cả"] + sorted(input_df[col_hang_muc].dropna().unique().tolist()) if col_hang_muc else ["Tất cả"]
-        
-        with filter_col4:
-            selected_staff = st.selectbox("Lọc theo Nhân Sự", all_staffs, key="f_staff")
-        with filter_col5:
-            selected_task = st.selectbox("Lọc theo Hạng Mục", all_tasks, key="f_task")
-
-        filtered_df = input_df.copy()
-        
-        # Tiến hành lọc dữ liệu an toàn, bảo lưu dữ liệu nếu bộ lọc ngày lỗi chuỗi văn bản
-        if col_ngay:
+    filtered_df = input_df.copy()
+    
+    # Tiến hành xử lý lọc dữ liệu nếu dataframe có phần tử
+    if not filtered_df.empty:
+        if col_ngay in filtered_df.columns:
             try:
                 parsed_dates = pd.to_datetime(filtered_df[col_ngay], errors='coerce').dt.date
                 nas = parsed_dates.isna()
                 if nas.any():
-                    parsed_dates[nas] = pd.to_datetime(filtered_df.loc[nas, col_ngay], format='%d/%m/%Y', errors='coerce').dt.date
+                    filtered_df.loc[nas, "_ngay_parsed"] = pd.to_datetime(filtered_df.loc[nas, col_ngay], format='%d/%m/%Y', errors='coerce').dt.date
+                else:
+                    filtered_df["_ngay_parsed"] = parsed_dates
                 
-                temp_df = filtered_df[(parsed_dates >= start_filter_date) & (parsed_dates <= end_filter_date)]
+                temp_df = filtered_df[(filtered_df["_ngay_parsed"] >= start_filter_date) & (filtered_df["_ngay_parsed"] <= end_filter_date)]
                 if not temp_df.empty:
                     filtered_df = temp_df
             except:
                 pass
         
-        if filter_by_time and col_gio:
+        if filter_by_time and col_gio in filtered_df.columns:
             try:
                 current_hour_str = f"{now_vn.hour:02d}:"
                 filtered_df = filtered_df[filtered_df[col_gio].astype(str).str.contains(current_hour_str, na=False)]
             except:
                 pass
 
-        if selected_staff != "Tất cả" and col_nhan_su:
-            filtered_df = filtered_df[filtered_df[col_nhan_su] == selected_staff]
-        if selected_task != "Tất cả" and col_hang_muc:
-            filtered_df = filtered_df[filtered_df[col_hang_muc] == selected_task]
-
-        total_records = len(filtered_df)
+        if selected_staff != "Tất cả" and col_nhan_su in filtered_df.columns:
