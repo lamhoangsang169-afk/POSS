@@ -100,7 +100,7 @@ def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
 
     st.markdown("---")
 
-    # ==================== PHẦN 2: DANH SÁCH SẢN LƯỢNG & HÌNH ẢNH ====================
+    # ==================== PHẦN 2: DANH SÁCH SẢN LƯỢNG & HÌNH ẢNH (BỔ SUNG BỘ LỌC TỪ NGÀY - ĐẾN NGÀY) ====================
     col_title_1, col_title_2 = st.columns([3, 1])
     with col_title_1:
         st.markdown("<h3 style='color: #1e3a8a;'>Danh Sách Sản Lượng & Hình Ảnh</h3>", unsafe_allow_html=True)
@@ -112,11 +112,11 @@ def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
     raw_input_df = get_production_logs_db(is_deleted=False, limit_rows=1000)
 
     if not raw_input_df.empty:
+        # Bố cục 5 cột bộ lọc: Từ ngày | Đến ngày | Lọc theo Giờ | Nhân Sự | Hạng Mục | Trang hiển thị
         f_col1, f_col2, f_col3, f_col4, f_col5, f_col6 = st.columns([1.2, 1.2, 1.0, 1.1, 1.1, 1.0])
         
         with f_col1:
-            # === ĐẶT MẶC ĐỊNH LÀ NGÀY THỰC TẾ (HÔM NAY) HOẶC LẤY TRƯỚC ĐÓ 30 NGÀY TÙY Ý ===
-            default_start = now_vn.date()
+            default_start = now_vn.date() - datetime.timedelta(days=30)
             start_filter_date = st.date_input("Từ ngày", default_start, key="f_start_date")
         with f_col2:
             end_filter_date = st.date_input("Đến ngày", now_vn.date(), key="f_end_date")
@@ -134,6 +134,7 @@ def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
         with f_col4:
             filter_staff = st.selectbox("Lọc theo Nhân Sự", all_staff, key="f_staff")
             
+        # Xử lý lọc dữ liệu theo Ngày tháng
         temp_filtered_df = raw_input_df.copy()
         temp_filtered_df["Ngày_DT"] = pd.to_datetime(temp_filtered_df["Ngày"], errors='coerce').dt.date
         temp_filtered_df = temp_filtered_df[(temp_filtered_df["Ngày_DT"] >= start_filter_date) & (temp_filtered_df["Ngày_DT"] <= end_filter_date)]
