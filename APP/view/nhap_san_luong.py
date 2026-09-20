@@ -78,8 +78,8 @@ def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
 
             if submitted and nhan_su != "--- Vui lòng chọn nhân sự ---" and hang_muc != "Chưa có dữ liệu định mức":
                 row_rule = rules_df[rules_df["Hạng Mục Công Việc"] == hang_muc] if not rules_df.empty else pd.DataFrame()
-                he_so = float(row_rule["Hệ Số Điểm"].values[0]) if not row_rule.empty and "Hệ Số Điểm" in row_rule.columns else 1.0
-                don_vi = str(row_rule["Đơn Vị"].values[0]) if not row_rule.empty and "Đơn Vị" in row_rule.columns else "Cái"
+                he_so = float(row_rule["Hệ Số Điểm"].values) if not row_rule.empty and "Hệ Số Điểm" in row_rule.columns else 1.0
+                don_vi = str(row_rule["Đơn Vị"].values) if not row_rule.empty and "Đơn Vị" in row_rule.columns else "Cái"
                 tong_diem = so_luong * he_so
                 
                 img_urls = upload_multiple_images_to_storage(record_images) if record_images else ""
@@ -92,8 +92,8 @@ def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
 
     st.markdown("---")
 
-    # ==================== PHẦN 2: DANH SÁCH SẢN LƯỢNG & HÌNH ẢNH (BẢN CŨ CỦA BẠN) ====================
-    col_title_1, col_title_2 = st.columns([3, 1])
+    # ==================== PHẦN 2: DANH SÁCH SẢN LƯỢNG & HÌNH ẢNH ====================
+    col_title_1, col_title_2 = st.columns()
     with col_title_1:
         st.markdown("<h3 style='color: #1e3a8a;'>Danh Sách Sản Lượng & Hình Ảnh</h3>", unsafe_allow_html=True)
     with col_title_2:
@@ -116,7 +116,6 @@ def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
             st.markdown("<br>", unsafe_allow_html=True)
             filter_by_time = st.checkbox("Lọc theo Giờ", key="f_by_time")
             
-        # Lấy danh sách duy nhất để bỏ vào Selectbox lọc
         all_staffs = ["Tất cả"] + sorted(raw_input_df["Nhân Sự"].dropna().unique().tolist())
         all_tasks = ["Tất cả"] + sorted(raw_input_df["Hạng Mục Công Việc"].dropna().unique().tolist())
         
@@ -125,7 +124,7 @@ def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
         with filter_col5:
             selected_task = st.selectbox("Lọc theo Hạng Mục", all_tasks, key="f_task")
 
-        # Tiến hành lọc dữ liệu dựa trên các ô cấu hình trên
+        # Tiến hành lọc dữ liệu
         filtered_df = raw_input_df.copy()
         filtered_df["Ngày_DT"] = pd.to_datetime(filtered_df["Ngày"], errors='coerce').dt.date
         filtered_df = filtered_df[(filtered_df["Ngày_DT"] >= start_filter_date) & (filtered_df["Ngày_DT"] <= end_filter_date)]
@@ -135,7 +134,6 @@ def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
         if selected_task != "Tất cả":
             filtered_df = filtered_df[filtered_df["Hạng Mục Công Việc"] == selected_task]
 
-        # Thông báo số lượng bản ghi
         total_records = len(filtered_df)
         st.warning(f"📋 Trong khoảng ngày có: **{total_records} bản ghi**")
 
@@ -144,34 +142,34 @@ def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
             records_per_page = 10
             total_pages = (total_records + records_per_page - 1) // records_per_page
             
-            st.sidebar.markdown("---") # Đưa thanh phân trang vào sidebar hoặc góc trên tùy chọn
+            st.sidebar.markdown("---")
             page_number = st.sidebar.number_input(f"Trang hiển thị (1/{total_pages})", min_value=1, max_value=total_pages, value=1, step=1)
             
             start_idx = (page_number - 1) * records_per_page
             end_idx = min(start_idx + records_per_page, total_records)
             page_df = filtered_df.iloc[start_idx:end_idx]
 
-            # --- KHỐI THAO TÁC XÓA HÀNG LOẠT ---
+            # Danh sách chứa các ID được người dùng tích chọn từng dòng để xóa
+            selected_to_delete = []
+
+            # === ĐÃ BỔ SUNG KHỐI THAO TÁC XÓA HÀNG LOẠT (HIỂN THỊ NÚT MÀU ĐỎ CHUẨN XÁC) ===
             if current_user_role == "Admin":
-                st.markdown("<div style='background-color: #f1f5f9; padding: 10px; border-radius: 8px; margin-bottom: 15px;'>", unsafe_allow_html=True)
+                st.markdown("<br>", unsafe_allow_html=True)
+                # Chia tỉ lệ cột để nút đỏ nằm bên trái rộng, ô xác nhận và nút phụ nằm bên phải giống ảnh cũ
                 del_c1, del_c2, del_c3 = st.columns([2.5, 1.2, 1.2])
-                
-                selected_to_delete = []
                 
                 with del_c2:
                     st.markdown("<div style='margin-top: 5px;'>", unsafe_allow_html=True)
                     confirm_all = st.checkbox("Xác nhận xóa tất cả trong này", key="chk_confirm_all_del")
+                    st.markdown("</div>", unsafe_allow_html=True)
                 with del_c3:
                     btn_del_all = st.button("🗑️ Xóa tất cả cả trang này", use_container_width=True, key="btn_del_page_all")
-                
-                st.markdown("</div>", unsafe_allow_html=True)
 
-            # --- KHỐI THẺ CONTAINER HIỂN THỊ BẢN GHI (GIỐNG 100% BẢN CŨ) ---
+            # --- KHỐI THỂ CONTAINER HIỂN THỊ BẢN GHI ---
             for idx, row in page_df.iterrows():
                 display_stt = start_idx + page_df.index.get_loc(idx) + 1
                 
                 with st.container(border=True):
-                    # Chia bố cục ngang: nội dung chữ bên trái, nút và ảnh bên phải
                     main_c1, main_c2 = st.columns([5, 1])
                     
                     with main_c1:
@@ -179,3 +177,6 @@ def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
                         st.markdown(f"🏗️ **{row['Hạng Mục Công Việc']}** | 📦 {int(row['Số Lượng'])} {row['Đơn Vị']} | ⭐ **{row['Tổng Điểm']} điểm**")
                         
                         note_text = row['Ghi Chú'] if pd.notna(row['Ghi Chú']) and str(row['Ghi Chú']).strip() else "Không có ghi chú"
+                        st.markdown(f"<span style='color: #64748b; font-size: 0.9rem;'>💬 {note_text}</span>", unsafe_allow_html=True)
+                        
+                        # Ô chọn xóa nằm ở dưới cùng của mỗi thẻ
