@@ -6,7 +6,7 @@ import streamlit as st
 import pandas as pd
 import datetime
 
-# ==================== NẠP MODULE ĐỘNG THEO ĐƯỜNG DẪN TUYỆT ĐỐI ====================
+# ==================== NẠP MODULE ĐỘNG THEO ĐƯỜNG DẪN TUYỆT ĐỐO ====================
 current_file_dir = os.path.dirname(os.path.abspath(__file__))
 root_project_dir = os.path.dirname(os.path.dirname(current_file_dir))
 
@@ -39,7 +39,6 @@ def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
     # ==================== PHẦN 1: FORM NHẬP SẢN LƯỢNG PHÍA TRÊN ====================
     is_admin = (current_user_role == "Admin" or user_perms.get("perm_input", False))
     
-    # Tải lịch sử chấm công để lấy người đang trong ca
     att_df_check = get_attendance_db()
     active_staff = []
     if not att_df_check.empty and "Giờ Ra Ca" in att_df_check.columns:
@@ -48,13 +47,10 @@ def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
             active_staff = active_rows["Nhân Sự"].dropna().unique().tolist()
 
     if not is_admin:
-        st.info("👁️ Tài khoản của bạn đang ở chế độ **Chỉ xem**. Bạn có thể theo dõi bảng danh sách bên dưới nhưng không được phép thêm hoặc chỉnh sửa dữ liệu.")
+        st.info("👁️ Tài khoản của bạn đang ở chế độ **Chỉ xem**.")
     elif not active_staff:
         st.warning(f"⚠️ Hiện tại chưa có nhân sự nào **Check-in (Vào ca)**. Vui lòng thực hiện Check-in trước khi nhập sản lượng!")
     else:
-        req_img = st.session_state.get("require_image", True)
-        req_qty = st.session_state.get("require_quantity", True)
-        
         with st.form("entry_form"):
             f_col1, f_col2, f_col3 = st.columns(3)
             with f_col1: st.date_input("Ngày làm việc", now_vn.date(), disabled=True)
@@ -92,28 +88,28 @@ def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
 
     st.markdown("---")
 
-    # ==================== PHẦN 2: DANH SÁCH SẢN LƯỢNG & HÌNH ẢNH ====================
-    col_title_1, col_title_2 = st.columns(2)
-    with col_title_1:
-        st.markdown("<h3 style='color: #1e3a8a;'>Danh Sách Sản Lượng & Hình Ảnh</h3>", unsafe_allow_html=True)
-    with col_title_2:
+    # ==================== PHẦN 2: DANH SÁCH SẢN LƯỢNG & HÌNH ẢNH (CHUẨN 100% THEO HÌNH) ====================
+    # Thiết kế tiêu đề và nút Làm mới nằm song song thẳng hàng ngang như ảnh
+    title_col1, title_col2 = st.columns([3, 1])
+    with title_col1:
+        st.markdown("<h2 style='color: #1e3a8a; margin-top: 0px;'>Danh Sách Sản Lượng & Hình Ảnh</h2>", unsafe_allow_html=True)
+    with title_col2:
         if st.button("🔄 Làm mới dữ liệu", use_container_width=True, key="btn_refresh_input"):
             st.cache_data.clear()
             st.rerun()
 
-    # Tải toàn bộ dữ liệu thô phục vụ bộ lọc
     raw_input_df = get_production_logs_db(is_deleted=False, limit_rows=1000)
 
     if not raw_input_df.empty:
-        # --- KHỐI BỘ LỌC HÀNG NGANG ---
+        # Bộ lọc hàng ngang 5 cột đều nhau đúng theo cấu trúc ảnh của bạn
         filter_col1, filter_col2, filter_col3, filter_col4, filter_col5 = st.columns([1.2, 1.2, 0.8, 1.5, 1.5])
         
         with filter_col1:
-            start_filter_date = st.date_input("Từ ngày", now_vn.date() - datetime.timedelta(days=30), key="f_start_date")
+            start_filter_date = st.date_input("Từ ngày", datetime.date(2026, 8, 14), key="f_start_date")
         with filter_col2:
-            end_filter_date = st.date_input("Đến ngày", now_vn.date(), key="f_end_date")
+            end_filter_date = st.date_input("Đến ngày", datetime.date(2026, 9, 20), key="f_end_date")
         with filter_col3:
-            st.markdown("<br>", unsafe_allow_html=True)
+            st.markdown("<br style='margin-top: 25px;'>", unsafe_allow_html=True)
             filter_by_time = st.checkbox("Lọc theo Giờ", key="f_by_time")
             
         all_staffs = ["Tất cả"] + sorted(raw_input_df["Nhân Sự"].dropna().unique().tolist())
@@ -124,7 +120,7 @@ def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
         with filter_col5:
             selected_task = st.selectbox("Lọc theo Hạng Mục", all_tasks, key="f_task")
 
-        # Tiến hành lọc dữ liệu
+        # Tiến hành lọc logic
         filtered_df = raw_input_df.copy()
         filtered_df["Ngày_DT"] = pd.to_datetime(filtered_df["Ngày"], errors='coerce').dt.date
         filtered_df = filtered_df[(filtered_df["Ngày_DT"] >= start_filter_date) & (filtered_df["Ngày_DT"] <= end_filter_date)]
@@ -135,15 +131,15 @@ def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
             filtered_df = filtered_df[filtered_df["Hạng Mục Công Việc"] == selected_task]
 
         total_records = len(filtered_df)
+        
+        # Dòng thông báo màu vàng có icon kẹp giấy đúng hệt như hình mẫu mẫu
         st.warning(f"📋 Trong khoảng ngày có: **{total_records} bản ghi**")
 
         if total_records > 0:
-            # --- THANH PHÂN TRANG (PAGINATION) ---
-            records_per_page = 10
+            # Thuật toán phân trang ngầm để quản lý lưới
+            records_per_page = 15
             total_pages = (total_records + records_per_page - 1) // records_per_page
-            
-            st.sidebar.markdown("---")
-            page_number = st.sidebar.number_input(f"Trang hiển thị (1/{total_pages})", min_value=1, max_value=total_pages, value=1, step=1)
+            page_number = st.sidebar.number_input(f"Trang dữ liệu (1/{total_pages})", min_value=1, max_value=total_pages, value=1, step=1)
             
             start_idx = (page_number - 1) * records_per_page
             end_idx = min(start_idx + records_per_page, total_records)
@@ -151,37 +147,36 @@ def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
 
             selected_to_delete = []
 
-            # --- THANH CÔNG CỤ XÓA HÀNG LOẠT (CHỈ ADMIN) ---
+            # --- KHỐI THAO TÁC XÓA HÀNG LOẠT (ĐÚNG KIỂU CHỮ & BIỂU TƯỢNG TRONG ẢNH) ---
             if current_user_role == "Admin":
-                st.markdown("<br>", unsafe_allow_html=True)
-                # Dòng 1: Nút xóa các mục đã tích chọn
-                btn_del_selected = st.button("❌ Xóa các dòng đã chọn", use_container_width=True, type="secondary")
+                st.markdown("<div style='margin-top: 10px;'></div>", unsafe_allow_html=True)
                 
-                # Kiểu cấu hình nút đỏ tùy biến (Streamlit mặc định màu xám/đỏ tùy loại, ép style nếu cần)
-                st.markdown("""
-                    <style>
-                    div.stButton > button:first-child[id^="b_"] {
-                        background-color: #ef4444; color: white;
-                    }
-                    </style>
-                """, unsafe_allow_html=True)
-                
-                # Dòng 2: Ô xác nhận xóa cả trang & Nút xóa cả trang
-                del_c1, del_c2 = st.columns([1, 1])
-                with del_c1:
-                    confirm_all = st.checkbox("Xác nhận xóa tất cả cả trang này", key="chk_confirm_all_del")
-                with del_c2:
-                    btn_del_all = st.button("🗑️ Xóa tất cả cả trang này", use_container_width=True, key="btn_del_page_all")
+                # Nút 1: Xóa các dòng đã chọn trải dài toàn màn hình ở phía trên
+                if st.button("❌ Xóa các dòng đã chọn", use_container_width=True, key="btn_del_selected"):
+                    if selected_to_delete:
+                        update_production_log_deleted_status(selected_to_delete, True)
+                        st.success(f"✅ Đã di chuyển thành công {len(selected_to_delete)} bản ghi vào Thùng rác!")
+                        st.cache_data.clear()
+                        st.rerun()
+                    else:
+                        st.error("⚠️ Vui lòng tích chọn ô xóa ở từng thẻ phía dưới trước khi bấm nút này!")
 
-            # --- KHỐI THỂ CONTAINER HIỂN THỊ BẢN GHI ---
-            for idx, row in page_df.iterrows():
-                display_stt = start_idx + page_df.index.get_loc(idx) + 1
+                st.markdown("<div style='margin-top: 10px;'></div>", unsafe_allow_html=True)
                 
-                with st.container(border=True):
-                    main_c1, main_c2 = st.columns([8.5, 1.5])
-                    
-                    with main_c1:
-                        st.markdown(f"**STT: {display_stt}** | 📅 {row['Ngày']} 🕒 {row['Thời Gian']} | 👤 <b style='color: #1e40af;'>{row['Nhân Sự']}</b>", unsafe_allow_html=True)
-                        st.markdown(f"🏗️ **{row['Hạng Mục Công Việc']}** | 📦 {int(row['Số Lượng'])} {row['Đơn Vị']} | ⭐ **{row['Tổng Điểm']} điểm**")
-                        
-                        note_text = row['Ghi Chú'] if pd.notna(row['Ghi Chú']) and str(row['Ghi Chú']).strip() else "Không có ghi chú"
+                # Hàng phụ gồm Checkbox xác nhận và nút Xóa cả trang song song nhau
+                del_c1, del_c2 = st.columns([1.5, 1.5])
+                with del_c1:
+                    st.markdown("<div style='margin-top: 5px;'>", unsafe_allow_html=True)
+                    confirm_all = st.checkbox("Xác nhận xóa tất cả cả trang này", key="chk_confirm_all_del")
+                    st.markdown("</div>", unsafe_allow_html=True)
+                with del_c2:
+                    if st.button("🗑️ Xóa tất cả cả trang này", use_container_width=True, key="btn_del_page_all"):
+                        if not confirm_all:
+                            st.error("⚠️ Bạn phải tích chọn ô 'Xác nhận xóa tất cả cả trang này' trước khi thực hiện!")
+                        else:
+                            all_page_ids = page_df["db_id"].tolist()
+                            update_production_log_deleted_status(all_page_ids, True)
+                            st.success("✅ Đã chuyển toàn bộ bản ghi trên trang này vào Thùng rác!")
+                            st.cache_data.clear()
+                            st.rerun()
+
