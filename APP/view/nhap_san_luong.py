@@ -19,6 +19,13 @@ from database import (
     get_attendance_db
 )
 
+def get_col_value(row, primary_keys, default_val=""):
+    """Hàm bổ trợ tìm kiếm dữ liệu linh hoạt theo tên cột tiếng Việt hoặc tiếng Anh"""
+    for key in primary_keys:
+        if key in row.index:
+            return row[key]
+    return default_val
+
 def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
     now_vn = datetime.datetime.now(VN_TIMEZONE)
     today_str = str(now_vn.date())
@@ -88,8 +95,8 @@ def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
 
                     if is_valid:
                         row_rule = rules_df[rules_df["Hạng Mục Công Việc"] == hang_muc] if not rules_df.empty else pd.DataFrame()
-                        he_so = float(row_rule["Hệ Số Điểm"].values[0]) if not row_rule.empty else 1.0
-                        don_vi = row_rule["Đơn Vị"].values[0] if not row_rule.empty else "Cái"
+                        he_so = float(row_rule["Hệ Số Điểm"].values) if not row_rule.empty else 1.0
+                        don_vi = row_rule["Đơn Vị"].values if not row_rule.empty else "Cái"
                         tong_diem = so_luong * he_so
                         
                         img_urls = upload_multiple_images_to_storage(record_images) if record_images else ""
@@ -102,8 +109,7 @@ def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
     st.markdown("---")
     
     # --- KHỐI 2: LƯỚI THẺ SẢN LƯỢNG VÀ BỘ LỌC NGANG CHUẨN UX GIAO DIỆN ---
-    # Sửa lỗi: Cấu hình rõ số lượng 2 cột cho st.columns
-    col_title_1, col_title_2 = st.columns([3, 1])
+    col_title_1, col_title_2 = st.columns(2)
     with col_title_1:
         st.markdown("<h2 style='color: #1e3a8a; margin-top: 0px; font-size: 1.5rem;'>Danh Sách Sản Lượng & Hình Ảnh</h2>", unsafe_allow_html=True)
     with col_title_2:
@@ -124,24 +130,30 @@ def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
             st.markdown("<br style='margin-top: 25px;'>", unsafe_allow_html=True)
             filter_by_time = st.checkbox("Lọc theo Giờ", key="f_by_time")
             
-        all_staffs = ["Tất cả"] + sorted(input_df["Nhân Sự"].dropna().unique().tolist()) if "Nhân Sự" in input_df.columns else ["Tất cả"]
-        all_tasks = ["Tất cả"] + sorted(input_df["Hạng Mục Công Việc"].dropna().unique().tolist()) if "Hạng Mục Công Việc" in input_df.columns else ["Tất cả"]
+        # Tìm cột Tên Nhân Sự và Hạng Mục
+        col_nhan_su = "Nhân Sự" if "Nhân Sự" in input_df.columns else ("nhan_su" if "nhan_su" in input_df.columns else "")
+        col_hang_muc = "Hạng Mục Công Việc" if "Hạng Mục Công Việc" in input_df.columns else ("hang_muc" if "hang_muc" in input_df.columns else "")
+        
+        all_staffs = ["Tất cả"] + sorted(input_df[col_nhan_su].dropna().unique().tolist()) if col_nhan_su else ["Tất cả"]
+        all_tasks = ["Tất cả"] + sorted(input_df[col_hang_muc].dropna().unique().tolist()) if col_hang_muc else ["Tất cả"]
         
         with filter_col4:
             selected_staff = st.selectbox("Lọc theo Nhân Sự", all_staffs, key="f_staff")
         with filter_col5:
             selected_task = st.selectbox("Lọc theo Hạng Mục", all_tasks, key="f_task")
 
-        # Tiến hành xử lý lọc dữ liệu
+        # Tiến hành xử lý lọc dữ liệu công việc
         filtered_df = input_df.copy()
-        if "Ngày" in filtered_df.columns:
-            filtered_df["Ngày_DT"] = pd.to_datetime(filtered_df["Ngày"], errors='coerce').dt.date
+        
+        col_ngay = "Ngày" if "Ngày" in filtered_df.columns else ("ngay" if "ngay" in filtered_df.columns else "")
+        if col_ngay:
+            filtered_df["Ngày_DT"] = pd.to_datetime(filtered_df[col_ngay], errors='coerce').dt.date
             filtered_df = filtered_df[(filtered_df["Ngày_DT"] >= start_filter_date) & (filtered_df["Ngày_DT"] <= end_filter_date)]
         
-        if selected_staff != "Tất cả" and "Nhân Sự" in filtered_df.columns:
-            filtered_df = filtered_df[filtered_df["Nhân Sự"] == selected_staff]
-        if selected_task != "Tất cả" and "Hạng Mục Công Việc" in filtered_df.columns:
-            filtered_df = filtered_df[filtered_df["Hạng Mục Công Việc"] == selected_task]
+        if selected_staff != "Tất cả" and col_nhan_su:
+            filtered_df = filtered_df[filtered_df[col_nhan_su] == selected_staff]
+        if selected_task != "Tất cả" and col_hang_muc:
+            filtered_df = filtered_df[filtered_df[col_hang_muc] == selected_task]
 
         total_records = len(filtered_df)
         st.warning(f"📋 Trong khoảng ngày có: **{total_records} bản ghi**")
@@ -170,9 +182,3 @@ def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
                 with del_c2:
                     if st.button("🗑️ Xóa tất cả cả trang này", use_container_width=True, key="btn_del_page_all"):
                         if not confirm_all:
-                            st.error("⚠️ Bạn phải tích chọn ô 'Xác nhận xóa tất cả cả trang này' trước khi thực hiện!")
-                        else:
-                            id_col = "id" if "id" in filtered_df.columns else ("db_id" if "db_id" in filtered_df.columns else filtered_df.columns)
-                            all_page_ids = filtered_df[id_col].tolist()
-                            update_production_log_deleted_status(all_page_ids, True)
-                            st.success("✅ Đã chuyển toàn bộ bản ghi trên trang này vào Thùng rác!")
