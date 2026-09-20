@@ -26,7 +26,7 @@ def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
     
     st.subheader(f"{current_menu_name} ({today_str})")
 
-    # ==================== PHẦN 1: FORM NHẬP SẢN LƯỢNG (GIỮ NGUYÊN TÍNH NĂNG CŨ) ====================
+    # Kiểm tra quyền bổ sung dữ liệu dựa theo logic cũ của bạn
     if current_user_role != "Admin" and not user_perms.get("perm_input", False):
         st.info("👁️ Tài khoản của bạn đang ở chế độ **Chỉ xem**. Bạn có thể theo dõi bảng danh sách bên dưới nhưng không được phép thêm hoặc chỉnh sửa dữ liệu.")
     else:
@@ -51,7 +51,7 @@ def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
                     nhan_su = st.selectbox("Nhân sự thực hiện", staff_options)
                 with f_col3:
                     rules_df = st.session_state.get("rules_df", pd.DataFrame())
-                    raw_tasks = rules_df["Hạng Mục Công Việc"].tolist() if not rules_df.empty and "Hạng Mục Công Việc" in rules_df.columns else []
+                    raw_tasks = rules_df["Hạng Mục Công Việc"].tolist() if not rules_df.empty else []
                     danh_sach_hang_muc = [str(t).strip() for t in raw_tasks if pd.notna(t) and str(t).strip() and str(t).strip().lower() not in ["nan", "none"]]
                     hang_muc = st.selectbox("Hạng mục công việc", danh_sach_hang_muc)
                     
@@ -86,8 +86,8 @@ def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
 
                     if is_valid:
                         row_rule = rules_df[rules_df["Hạng Mục Công Việc"] == hang_muc] if not rules_df.empty else pd.DataFrame()
-                        he_so = float(row_rule["Hệ Số Điểm"].values[0]) if not row_rule.empty and "Hệ Số Điểm" in row_rule.columns else 1.0
-                        don_vi = row_rule["Đơn Vị"].values[0] if not row_rule.empty and "Đơn Vị" in row_rule.columns else "Cái"
+                        he_so = float(row_rule["Hệ Số Điểm"].values[0]) if not row_rule.empty else 1.0
+                        don_vi = row_rule["Đơn Vị"].values[0] if not row_rule.empty else "Cái"
                         tong_diem = so_luong * he_so
                         
                         img_urls = upload_multiple_images_to_storage(record_images) if record_images else ""
@@ -99,21 +99,20 @@ def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
 
     st.markdown("---")
     
-    # ==================== PHẦN 2: THIẾT KẾ GIAO DIỆN THEO ẢNH MẪU ====================
-    # Tiêu đề và nút "Làm mới dữ liệu" nằm trên cùng 1 hàng song song
+    # ==================== PHẦN 2: DANH SÁCH SẢN LƯỢNG & HÌNH ẢNH (GIAO DIỆN THEO MẪU) ====================
+    # Thiết kế tiêu đề song song với nút làm mới
     col_title_1, col_title_2 = st.columns([3, 1])
     with col_title_1:
-        st.markdown("<h2 style='color: #1e3a8a; margin-top: 0px; font-size: 1.7rem;'>Danh Sách Sản Lượng & Hình Ảnh</h2>", unsafe_allow_html=True)
+        st.markdown("<h2 style='color: #1e3a8a; margin-top: 0px;'>Danh Sách Sản Lượng & Hình Ảnh</h2>", unsafe_allow_html=True)
     with col_title_2:
         if st.button("🔄 Làm mới dữ liệu", use_container_width=True, key="btn_refresh_input"):
             st.cache_data.clear()
             st.rerun()
     
-    # Lấy dữ liệu thô từ cơ sở dữ liệu (tăng giới hạn lên để lọc linh hoạt theo thời gian)
-    input_df = get_production_logs_db(is_deleted=False, limit_rows=1000)
+    input_df = get_production_logs_db(is_deleted=False, limit_rows=150)
     
     if not input_df.empty:
-        # Khối bộ lọc gồm 5 cột chuẩn kích thước như hình mẫu
+        # Bộ lọc ngang gồm 5 cột đúng chuẩn giao diện
         filter_col1, filter_col2, filter_col3, filter_col4, filter_col5 = st.columns([1.2, 1.2, 0.8, 1.5, 1.5])
         
         with filter_col1:
@@ -124,15 +123,15 @@ def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
             st.markdown("<br style='margin-top: 25px;'>", unsafe_allow_html=True)
             filter_by_time = st.checkbox("Lọc theo Giờ", key="f_by_time")
             
-        all_staffs = ["Tất cả"] + sorted(input_df["Nhân Sự"].dropna().unique().tolist()) if "Nhân Sự" in input_df.columns else ["Tất cả"]
-        all_tasks = ["Tất cả"] + sorted(input_df["Hạng Mục Công Việc"].dropna().unique().tolist()) if "Hạng Mục Công Việc" in input_df.columns else ["Tất cả"]
+        all_staffs = ["Tất cả"] + sorted(input_df["Nhân Sự"].dropna().unique().tolist())
+        all_tasks = ["Tất cả"] + sorted(input_df["Hạng Mục Công Việc"].dropna().unique().tolist())
         
         with filter_col4:
             selected_staff = st.selectbox("Lọc theo Nhân Sự", all_staffs, key="f_staff")
         with filter_col5:
             selected_task = st.selectbox("Lọc theo Hạng Mục", all_tasks, key="f_task")
 
-        # Tiến hành xử lý lọc dữ liệu theo các tiêu chí đã chọn
+        # Áp dụng logic lọc dữ liệu
         filtered_df = input_df.copy()
         if "Ngày" in filtered_df.columns:
             filtered_df["Ngày_DT"] = pd.to_datetime(filtered_df["Ngày"], errors='coerce').dt.date
@@ -145,32 +144,38 @@ def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
 
         total_records = len(filtered_df)
         
-        # Dòng thông báo màu vàng có icon kẹp giấy đúng hệt như hình mẫu mẫu của bạn
+        # Dòng cảnh báo hiển thị tổng số lượng bản ghi có icon kẹp giấy đúng mẫu ảnh
         st.warning(f"📋 Trong khoảng ngày có: **{total_records} bản ghi**")
 
         if total_records > 0:
             selected_to_delete = []
 
-            # --- KHỐI CHỨC NĂNG XÓA HÀNG LOẠT DÀNH CHO ADMIN HOẶC TÀI KHOẢN CÓ QUYỀN ---
-            if current_user_role == "Admin" or user_perms.get("perm_input", False):
+            # Quyền xóa hàng loạt dành cho Admin
+            if current_user_role == "Admin":
                 st.markdown("<div style='margin-top: 10px;'></div>", unsafe_allow_html=True)
                 
-                # Nút 1: Xóa các dòng đã chọn trải dài toàn màn hình ở phía trên
+                # Nút Xóa các dòng đã chọn trải rộng toàn màn hình
                 if st.button("❌ Xóa các dòng đã chọn", use_container_width=True, key="btn_del_selected"):
                     if selected_to_delete:
+                        # Giả định cột id là 'id' hoặc 'db_id', điều chỉnh theo thực tế DB của bạn nếu cần
+                        id_col = "id" if "id" in filtered_df.columns else filtered_df.columns[0]
                         update_production_log_deleted_status(selected_to_delete, True)
-                        st.success(f"✅ Đã di chuyển thành công {len(selected_to_delete)} bản ghi được chọn vào Thùng rác!")
+                        st.success(f"✅ Đã di chuyển thành công {len(selected_to_delete)} bản ghi vào Thùng rác!")
                         st.cache_data.clear()
                         st.rerun()
                     else:
-                        st.error("⚠️ Vui lòng tích chọn ô vuông chọn xóa ở từng thẻ phía dưới trước khi nhấn nút này!")
+                        st.error("⚠️ Vui lòng tích chọn ô xóa ở từng thẻ phía dưới trước khi bấm nút này!")
 
                 st.markdown("<div style='margin-top: 10px;'></div>", unsafe_allow_html=True)
                 
-                # Hàng phụ gồm Checkbox xác nhận và nút Xóa toàn bộ trang song song nhau
+                # Cấu trúc hàng phụ: Xác nhận xóa tất cả cả trang này
                 del_c1, del_c2 = st.columns([1.5, 1.5])
                 with del_c1:
                     st.markdown("<div style='margin-top: 5px;'>", unsafe_allow_html=True)
                     confirm_all = st.checkbox("Xác nhận xóa tất cả cả trang này", key="chk_confirm_all_del")
                     st.markdown("</div>", unsafe_allow_html=True)
                 with del_c2:
+                    if st.button("🗑️ Xóa tất cả cả trang này", use_container_width=True, key="btn_del_page_all"):
+                        if not confirm_all:
+                            st.error("⚠️ Bạn phải tích chọn ô 'Xác nhận xóa tất cả cả trang này' trước khi thực hiện!")
+                        else:
