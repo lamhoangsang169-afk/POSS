@@ -2,18 +2,20 @@ import os
 import sys
 import streamlit as st
 
-# ==================== CẤU HÌNH ĐƯỜNG DẪN HỆ THỐNG GỐC (BẮT BUỘC CHO LINUX) ====================
-# Lấy đường dẫn tuyệt đối của thư mục dự án chứa poss.py, database.py, utils.py
+# ==================== PHÁ VỠ BỘ NHỚ ĐỆM ĐƯỜNG DẪN (ANTI-CACHE) ====================
 current_dir = os.path.dirname(os.path.abspath(__file__))
 
-# Ép hệ thống ưu tiên tìm kiếm module tại thư mục gốc trước
+# Ép hệ thống nhận diện thư mục gốc chứa database.py và utils.py
 if current_dir not in sys.path:
     sys.path.insert(0, current_dir)
 
-# Đăng ký luôn đường dẫn vào thư mục view để các lệnh import hoạt động trơn tru
+# Ép hệ thống nhận diện thư mục con APP/view chứa các trang nghiệp vụ
 view_path = os.path.join(current_dir, "APP", "view")
 if view_path not in sys.path:
     sys.path.insert(0, view_path)
+
+# Khai báo biến môi trường hệ thống cho Linux
+os.environ["PYTHONPATH"] = current_dir
 
 # ==================== IMPORT CÁC TRANG NGHIỆP VỤ TỪ APP/view ====================
 import nhap_san_luong
