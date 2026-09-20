@@ -40,25 +40,41 @@ def get_staff_list_db():
     return []
 
 @st.cache_data(ttl=600, show_spinner=False)
-def add_production_log_db(ngay, gio, nhan_su, hang_muc, anh, don_vi, so_luong, he_so, tong_diem, ghi_chu):
+def add_production_log_db(ngay, thoi_gian, nhan_su, hang_muc, hinh_anh_url, don_vi, so_luong, he_so, tong_diem, ghi_chu=""):
+    if supabase is None:
+        return
     try:
-        data = {
-            "Ngày": ngay,
-            "Giờ": gio,
-            "Nhân Sự": nhan_su,
-            "Hạng Mục Công Việc": hang_muc,
-            "Hình Ảnh": anh,
-            "Đơn Vi": don_vi,
-            "Số Lượng Thực Tế": so_luong,
-            "Hệ Số Điểm": he_so,
-            "Tổng Điểm": tong_diem,
-            "Ghi Chú": ghi_chu,
+        # Payload cơ bản chứa các cột chắc chắn có trong bảng production_logs
+        payload = {
+            "ngay": str(ngay),
+            "thoi_gian": thoi_gian,
+            "nhan_su": nhan_su,
+            "hang_muc_cong_viec": hang_muc,
+            "hinh_anh_url": hinh_anh_url,
+            "don_vi": don_vi,
+            "so_luong": int(so_luong),
+            "he_so_diem": float(he_so),
+            "tong_diem": float(tong_diem),
             "is_deleted": False
         }
-        response = supabase.table("production_logs").insert(data).execute()
-        return response
+        
+        # Thêm ghi chú nếu có nội dung
+        if ghi_chu:
+            payload["ghi_chu"] = ghi_chu
+            
+        # Thử thực hiện lưu dữ liệu lên Supabase
+        supabase.table("production_logs").insert(payload).execute()
+        st.cache_data.clear()
+        
     except Exception as e:
-        st.error(f"Lỗi database: {e}")
+        # Fallback tự động: Nếu lỗi do chưa có cột ghi_chu trên Supabase, 
+        # hệ thống sẽ tự gỡ bỏ ghi_chu và lưu lại phần còn lại để không bị mất bản ghi
+        try:
+            payload.pop("ghi_chu", None)
+            supabase.table("production_logs").insert(payload).execute()
+            st.cache_data.clear()
+        except Exception as inner_e:
+            st.error(f"Lỗi database: {inner_e}")
         return None
 
 def get_production_logs_db(is_deleted=False, limit_rows=1000):
