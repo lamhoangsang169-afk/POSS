@@ -132,7 +132,7 @@ def load_app_settings_db():
     try:
         res = supabase.table("app_settings").select("*").eq("id", 1).execute()
         if res.data and len(res.data) > 0:
-            return res.data[0]
+            return res.data[0]  # Sửa lại thành phần tử đầu tiên của mảng
     except Exception:
         pass
     return {}
@@ -158,7 +158,7 @@ def load_folders_db():
         pass
     return default_folders
 
-# ==================== BỔ SUNG CÁC HÀM CÒN THIẾU (SỬA LỖI CRASH) ====================
+# ==================== BỔ SUNG CÁC HÀM CÒN THIẾU ====================
 
 def update_production_log_deleted_status(db_ids, is_deleted):
     """Cập nhật trạng thái xóa (chuyển vào thùng rác hoặc khôi phục)"""
@@ -188,4 +188,41 @@ def permanent_delete_db(db_ids):
         return True
     except Exception as e:
         st.error(f"Lỗi khi xóa vĩnh viễn: {e}")
+        return None
+
+# ==================== CÁC HÀM XỬ LÝ CHẤM CÔNG (MỚI BỔ SUNG BƯỚC 1) ====================
+
+def add_attendance_log_db(ngay, nhan_su, gio_vao):
+    """Hàm xử lý khi nhân viên bấm Check-in (Vào ca)"""
+    if supabase is None:
+        return None
+    try:
+        data = {
+            "ngay": ngay,
+            "nhan_su": nhan_su,
+            "gio_vao_ca": gio_vao,
+            "gio_ra_ca": "Chưa kết thúc",
+            "so_phut_lam_viec": 0,
+            "ghi_chu": ""
+        }
+        response = supabase.table("attendance").insert(data).execute()
+        return response
+    except Exception as e:
+        st.error(f"Lỗi Check-in: {e}")
+        return None
+
+def update_attendance_checkout_db(db_id, gio_ra, so_phut, ghi_chu=""):
+    """Hàm xử lý khi nhân viên bấm Check-out (Ra ca)"""
+    if supabase is None:
+        return None
+    try:
+        data = {
+            "gio_ra_ca": gio_ra,
+            "so_phut_lam_viec": so_phut,
+            "ghi_chu": ghi_chu
+        }
+        response = supabase.table("attendance").update(data).eq("id", db_id).execute()
+        return response
+    except Exception as e:
+        st.error(f"Lỗi Check-out: {e}")
         return None
