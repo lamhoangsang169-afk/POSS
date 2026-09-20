@@ -100,7 +100,7 @@ def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
 
     st.markdown("---")
 
-    # ==================== PHẦN 2: DANH SÁCH SẢN LƯỢNG & HÌNH ẢNH ====================
+    # ==================== PHẦN 2: DANH SÁCH SẢN LƯỢNG & HÌNH ẢNH (BỔ SUNG BỘ LỌC TỪ NGÀY - ĐẾN NGÀY) ====================
     col_title_1, col_title_2 = st.columns([3, 1])
     with col_title_1:
         st.markdown("<h3 style='color: #1e3a8a;'>Danh Sách Sản Lượng & Hình Ảnh</h3>", unsafe_allow_html=True)
@@ -109,20 +109,19 @@ def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
             st.cache_data.clear()
             st.rerun()
 
-    raw_input_df = get_production_logs_db(is_deleted=False, limit_rows=150)
+    raw_input_df = get_production_logs_db(is_deleted=False, limit_rows=1000)
 
     if not raw_input_df.empty:
-        f_col1, f_col2, f_col3, f_col4, f_col5 = st.columns([0.9, 1.2, 0.9, 0.9, 0.8])
+        # Bố cục 5 cột bộ lọc: Từ ngày | Đến ngày | Lọc theo Giờ | Nhân Sự | Hạng Mục | Trang hiển thị
+        f_col1, f_col2, f_col3, f_col4, f_col5, f_col6 = st.columns([1.2, 1.2, 1.0, 1.1, 1.1, 1.0])
         
         with f_col1:
-            all_dates = ["Tất cả"] + sorted(raw_input_df["Ngày"].unique().tolist())
-            default_index = all_dates.index(today_str) if today_str in all_dates else 0
-            filter_date = st.selectbox("Lọc theo Ngày", all_dates, index=default_index, key="f_date")
-            
-            count_by_date = len(raw_input_df) if filter_date == "Tất cả" else len(raw_input_df[raw_input_df["Ngày"] == filter_date])
-            st.markdown(f"<small style='color: #1d4ed8; font-weight: bold;'>📅 Ngày này có: {count_by_date} bản ghi</small>", unsafe_allow_html=True)
-            
+            default_start = now_vn.date() - datetime.timedelta(days=30)
+            start_filter_date = st.date_input("Từ ngày", default_start, key="f_start_date")
         with f_col2:
+            end_filter_date = st.date_input("Đến ngày", now_vn.date(), key="f_end_date")
+        with f_col3:
+            st.markdown("<br>", unsafe_allow_html=True)
             enable_hour_filter = st.checkbox("Lọc theo Giờ", value=False, key="f_by_time")
             if enable_hour_filter:
                 t_sub1, t_sub2 = st.columns(2)
@@ -130,14 +129,16 @@ def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
                 with t_sub2: end_t = st.time_input("Đến", datetime.time(17, 0), label_visibility="collapsed", key="f_end_t")
             else:
                 start_t, end_t = None, None
-            
-        with f_col3:
-            all_staff = ["Tất cả"] + sorted(raw_input_df["Nhân Sự"].unique().tolist())
+                
+        all_staff = ["Tất cả"] + sorted(raw_input_df["Nhân Sự"].dropna().unique().tolist())
+        with f_col4:
             filter_staff = st.selectbox("Lọc theo Nhân Sự", all_staff, key="f_staff")
             
+        # Xử lý lọc dữ liệu theo Ngày tháng
         temp_filtered_df = raw_input_df.copy()
-        if filter_date != "Tất cả": 
-            temp_filtered_df = temp_filtered_df[temp_filtered_df["Ngày"] == filter_date]
+        temp_filtered_df["Ngày_DT"] = pd.to_datetime(temp_filtered_df["Ngày"], errors='coerce').dt.date
+        temp_filtered_df = temp_filtered_df[(temp_filtered_df["Ngày_DT"] >= start_filter_date) & (temp_filtered_df["Ngày_DT"] <= end_filter_date)]
+        
         if filter_staff != "Tất cả": 
             temp_filtered_df = temp_filtered_df[temp_filtered_df["Nhân Sự"] == filter_staff]
 
@@ -150,20 +151,22 @@ def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
                     return True
             temp_filtered_df = temp_filtered_df[temp_filtered_df["Thời Gian"].apply(check_time_in_range)]
 
-        with f_col4:
-            available_tasks = ["Tất cả"] + sorted(temp_filtered_df["Hạng Mục Công Việc"].unique().tolist()) if not temp_filtered_df.empty else ["Tất cả"]
+        available_tasks = ["Tất cả"] + sorted(temp_filtered_df["Hạng Mục Công Việc"].dropna().unique().tolist()) if not temp_filtered_df.empty else ["Tất cả"]
+        with f_col5:
             filter_task = st.selectbox("Lọc theo Hạng Mục", available_tasks, key="f_task")
         
         filtered_df = temp_filtered_df.copy()
         if filter_task != "Tất cả": 
             filtered_df = filtered_df[filtered_df["Hạng Mục Công Việc"] == filter_task]
             
-        rows_per_page = 10
         total_rows = len(filtered_df)
-        total_pages = (total_rows - 1) // rows_per_page + 1
+        st.markdown(f"<div style='background: rgba(254, 243, 199, 0.6); padding: 8px 12px; border-radius: 6px; border: 1px solid #f59e0b; margin-bottom: 15px; font-weight: bold; color: #b45309;'>📅 Khoảng ngày có: {total_rows} bản ghi</div>", unsafe_allow_html=True)
 
-        with f_col5:
-            current_page = st.number_input(f"Trang hiển thị ({total_pages} tr | {total_rows} bản ghi)", min_value=1, max_value=max(total_pages, 1), value=1, step=1, key="pagination_page_num")
+        rows_per_page = 10
+        total_pages = (total_rows - 1) // rows_per_page + 1 if total_rows > 0 else 1
+
+        with f_col6:
+            current_page = st.number_input(f"Trang hiển thị ({total_pages} tr)", min_value=1, max_value=max(total_pages, 1), value=1, step=1, key="pagination_page_num")
 
         start_idx = (current_page - 1) * rows_per_page
         end_idx = start_idx + rows_per_page
@@ -190,7 +193,6 @@ def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
 
                     selected_ids_to_delete = []
                     for idx, row in paginated_df.iterrows():
-                        # === STT ĐẾM NGƯỢC TỪ TỔNG SỐ BẢN GHI GIẢM DẦN VỀ 1 ===
                         display_stt = total_rows - (start_idx + paginated_df.index.get_loc(idx))
                         
                         row_c1, row_c2 = st.columns([4, 1])
@@ -240,7 +242,6 @@ def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
                             st.warning("⚠️ Vui lòng tích chọn xác nhận trước khi bấm xóa tất cả!")
             else:
                 for idx, row in paginated_df.iterrows():
-                    # === STT ĐẾM NGƯỢC CHO CHẾ ĐỘ CHỈ XEM ===
                     display_stt = total_rows - (start_idx + paginated_df.index.get_loc(idx))
                     
                     row_c1, row_c2 = st.columns([4, 1])
