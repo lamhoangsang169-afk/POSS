@@ -30,6 +30,9 @@ update_production_log_deleted_status = db_module.update_production_log_deleted_s
 upload_multiple_images_to_storage = db_module.upload_multiple_images_to_storage
 get_attendance_db = db_module.get_attendance_db
 
+# Gọi hàm lấy định mức chuẩn từ file database của bạn
+get_rules_db = getattr(db_module, "get_rules_db", None)
+
 def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
     now_vn = datetime.datetime.now(VN_TIMEZONE)
     today_str = str(now_vn.date())
@@ -58,14 +61,15 @@ def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
                 staff_options = ["--- Vui lòng chọn nhân sự ---"] + active_staff
                 nhan_su = st.selectbox("Nhân sự thực hiện", staff_options)
             with f_col3:
+                # Nạp dữ liệu định mức trực tiếp từ hàm database hệ thống của bạn
                 rules_df = st.session_state.get("rules_df", pd.DataFrame())
-                if rules_df.empty:
+                if rules_df.empty and get_rules_db is not None:
                     try:
-                        if hasattr(db_module, 'get_rules_db'):
-                            rules_df = db_module.get_rules_db()
-                            st.session_state["rules_df"] = rules_df
+                        rules_df = get_rules_db()
+                        st.session_state["rules_df"] = rules_df
                     except:
                         pass
+                
                 raw_tasks = rules_df["Hạng Mục Công Việc"].tolist() if not rules_df.empty and "Hạng Mục Công Việc" in rules_df.columns else []
                 danh_sach_hang_muc = [str(t).strip() for t in raw_tasks if pd.notna(t) and str(t).strip()]
                 if not danh_sach_hang_muc: danh_sach_hang_muc = ["Chưa có dữ liệu định mức"]
@@ -102,17 +106,17 @@ def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
     with col_title_2:
         if st.button("🔄 Làm mới dữ liệu", use_container_width=True, key="btn_refresh_input"):
             st.cache_data.clear()
-            try:
-                if hasattr(db_module, 'get_rules_db'):
-                    st.session_state["rules_df"] = db_module.get_rules_db()
-            except:
-                pass
+            if get_rules_db is not None:
+                try:
+                    st.session_state["rules_df"] = get_rules_db()
+                except:
+                    pass
             st.rerun()
 
     raw_input_df = get_production_logs_db(is_deleted=False, limit_rows=1000)
 
     if not raw_input_df.empty:
-        # === ĐỒNG BỘ 100%: Bộ lọc ngang chuẩn tỉ lệ tích hợp Phân trang góc phải ===
+        # Bộ lọc ngang chuẩn tỉ lệ kết hợp thanh phân trang góc phải giống ảnh mẫu của bạn
         filter_col1, filter_col2, filter_col3, filter_col4, filter_col5, filter_col6 = st.columns([1.2, 1.2, 0.9, 1.5, 1.5, 1.5])
         
         with filter_col1:
@@ -160,7 +164,7 @@ def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
             records_per_page = 10
             total_pages = (total_records + records_per_page - 1) // records_per_page
             
-            # Đưa ô chọn trang lên góc phải thanh bộ lọc đúng như ảnh mẫu
+            # Đưa ô số trang hiển thị lên bộ lọc ngang phía trên góc phải
             with filter_col6:
                 page_number = st.number_input(f"Trang hiển thị (1/{total_pages})", min_value=1, max_value=total_pages, value=1, step=1, key="num_page_selector")
             
@@ -170,22 +174,20 @@ def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
 
             selected_to_delete = []
 
-            # === ĐỒNG BỘ 100%: Khối nút bấm Xóa hàng loạt giao diện Admin của ảnh mới ===
+            # Khối nút thao tác xóa hàng loạt cho Admin giống thiết kế của bạn
             if current_user_role == "Admin":
                 st.markdown("<br>", unsafe_allow_html=True)
-                
-                # Nút bấm lớn màu đỏ chiếm diện tích lớn bên trái
-                btn_c1, btn_c2 = st.columns([1, 1])
+                btn_c1, btn_c2 = st.columns([3, 2])
                 with btn_c1:
                     btn_delete_selected = st.button("🗑️ Xóa các dòng đã chọn", use_container_width=True, type="primary", key="btn_del_selected_final")
                 with btn_c2:
                     st.markdown("<div style='margin-top: 6px;'></div>", unsafe_allow_html=True)
                     confirm_all = st.checkbox("Xác nhận xóa tất cả các trang này", key="chk_confirm_all_del")
                 
-                # Nút phụ xóa tất cả toàn bộ trang hiển thị nằm phía dưới
                 st.markdown("<div style='margin-top: 10px;'></div>", unsafe_allow_html=True)
                 btn_del_all = st.button("🗑️ Xóa tất cả cả trang này", use_container_width=True, key="btn_del_page_all")
 
             st.markdown("<br>", unsafe_allow_html=True)
 
-            # === KHỐI THẺ CONTAINER HIỂN THỊ BẢN GHI (Kèm hình ảnh và Checkbox chọn xóa dưới chân) ===
+            # VÒNG LẶP HIỂN THỊ CÁC THẺ BẢN GHI
+            for idx, row in page_df.iterrows():
