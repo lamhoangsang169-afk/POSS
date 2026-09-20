@@ -1,40 +1,37 @@
 # view/nhap_san_luong.py
 import os
 import sys
+import importlib.util
 import streamlit as st
 import pandas as pd
 import datetime
 
-# ==================== ĐIỀU HƯỚNG ĐƯỜNG DẪN TUYỆT ĐỐI (SỬA LỖI WINDOWS & LINUX) ====================
+# ==================== NẠP MODULE ĐỘNG THEO ĐƯỜNG DẪN TUYỆT ĐỐI ====================
 current_file_dir = os.path.dirname(os.path.abspath(__file__))
 root_project_dir = os.path.dirname(os.path.dirname(current_file_dir))
 
-if root_project_dir not in sys.path:
-    sys.path.insert(0, root_project_dir)
+# Hàm nạp file python động bất chấp môi trường Windows/Linux
+def load_module_from_path(module_name, file_path):
+    spec = importlib.util.spec_from_file_location(module_name, file_path)
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[module_name] = module
+    spec.loader.exec_module(module)
+    return module
 
-# Import chuẩn hóa bằng cách gọi tên từ thư mục gốc của dự án
-try:
-    from database import (
-        get_production_logs_db,
-        add_production_log_db,
-        update_production_log_deleted_status,
-        upload_multiple_images_to_storage,
-        get_attendance_db
-    )
-    from utils import VN_TIMEZONE
-except ImportError:
-    # Nếu chạy trên một số môi trường Linux đặc biệt, cưỡng ép tìm kiếm package qua module gốc
-    sys.path.append(root_project_dir)
-    import database
-    import utils
-    
-    get_production_logs_db = database.get_production_logs_db
-    add_production_log_db = database.add_production_log_db
-    update_production_log_deleted_status = database.update_production_log_deleted_status
-    upload_multiple_images_to_storage = database.upload_multiple_images_to_storage
-    get_attendance_db = database.get_attendance_db
-    VN_TIMEZONE = utils.VN_TIMEZONE
+# Nạp database.py và utils.py từ thư mục gốc dự án
+db_path = os.path.join(root_project_dir, "database.py")
+utils_path = os.path.join(root_project_dir, "utils.py")
 
+db_module = load_module_from_path("database", db_path)
+utils_module = load_module_from_path("utils", utils_path)
+
+# Trích xuất các hàm và biến cần thiết để sử dụng trong giao diện
+VN_TIMEZONE = utils_module.VN_TIMEZONE
+get_production_logs_db = db_module.get_production_logs_db
+add_production_log_db = db_module.add_production_log_db
+update_production_log_deleted_status = db_module.update_production_log_deleted_status
+upload_multiple_images_to_storage = db_module.upload_multiple_images_to_storage
+get_attendance_db = db_module.get_attendance_db
 
 def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
     now_vn = datetime.datetime.now(VN_TIMEZONE)
@@ -101,8 +98,8 @@ def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
 
                     if is_valid:
                         row_rule = rules_df[rules_df["Hạng Mục Công Việc"] == hang_muc] if not rules_df.empty else pd.DataFrame()
-                        he_so = float(row_rule["Hệ Số Điểm"].values[0]) if not row_rule.empty else 1.0
-                        don_vi = row_rule["Đơn Vị"].values[0] if not row_rule.empty else "Cái"
+                        he_so = float(row_rule["Hệ Số Điểm"].values) if not row_rule.empty else 1.0
+                        don_vi = row_rule["Đơn Vị"].values if not row_rule.empty else "Cái"
                         tong_diem = so_luong * he_so
                         
                         img_urls = upload_multiple_images_to_storage(record_images) if record_images else ""
@@ -114,7 +111,7 @@ def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
 
     st.markdown("---")
     
-    col_title_1, col_title_2 = st.columns([3, 1])
+    col_title_1, col_title_2 = st.columns()
     with col_title_1:
         st.subheader("Danh Sách Sản Lượng & Hình Ảnh")
     with col_title_2:
