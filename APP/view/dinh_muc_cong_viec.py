@@ -23,7 +23,6 @@ get_rules_db = db_module.get_rules_db
 supabase = db_module.supabase
 
 def render_dinh_muc_cong_viec(current_menu_name, current_user_role, user_perms):
-    # === ĐÃ SỬA LỖI Ở ĐÂY: Thêm số 2 vào st.columns để phân chia thành 2 cột hợp lệ ===
     col_h1, col_h2 = st.columns(2)
     with col_h1:
         st.subheader(f"📋 {current_menu_name}")
@@ -34,38 +33,59 @@ def render_dinh_muc_cong_viec(current_menu_name, current_user_role, user_perms):
 
     st.markdown("<br>", unsafe_allow_html=True)
 
-    # 1. Tải và chuẩn hóa bảng hiển thị dữ liệu từ database Supabase
+    # 1. Tải bảng định mức thực tế từ database Supabase
     rules_df = get_rules_db()
     st.session_state["rules_df"] = rules_df
 
     if not rules_df.empty:
-        # Chèn cột STT chạy từ 1 đến hết vào đúng vị trí thứ 2 (sau cột db_id) giống ảnh mẫu
         display_df = rules_df.copy()
+        
+        # Đổi tên cột id khóa chính sang 'id' viết thường hiển thị giống ảnh mẫu
+        if "db_id" in display_df.columns:
+            display_df = display_df.rename(columns={"db_id": "id"})
+        elif "id" in display_df.columns:
+            pass
+            
+        # Tự động chèn cột số thứ tự STT hiển thị động nếu chưa có
         if "STT" not in display_df.columns:
             display_df.insert(1, "STT", range(1, len(display_df) + 1))
             
-        # Sắp xếp lại thứ tự cột hiển thị chuẩn xác: id, STT, Hạng Mục Công Việc, Đơn Vị, Hệ Số Điểm, Ghi Chú
-        columns_order = ["db_id", "STT", "Hạng Mục Công Việc", "Đơn Vị", "Hệ Số Điểm", "Ghi Chú"]
-        # Lọc những cột thực tế có trong bảng để tránh crash
-        actual_columns = [c for c in columns_order if c in display_df.columns]
-        display_df = display_df[actual_columns].rename(columns={"db_id": "id"})
+        # === ĐÃ CẢI TIẾN: Cơ chế quét tìm cột hạng mục công việc động không sợ lệch ký tự ===
+        task_col_real = None
+        for col in display_df.columns:
+            if str(col).lower().strip() in ["hạng mục công việc", "hang_muc_cong_viec", "hang_muc", "hạng mục"]:
+                task_col_real = col
+                break
         
-        # Kết xuất bảng lưới dữ liệu lớn lên màn hình chính
+        if task_col_real and task_col_real != "Hạng Mục Công Việc":
+            display_df = display_df.rename(columns={task_col_real: "Hạng Mục Công Việc"})
+            
+        # Cấu hình danh sách thứ tự ưu tiên hiển thị từ trái qua phải
+        columns_order = ["id", "STT", "Hạng Mục Công Việc", "Đơn Vị", "Hệ Số Điểm", "Ghi Chú"]
+        
+        # Khớp nối các cột thực tế đang có để đưa lên lưới
+        final_columns = [c for c in columns_order if c in display_df.columns]
+        # Gom thêm các cột phụ phát sinh khác nếu có dưới DB
+        for c in display_df.columns:
+            if c not in final_columns and c != "is_deleted":
+                final_columns.append(c)
+                
+        display_df = display_df[final_columns]
+        
+        # Kết xuất bảng lưới dữ liệu lớn hoàn chỉnh lên màn hình
         st.dataframe(display_df, use_container_width=True, hide_index=True)
     else:
         st.info("Chưa có dữ liệu định mức công việc nào trong hệ thống.")
 
     st.markdown("<br>", unsafe_allow_html=True)
 
-    # 2. KHỐI THAO TÁC NÂNG CAO CHỈ HIỂN THỊ KHI LÀ ADMIN (GIỐNG 100% NHƯ HÌNH)
+    # 2. KHỐI THAO TÁC NÂNG CAO CHỈ HIỂN THỊ KHI LÀ ADMIN
     is_admin = (current_user_role == "Admin" or user_perms.get("perm_rules", False))
     if is_admin:
         st.markdown("#### ⚙️ Thao Tác Nâng Cao (Admin)")
         
-        # Ô tích chọn cảnh báo xác nhận xóa
         confirm_delete_all = st.checkbox("⚠️ Tôi chắc chắn muốn xóa toàn bộ danh mục công việc trong hệ thống", key="chk_confirm_delete_all_rules")
         
-        # Chia thành 2 nút bấm lớn trải dài ngang hàng nhau ở dưới cùng
         col_btn1, col_btn2 = st.columns(2)
         with col_btn1:
             if st.button("📝 Lưu Thay Đổi Định Mức", use_container_width=True, key="btn_save_rules_change"):
@@ -80,7 +100,6 @@ def render_dinh_muc_cong_viec(current_menu_name, current_user_role, user_perms):
                 else:
                     if supabase is not None:
                         try:
-                            # Thực hiện lệnh xóa sạch bảng 'rules' trên Supabase
                             supabase.table("rules").delete().neq("id", 0).execute()
                             st.success("🔥 Đã xóa sạch toàn bộ danh mục định mức công việc khỏi cơ sở dữ liệu thành công!")
                             st.cache_data.clear()
