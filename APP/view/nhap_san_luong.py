@@ -112,17 +112,15 @@ def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
 
         filtered_df = input_df.copy()
         
-        # === SỬA ĐỔI QUAN TRỌNG: Lọc ngày an toàn bằng ép kiểu chuỗi, tránh lỗi NaT làm trống bảng dữ liệu ===
+        # 1. Lọc theo khoảng ngày an toàn
         col_ngay = next((c for c in filtered_df.columns if str(c).lower().strip() in ["ngày", "ngay"]), "")
         if col_ngay:
             try:
-                # Đảm bảo chuyển đổi ngày không bị rỗng lỗi múi giờ
                 filtered_df["Ngày_DT"] = pd.to_datetime(filtered_df[col_ngay], errors='coerce').dt.date
-                # Chỉ lọc nếu quá trình parse thành công và không bị NaT hoàn toàn
                 if filtered_df["Ngày_DT"].notna().any():
                     filtered_df = filtered_df[(filtered_df["Ngày_DT"] >= start_filter_date) & (filtered_df["Ngày_DT"] <= end_filter_date)]
             except:
-                pass # Nếu lỗi định mức thì bỏ qua bộ lọc ngày để bảo toàn hiển thị dữ liệu gốc
+                pass
         
         # 2. Lọc theo giờ
         col_gio = next((c for c in filtered_df.columns if str(c).lower().strip() in ["thời gian", "giờ", "gio", "thoi_gian"]), "")
@@ -178,3 +176,9 @@ def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
                 id_col = "db_id" if "db_id" in filtered_df.columns else ("id" if "id" in filtered_df.columns else filtered_df.columns)
                 row_id = row[id_col]
                 
+                with st.container(border=True):
+                    main_c1, main_c2 = st.columns([4, 1])
+                    
+                    with main_c1:
+                        val_ngay = row[col_ngay] if col_ngay else today_str
+                        val_gio = row.get(col_gio, "00:00:00")
