@@ -1,16 +1,15 @@
 # view/nhap_san_luong.py
 import os
 import sys
+import datetime
+import pandas as pd
+import streamlit as st
 
-# ==================== SỬA LỖI ĐƯỜNG DẪN IMPORT (BẮT BUỘC) ====================
-# Thêm thư mục gốc vào danh sách tìm kiếm để nhận diện database và utils
+# ==================== ĐỒNG BỘ ĐƯỜNG DẪN IMPORT SYSTEM ====================
 root_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 if root_dir not in sys.path:
     sys.path.insert(0, root_dir)
 
-import streamlit as st
-import pandas as pd
-import datetime
 from utils import VN_TIMEZONE
 from database import (
     get_production_logs_db,
@@ -26,7 +25,7 @@ def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
     
     st.subheader(f"{current_menu_name} ({today_str})")
 
-    # Kiểm tra quyền dựa theo logic code cũ gốc của bạn
+    # --- KHỐI 1: FORM CẬP NHẬT SẢN LƯỢNG (GIỮ NGUYÊN LOGIC GỐC CỦA BẠN) ---
     if current_user_role != "Admin" and not user_perms.get("perm_input", False):
         st.info("👁️ Tài khoản của bạn đang ở chế độ **Chỉ xem**. Bạn có thể theo dõi bảng danh sách bên dưới nhưng không được phép thêm hoặc chỉnh sửa dữ liệu.")
     else:
@@ -38,14 +37,15 @@ def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
         active_staff = [s for s in st.session_state.get("staff_list", []) if s in checked_in_set]
 
         if not active_staff:
-            st.warning(f"⚠️ Hiện tại chưa có nhân sự nào **Check-in (Vào ca)** hoặc các ca trước chưa kết thúc. Vui lòng thực hiện Check-in trước khi nhập sản lượng!")
+            st.warning("⚠️ Hiện tại chưa có nhân sự nào **Check-in (Vào ca)** hoặc các ca trước chưa kết thúc. Vui lòng thực hiện Check-in trước khi nhập sản lượng!")
         else:
             req_img = st.session_state.get("require_image", True)
             req_qty = st.session_state.get("require_quantity", True)
             
             with st.form("entry_form"):
                 f_col1, f_col2, f_col3 = st.columns(3)
-                with f_col1: ngay = st.date_input("Ngày làm việc", now_vn.date(), disabled=True)
+                with f_col1: 
+                    st.date_input("Ngày làm việc", now_vn.date(), disabled=True)
                 with f_col2:
                     staff_options = ["--- Vui lòng chọn nhân sự ---"] + active_staff
                     nhan_su = st.selectbox("Nhân sự thực hiện", staff_options)
@@ -58,8 +58,10 @@ def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
                 record_images = st.file_uploader("Tải ảnh đính kèm (Tối đa 4 ảnh)", type=["png", "jpg", "jpeg"], accept_multiple_files=True, key="record_img")
                         
                 f_col4, f_col5 = st.columns(2)
-                with f_col4: so_luong = st.number_input("Số lượng thực tế", min_value=0, value=0, step=1)
-                with f_col5: ghi_chu = st.text_input("Ghi chú", "")
+                with f_col4: 
+                    so_luong = st.number_input("Số lượng thực tế", min_value=0, value=0, step=1)
+                with f_col5: 
+                    ghi_chu = st.text_input("Ghi chú", "")
                     
                 submitted = st.form_submit_button("📊 Báo Cáo Sản Lượng", use_container_width=True)
 
@@ -99,8 +101,8 @@ def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
 
     st.markdown("---")
     
-    # ==================== PHẦN 2: DANH SÁCH SẢN LƯỢNG HÌNH THẺ CONTAINER ====================
-    col_title_1, col_title_2 = st.columns([3, 1])
+    # --- KHỐI 2: LƯỚI THẺ SẢN LƯỢNG VÀ BỘ LỌC NGANG CHUẨN UX GIAO DIỆN ---
+    col_title_1, col_title_2 = st.columns()
     with col_title_1:
         st.markdown("<h2 style='color: #1e3a8a; margin-top: 0px; font-size: 1.5rem;'>Danh Sách Sản Lượng & Hình Ảnh</h2>", unsafe_allow_html=True)
     with col_title_2:
@@ -108,11 +110,9 @@ def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
             st.cache_data.clear()
             st.rerun()
     
-    # Lấy dữ liệu sản lượng (gốc lấy 150 dòng)
     input_df = get_production_logs_db(is_deleted=False, limit_rows=150)
     
     if not input_df.empty:
-        # Cấu trúc bộ lọc ngang 5 cột theo đúng ảnh mẫu
         filter_col1, filter_col2, filter_col3, filter_col4, filter_col5 = st.columns([1.2, 1.2, 0.8, 1.5, 1.5])
         
         with filter_col1:
@@ -131,7 +131,7 @@ def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
         with filter_col5:
             selected_task = st.selectbox("Lọc theo Hạng Mục", all_tasks, key="f_task")
 
-        # Thực hiện filter logic
+        # Tiến hành xử lý lọc dữ liệu
         filtered_df = input_df.copy()
         if "Ngày" in filtered_df.columns:
             filtered_df["Ngày_DT"] = pd.to_datetime(filtered_df["Ngày"], errors='coerce').dt.date
@@ -143,18 +143,14 @@ def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
             filtered_df = filtered_df[filtered_df["Hạng Mục Công Việc"] == selected_task]
 
         total_records = len(filtered_df)
-        
-        # Hộp thông báo màu vàng nhạt có icon kẹp giấy đúng hệt như hình
         st.warning(f"📋 Trong khoảng ngày có: **{total_records} bản ghi**")
 
         if total_records > 0:
             selected_to_delete = []
 
-            # Khối giao diện chức năng xóa hàng loạt cho Admin
+            # Thao tác quản lý xóa nâng cao cho Admin
             if current_user_role == "Admin":
                 st.markdown("<div style='margin-top: 10px;'></div>", unsafe_allow_html=True)
-                
-                # Nút bấm xóa các dòng đã chọn trải rộng 1 hàng
                 if st.button("❌ Xóa các dòng đã chọn", use_container_width=True, key="btn_del_selected"):
                     if selected_to_delete:
                         update_production_log_deleted_status(selected_to_delete, True)
@@ -165,8 +161,6 @@ def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
                         st.error("⚠️ Vui lòng tích chọn ô xóa ở từng thẻ phía dưới trước khi bấm nút này!")
 
                 st.markdown("<div style='margin-top: 10px;'></div>", unsafe_allow_html=True)
-                
-                # Khối hàng phụ gồm Checkbox xác nhận và nút Xóa toàn bộ trang song song
                 del_c1, del_c2 = st.columns([1.5, 1.5])
                 with del_c1:
                     st.markdown("<div style='margin-top: 5px;'>", unsafe_allow_html=True)
@@ -177,4 +171,10 @@ def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
                         if not confirm_all:
                             st.error("⚠️ Bạn phải tích chọn ô 'Xác nhận xóa tất cả cả trang này' trước khi thực hiện!")
                         else:
-                            # Tự động nhận diện cột ID chính xác để lấy danh sách cần xóa
+                            id_col = "id" if "id" in filtered_df.columns else ("db_id" if "db_id" in filtered_df.columns else filtered_df.columns[0])
+                            all_page_ids = filtered_df[id_col].tolist()
+                            update_production_log_deleted_status(all_page_ids, True)
+                            st.success("✅ Đã chuyển toàn bộ bản ghi trên trang này vào Thùng rác!")
+                            st.cache_data.clear()
+                            st.rerun()
+
