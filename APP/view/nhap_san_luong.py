@@ -102,7 +102,8 @@ def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
     st.markdown("---")
     
     # --- KHỐI 2: LƯỚI THẺ SẢN LƯỢNG VÀ BỘ LỌC NGANG CHUẨN UX GIAO DIỆN ---
-    col_title_1, col_title_2 = st.columns()
+    # Sửa lỗi: Cấu hình rõ số lượng 2 cột cho st.columns
+    col_title_1, col_title_2 = st.columns([3, 1])
     with col_title_1:
         st.markdown("<h2 style='color: #1e3a8a; margin-top: 0px; font-size: 1.5rem;'>Danh Sách Sản Lượng & Hình Ảnh</h2>", unsafe_allow_html=True)
     with col_title_2:
@@ -171,10 +172,7 @@ def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
                         if not confirm_all:
                             st.error("⚠️ Bạn phải tích chọn ô 'Xác nhận xóa tất cả cả trang này' trước khi thực hiện!")
                         else:
-                            id_col = "id" if "id" in filtered_df.columns else ("db_id" if "db_id" in filtered_df.columns else filtered_df.columns[0])
+                            id_col = "id" if "id" in filtered_df.columns else ("db_id" if "db_id" in filtered_df.columns else filtered_df.columns)
                             all_page_ids = filtered_df[id_col].tolist()
                             update_production_log_deleted_status(all_page_ids, True)
                             st.success("✅ Đã chuyển toàn bộ bản ghi trên trang này vào Thùng rác!")
-                            st.cache_data.clear()
-                            st.rerun()
-
