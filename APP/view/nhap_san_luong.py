@@ -25,7 +25,7 @@ def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
     
     st.subheader(f"{current_menu_name} ({today_str})")
 
-    # --- KHỐI 1: FORM CẬP NHẬT SẢN LƯỢNG (GIỮ NGUYÊN LOGIC GỐC) ---
+    # --- KHỐI 1: FORM CẬP NHẬT SẢN LƯỢNG ---
     is_admin = (current_user_role == "Admin" or user_perms.get("perm_input", False))
     
     att_df_check = get_attendance_db()
@@ -47,10 +47,25 @@ def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
                 staff_options = ["--- Vui lòng chọn nhân sự ---"] + active_staff
                 nhan_su = st.selectbox("Nhân sự thực hiện", staff_options)
             with f_col3:
+                # === SỬA ĐỔI QUAN TRỌNG: Tự động dự phòng nạp dữ liệu định mức nếu session bị trống ===
                 rules_df = st.session_state.get("rules_df", pd.DataFrame())
+                
+                # Nếu trống, thử nạp lại từ cache cấu hình tổng của app hoặc từ database kết nối sheet
+                if rules_df.empty:
+                    try:
+                        from database import get_rules_db
+                        rules_df = get_rules_db()
+                        st.session_state["rules_df"] = rules_df
+                    except:
+                        pass
+                
                 raw_tasks = rules_df["Hạng Mục Công Việc"].tolist() if not rules_df.empty and "Hạng Mục Công Việc" in rules_df.columns else []
                 danh_sach_hang_muc = [str(t).strip() for t in raw_tasks if pd.notna(t) and str(t).strip()]
-                if not danh_sach_hang_muc: danh_sach_hang_muc = ["Chưa có dữ liệu định mức"]
+                
+                # Nếu vẫn trống, hiển thị cảnh báo hướng dẫn đồng bộ dữ liệu
+                if not danh_sach_hang_muc: 
+                    danh_sach_hang_muc = ["⚠️ Vui lòng nhấn nút Làm mới dữ liệu phía dưới"]
+                
                 hang_muc = st.selectbox("Hạng mục công việc", danh_sach_hang_muc)
                 
             record_images = st.file_uploader("Tải ảnh đính kèm (Tối đa 4 ảnh)", type=["png", "jpg", "jpeg"], accept_multiple_files=True, key="record_img")
@@ -61,7 +76,7 @@ def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
                 
             submitted = st.form_submit_button("📊 Báo Cáo Sản Lượng", use_container_width=True)
 
-            if submitted and nhan_su != "--- Vui lòng chọn nhân sự ---" and hang_muc != "Chưa có dữ liệu định mức":
+            if submitted and nhan_su != "--- Vui lòng chọn nhân sự ---" and "⚠️" not in hang_muc:
                 row_rule = rules_df[rules_df["Hạng Mục Công Việc"] == hang_muc] if not rules_df.empty else pd.DataFrame()
                 he_so = float(row_rule["Hệ Số Điểm"].values) if not row_rule.empty and "Hệ Số Điểm" in row_rule.columns else 1.0
                 don_vi = str(row_rule["Đơn Vị"].values) if not row_rule.empty and "Đơn Vị" in row_rule.columns else "Cái"
@@ -84,6 +99,12 @@ def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
     with col_title_2:
         if st.button("🔄 Làm mới dữ liệu", use_container_width=True, key="btn_refresh_input"):
             st.cache_data.clear()
+            # Đồng bộ lại toàn bộ danh mục từ Google Sheets khi nhấn làm mới
+            try:
+                from database import get_rules_db
+                st.session_state["rules_df"] = get_rules_db()
+            except:
+                pass
             st.rerun()
     
     input_df = get_production_logs_db(is_deleted=False, limit_rows=1000)
@@ -109,7 +130,7 @@ def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
 
         filtered_df = input_df.copy()
         
-        # 1. Lọc theo khoảng ngày (Sử dụng chuỗi an toàn tuyệt đối)
+        # 1. Lọc theo khoảng ngày an toàn
         col_ngay = next((c for c in filtered_df.columns if str(c).lower().strip() in ["ngày", "ngay"]), "")
         if col_ngay:
             try:
@@ -140,7 +161,7 @@ def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
         if total_records > 0:
             selected_to_delete = []
 
-            # QUẢN LÝ PHÂN TRANG (PAGINATION)
+            # PHÂN TRANG
             records_per_page = 10
             total_pages = (total_records + records_per_page - 1) // records_per_page
             
@@ -165,18 +186,3 @@ def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
                 with del_c2:
                     btn_del_all = st.button("🗑️ Xóa tất cả cả trang này", use_container_width=True, key="btn_del_page_all")
 
-            st.markdown("<br>", unsafe_allow_html=True)
-
-            # VÒNG LẶP RENDER DANH SÁCH THẺ CONTAINER
-            for idx, row in page_df.iterrows():
-                display_stt = start_idx + page_df.index.get_loc(idx) + 1
-                id_col = "db_id" if "db_id" in filtered_df.columns else ("id" if "id" in filtered_df.columns else filtered_df.columns[0])
-                row_id = row[id_col]
-                
-                with st.container(border=True):
-                    main_c1, main_c2 = st.columns([4, 1.5]) # Định dạng tỷ lệ cột tối ưu cho ảnh và chữ
-                    
-                    with main_c1:
-                        val_ngay = row[col_ngay] if col_ngay else today_str
-                        val_gio = row.get(col_gio, "00:00:00")
-                        val_user = row.get(col_nhan_su, "")
