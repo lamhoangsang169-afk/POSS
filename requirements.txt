@@ -5,3 +5,4 @@ supabase
 psutil
 pytz
 pillow
+openpyxl
