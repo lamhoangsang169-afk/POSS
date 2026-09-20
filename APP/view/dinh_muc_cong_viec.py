@@ -43,14 +43,12 @@ def render_dinh_muc_cong_viec(current_menu_name, current_user_role, user_perms):
         # Đổi tên cột id khóa chính sang 'id' viết thường hiển thị giống ảnh mẫu
         if "db_id" in display_df.columns:
             display_df = display_df.rename(columns={"db_id": "id"})
-        elif "id" in display_df.columns:
-            pass
             
-        # Tự động chèn cột số thứ tự STT hiển thị động nếu chưa có
+        # Tự động chèn cột số thứ tự STT viết hoa hiển thị động ở vị trí số 2
         if "STT" not in display_df.columns:
             display_df.insert(1, "STT", range(1, len(display_df) + 1))
             
-        # === ĐÃ CẢI TIẾN: Cơ chế quét tìm cột hạng mục công việc động không sợ lệch ký tự ===
+        # Cơ chế quét tìm và đồng bộ cột hạng mục công việc
         task_col_real = None
         for col in display_df.columns:
             if str(col).lower().strip() in ["hạng mục công việc", "hang_muc_cong_viec", "hang_muc", "hạng mục"]:
@@ -60,16 +58,11 @@ def render_dinh_muc_cong_viec(current_menu_name, current_user_role, user_perms):
         if task_col_real and task_col_real != "Hạng Mục Công Việc":
             display_df = display_df.rename(columns={task_col_real: "Hạng Mục Công Việc"})
             
-        # Cấu hình danh sách thứ tự ưu tiên hiển thị từ trái qua phải
+        # === ĐÃ SỬA LỖI Ở ĐÂY: Chỉ định nghĩa và ép buộc lấy đúng 6 cột tiêu chuẩn, loại bỏ hoàn toàn các cột stt viết thường dư thừa ===
         columns_order = ["id", "STT", "Hạng Mục Công Việc", "Đơn Vị", "Hệ Số Điểm", "Ghi Chú"]
-        
-        # Khớp nối các cột thực tế đang có để đưa lên lưới
         final_columns = [c for c in columns_order if c in display_df.columns]
-        # Gom thêm các cột phụ phát sinh khác nếu có dưới DB
-        for c in display_df.columns:
-            if c not in final_columns and c != "is_deleted":
-                final_columns.append(c)
-                
+        
+        # Lọc sạch bảng
         display_df = display_df[final_columns]
         
         # Kết xuất bảng lưới dữ liệu lớn hoàn chỉnh lên màn hình
