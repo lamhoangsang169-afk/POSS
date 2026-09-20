@@ -9,7 +9,6 @@ import pandas as pd
 current_file_dir = os.path.dirname(os.path.abspath(__file__))
 root_project_dir = os.path.dirname(os.path.dirname(current_file_dir))
 
-# Hàm nạp file python động bất chấp môi trường Windows/Linux
 def load_module_from_path(module_name, file_path):
     spec = importlib.util.spec_from_file_location(module_name, file_path)
     module = importlib.util.module_from_spec(spec)
@@ -17,35 +16,32 @@ def load_module_from_path(module_name, file_path):
     spec.loader.exec_module(module)
     return module
 
-# Nạp database.py từ thư mục gốc dự án
 db_path = os.path.join(root_project_dir, "database.py")
 db_module = load_module_from_path("database", db_path)
 
-# Trích xuất biến kết nối supabase từ module đã nạp
-supabase = db_module.supabase
-
-# Kiểm tra xem hàm lưu định mức có tồn tại không, nếu chưa thì tạo hàm giả lập tránh crash
-save_rules_df_db = getattr(db_module, "save_rules_df_db", None)
+# Trích xuất hàm lấy định mức từ tệp database vừa cập nhật
+get_rules_db = db_module.get_rules_db
 
 def render_dinh_muc_cong_viec(current_menu_name, current_user_role, user_perms):
     st.subheader(f"📋 {current_menu_name}")
     
-    # Kiểm tra quyền hạn thiết lập định mức công việc
+    # 1. Khởi chạy tiến trình đọc dữ liệu trực tiếp từ bảng 'rules' của Supabase
+    with st.spinner("🔄 Đang tải bảng định mức công việc..."):
+        rules_df = get_rules_db()
+        # Lưu vào Session State để file nhap_san_luong.py có thể dùng chung dữ liệu danh mục
+        st.session_state["rules_df"] = rules_df
+
+    # 2. Kiểm tra hiển thị giao diện theo quyền hạn
     if current_user_role != "Admin" and not user_perms.get("perm_rules", False):
         st.info("👁️ Tài khoản của bạn đang ở chế độ **Chỉ xem bảng định mức**. Bạn không có quyền chỉnh sửa cấu hình này.")
-        
-        # Hiển thị bảng định mức hiện tại từ Session State nếu có
-        rules_df = st.session_state.get("rules_df", pd.DataFrame())
-        if not rules_df.empty:
-            st.dataframe(rules_df, use_container_width=True, hide_index=True)
-        else:
-            st.info("Chưa có cấu hình định mức công việc nào được tải lên hệ thống.")
     else:
         st.success("🔓 Bạn có quyền quản trị viên. Tính năng cấu hình & cập nhật bảng định mức công việc sẵn sàng hoạt động.")
         
-        # Hiển thị dữ liệu mẫu hoặc khung cấu hình cơ bản
-        rules_df = st.session_state.get("rules_df", pd.DataFrame())
-        if not rules_df.empty:
-            st.dataframe(rules_df, use_container_width=True, hide_index=True)
-        else:
-            st.info("Hệ thống đang hiển thị định mức mặc định. Bạn có thể xây dựng tính năng chỉnh sửa dữ liệu tại đây.")
+    st.markdown("---")
+    
+    # 3. Kết xuất bảng dữ liệu lên màn hình giao diện chính
+    if not rules_df.empty:
+        st.markdown("### 📊 Danh Mục Tham Chiếu Hệ Số Điểm")
+        st.dataframe(rules_df, use_container_width=True, hide_index=True)
+    else:
+        st.warning("⚠️ Hiện tại bảng dữ liệu 'rules' trên Supabase chưa có bản ghi nào hoặc tên các cột bị lệch. Vui lòng kiểm tra lại Database!")
