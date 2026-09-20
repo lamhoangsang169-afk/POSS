@@ -1,12 +1,27 @@
+import os
+import sys
 import streamlit as st
 
-# ==================== IMPORT CÁC TRANG NGHIỆP VỤ THEO ĐƯỜNG DẪN CHUẨN ====================
-from APP.view import nhap_san_luong
-from APP.view import cham_cong
-from APP.view import bao_cao
-from APP.view import thu_muc_bao_cao
-from APP.view import dinh_muc_cong_viec
-from APP.view import thung_rac
+# ==================== CẤU HÌNH ĐƯỜNG DẪN HỆ THỐNG GỐC (BẮT BUỘC CHO LINUX) ====================
+# Lấy đường dẫn tuyệt đối của thư mục dự án chứa poss.py, database.py, utils.py
+current_dir = os.path.dirname(os.path.abspath(__file__))
+
+# Ép hệ thống ưu tiên tìm kiếm module tại thư mục gốc trước
+if current_dir not in sys.path:
+    sys.path.insert(0, current_dir)
+
+# Đăng ký luôn đường dẫn vào thư mục view để các lệnh import hoạt động trơn tru
+view_path = os.path.join(current_dir, "APP", "view")
+if view_path not in sys.path:
+    sys.path.insert(0, view_path)
+
+# ==================== IMPORT CÁC TRANG NGHIỆP VỤ TỪ APP/view ====================
+import nhap_san_luong
+import cham_cong
+import bao_cao
+import thu_muc_bao_cao
+import dinh_muc_cong_viec
+import thung_rac
 
 # Giả lập biến quyền user_perms và vai trò user_role để tránh lỗi crash nếu chưa định nghĩa
 if "user_perms" not in st.session_state:
