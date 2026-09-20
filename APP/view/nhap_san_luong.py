@@ -1,18 +1,9 @@
 # view/nhap_san_luong.py
-import os
-import sys
-
-# ==================== ÉP ĐƯỜNG DẪN ĐIỀU HƯỚNG NGƯỢC (BẮT BUỘC) ====================
-# Tính toán động thư mục gốc từ vị trí file con này
-current_file_dir = os.path.dirname(os.path.abspath(__file__))
-root_project_dir = os.path.dirname(os.path.dirname(current_file_dir))
-
-if root_project_dir not in sys.path:
-    sys.path.insert(0, root_project_dir)
-
 import streamlit as st
 import pandas as pd
 import datetime
+
+# Gọi tệp cấu hình từ thư mục gốc theo chuẩn tuyệt đối
 from utils import VN_TIMEZONE
 from database import (
     get_production_logs_db,
@@ -87,8 +78,8 @@ def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
 
                     if is_valid:
                         row_rule = rules_df[rules_df["Hạng Mục Công Việc"] == hang_muc] if not rules_df.empty else pd.DataFrame()
-                        he_so = float(row_rule["Hệ Số Điểm"].values[0]) if not row_rule.empty else 1.0
-                        don_vi = row_rule["Đơn Vị"].values[0] if not row_rule.empty else "Cái"
+                        he_so = float(row_rule["Hệ Số Điểm"].values) if not row_rule.empty else 1.0
+                        don_vi = row_rule["Đơn Vị"].values if not row_rule.empty else "Cái"
                         tong_diem = so_luong * he_so
                         
                         img_urls = upload_multiple_images_to_storage(record_images) if record_images else ""
@@ -100,7 +91,7 @@ def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
 
     st.markdown("---")
     
-    col_title_1, col_title_2 = st.columns([3, 1])
+    col_title_1, col_title_2 = st.columns()
     with col_title_1:
         st.subheader("Danh Sách Sản Lượng & Hình Ảnh")
     with col_title_2:
