@@ -29,12 +29,11 @@ get_production_logs_by_date_range = db_module.get_production_logs_by_date_range
 get_attendance_db = db_module.get_attendance_db
 
 def clean_name(full_name):
-    """Hàm rút gọn tên nhân sự (Ví dụ: Nguyễn Hữu Khang Tôn Đức -> Đức) giống như hình mẫu"""
+    """Hàm rút gọn tên nhân sự (Ví dụ: Nguyễn Hữu Khang Tôn Đức -> Đức)"""
     if not full_name:
         return ""
     name_parts = str(full_name).strip().split()
     if name_parts:
-        # Lấy từ cuối cùng trong chuỗi tên làm tên rút gọn
         return name_parts[-1]
     return full_name
 
@@ -108,19 +107,29 @@ def render_bao_cao(current_menu_name):
 
     # --- TÍNH TOÁN BẢNG ĐỐI CHIẾU THỜI GIAN VÀ SẢN LƯỢNG ---
     st.markdown("### 👥 Bảng Đối Chiếu Thời Gian Làm Việc & Sản Lượng")
+    
+    # === ĐÃ BỔ SUNG: Tính tổng số phút và đếm số ngày làm việc duy nhất của từng nhân sự ===
     if not att_filtered.empty and "Nhân Sự" in att_filtered.columns:
-        time_staff = att_filtered.groupby("Nhân Sự")["Số Phút Làm Việc"].sum().reset_index()
+        time_staff = att_filtered.groupby("Nhân Sự").agg(
+            tong_phut_lam_viec=("Số Phút Làm Việc", "sum"),
+            so_ngay_lam_viec=("Ngày", "nunique") # Đếm số ngày chấm công khác nhau
+        ).reset_index()
     else:
-        time_staff = pd.DataFrame(columns=["Nhân Sự", "Số Phút Làm Việc"])
+        time_staff = pd.DataFrame(columns=["Nhân Sự", "tong_phut_lam_viec", "so_ngay_lam_viec"])
 
+    # Gộp bảng sản lượng và bảng chấm công nâng cao
     cross_df = pd.merge(summary_staff, time_staff, on="Nhân Sự", how="left").fillna(0)
-    cross_df["tong_phut_lam"] = cross_df["Số Phút Làm Việc"].astype(int)
+    
+    cross_df["tong_phut_lam"] = cross_df["tong_phut_lam_viec"].astype(int)
+    cross_df["so_ngay_lam"] = cross_df["so_ngay_lam_viec"].astype(int)
     cross_df["diem_moi_phut"] = (cross_df["tong_diem_tich_luy"] / cross_df["tong_phut_lam"].replace(0, 1)).round(3)
     
+    # Thêm cột Số Ngày Làm Việc vào lưới hiển thị đối chiếu đúng cấu trúc
     cross_display = cross_df[[
-        "Xếp Hạng (Top)", "Nhân Sự", "tong_phut_lam", 
+        "Xếp Hạng (Top)", "Nhân Sự", "so_ngay_lam", "tong_phut_lam", 
         "so_luong_thuc_te", "tong_diem_tich_luy", "diem_moi_phut", "ty_le_hieu_suat"
     ]].rename(columns={
+        "so_ngay_lam": "Số Ngày Làm Việc",
         "tong_phut_lam": "Tổng Số Phút Làm",
         "so_luong_thuc_te": "Tổng Sản Lượng Thực Tế",
         "tong_diem_tich_luy": "Tổng Điểm",
@@ -136,14 +145,10 @@ def render_bao_cao(current_menu_name):
     chart_col, text_col = st.columns([1, 1.2])
     
     with chart_col:
-        # Bổ sung 2 nút bấm xuất file ở phía trên biểu đồ giống mẫu của bạn
         st.button("📥 Xuất File & Lưu Cloud", use_container_width=True, key="btn_export_cloud")
         st.button("💾 Tải File Về Máy", use_container_width=True, key="btn_download_local")
         
-        # Áp dụng rút gọn tên cho nhãn biểu đồ tròn
         short_labels = [clean_name(name) for name in summary_staff["Nhân Sự"]]
-        
-        # Sửa màu sắc tương ứng chuẩn xác theo hình mẫu (Xanh dương, Đỏ, Xanh lá)
         color_palette = ['#3b82f6', '#ef4444', '#10b981', '#f59e0b', '#8b5cf6']
         
         fig = go.Figure(data=[go.Pie(
@@ -164,11 +169,8 @@ def render_bao_cao(current_menu_name):
         st.markdown("### 📌 Chi Tiết Điểm Số & Tỷ Lệ")
         st.markdown("<br>", unsafe_allow_html=True)
         
-        # Hiển thị khối văn bản được làm gọn tên nhân sự và màu biểu tượng như mẫu
         color_markers = ["🔵", "🔴", "🟢", "🟡", "🟣"]
         for idx, row in summary_staff.iterrows():
             short_name = clean_name(row['Nhân Sự'])
             marker = color_markers[idx % len(color_markers)]
-            
-            # Format chuỗi văn bản: "[Màu] Tên: Số_điểm điểm (Tỷ_lệ%)"
             st.info(f"{marker} **{short_name}**: {row['tong_diem_tich_luy']:,.1f} điểm ({row['ty_le_hieu_suat']}%)")
