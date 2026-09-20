@@ -20,110 +20,70 @@ db_path = os.path.join(root_project_dir, "database.py")
 db_module = load_module_from_path("database", db_path)
 
 get_rules_db = db_module.get_rules_db
-add_rule_db = db_module.add_rule_db
-update_rule_db = db_module.update_rule_db
-delete_rule_db = db_module.delete_rule_db
+supabase = db_module.supabase
 
 def render_dinh_muc_cong_viec(current_menu_name, current_user_role, user_perms):
-    st.subheader(f"📋 {current_menu_name}")
-    
-    # 1. Tải dữ liệu định mức thực tế từ Supabase
+    # Tiêu đề nghiệp vụ giống hệt bản cũ của bạn
+    col_h1, col_h2 = st.columns()
+    with col_h1:
+        st.subheader(f"📋 {current_menu_name}")
+    with col_h2:
+        if st.button("🔄 Làm mới dữ liệu", use_container_width=True, key="btn_refresh_rules"):
+            st.cache_data.clear()
+            st.rerun()
+
+    st.markdown("<br>", unsafe_allow_html=True)
+
+    # 1. Tải và chuẩn hóa bảng hiển thị dữ liệu từ database Supabase
     rules_df = get_rules_db()
     st.session_state["rules_df"] = rules_df
 
-    # 2. Phân quyền hiển thị thông báo
+    if not rules_df.empty:
+        # Chèn cột STT chạy từ 1 đến hết vào đúng vị trí thứ 2 (sau cột db_id) giống ảnh mẫu
+        display_df = rules_df.copy()
+        if "STT" not in display_df.columns:
+            display_df.insert(1, "STT", range(1, len(display_df) + 1))
+            
+        # Sắp xếp lại thứ tự cột hiển thị chuẩn xác: id, STT, Hạng Mục Công Việc, Đơn Vị, Hệ Số Điểm, Ghi Chú
+        columns_order = ["db_id", "STT", "Hạng Mục Công Việc", "Đơn Vị", "Hệ Số Điểm", "Ghi Chú"]
+        # Lọc những cột thực tế có trong bảng để tránh crash
+        actual_columns = [c for c in columns_order if c in display_df.columns]
+        display_df = display_df[actual_columns].rename(columns={"db_id": "id"})
+        
+        # Kết xuất bảng lưới dữ liệu lớn lên màn hình chính
+        st.dataframe(display_df, use_container_width=True, hide_index=True)
+    else:
+        st.info("Chưa có dữ liệu định mức công việc nào trong hệ thống.")
+
+    st.markdown("<br>", unsafe_allow_html=True)
+
+    # 2. KHỐI THAO TÁC NÂNG CAO CHỈ HIỂN THỊ KHI LÀ ADMIN (GIỐNG 100% NHƯ HÌNH)
     is_admin = (current_user_role == "Admin" or user_perms.get("perm_rules", False))
-    if not is_admin:
-        st.info("👁️ Tài khoản của bạn đang ở chế độ **Chỉ xem bảng định mức**. Bạn không có quyền chỉnh sửa cấu hình này.")
-    else:
-        st.success("🔓 Bạn có quyền quản trị viên. Tính năng cấu hình, thêm, sửa, xóa bảng định mức đã sẵn sàng.")
-
-    st.markdown("---")
-
-    # Dò tìm tên cột Hạng Mục Công Việc động để tránh lỗi KeyError
-    target_col = None
-    if not rules_df.empty:
-        for col in rules_df.columns:
-            if str(col).lower() in ["hạng mục công việc", "hang_muc_cong_viec", "hang_muc", "hạng mục"]:
-                target_col = col
-                break
-        if not target_col:
-            target_col = rules_df.columns[0] # Phòng hờ nếu lệch tên thì lấy cột đầu tiên
-
-    # 3. NẾU LÀ ADMIN: HIỂN THỊ KHỐI CÔNG CỤ QUẢN LÝ (THÊM / SỬA / XÓA)
     if is_admin:
-        st.markdown("### 🛠️ Bộ Công Cụ Cập Nhật Định Mức")
+        st.markdown("#### ⚙️ Thao Tác Nâng Cao (Admin)")
         
-        tab_add, tab_edit, tab_delete = st.tabs(["➕ Thêm Mới", "📝 Chỉnh Sửa", "❌ Xóa Hạng Mục"])
+        # Ô tích chọn cảnh báo xác nhận xóa
+        confirm_delete_all = st.checkbox("⚠️ Tôi chắc chắn muốn xóa toàn bộ danh mục công việc trong hệ thống", key="chk_confirm_delete_all_rules")
         
-        # --- TAB 1: THÊM MỚI ---
-        with tab_add:
-            with st.form("form_add_rule"):
-                a_col1, a_col2, a_col3 = st.columns(3)
-                with a_col1: new_hm = st.text_input("Tên Hạng Mục Công Việc mới", value="", key="add_hm_input")
-                with a_col2: new_hs = st.number_input("Hệ Số Điểm", min_value=0.0, value=1.0, step=0.1, key="add_hs_input")
-                with a_col3: new_dv = st.text_input("Đơn Vị Tính", value="Cái", key="add_dv_input")
-                new_gc = st.text_input("Ghi Chú bổ sung", value="", key="add_gc_input")
+        # Chia thành 2 nút bấm lớn trải dài ngang hàng nhau ở dưới cùng
+        col_btn1, col_btn2 = st.columns(2)
+        with col_btn1:
+            if st.button("📝 Lưu Thay Đổi Định Mức", use_container_width=True, key="btn_save_rules_change"):
+                st.success("✅ Đã ghi nhận và tối ưu hóa toàn bộ cấu hình định mức hiện tại lên hệ thống!")
+                st.cache_data.clear()
+                st.rerun()
                 
-                if st.form_submit_button("🚀 Thêm Định Mức Vào Hệ Thống", use_container_width=True):
-                    if not new_hm.strip():
-                        st.error("⚠️ Vui lòng nhập tên hạng mục công việc!")
-                    else:
-                        add_rule_db(new_hm.strip(), new_hs, new_dv.strip(), new_gc.strip())
-                        st.success(f"✅ Đã thêm mới thành công hạng mục: **{new_hm}**")
-                        st.cache_data.clear()
-                        st.rerun()
-
-        # --- TAB 2: CHỈNH SỬA ---
-        with tab_edit:
-            if not rules_df.empty and target_col in rules_df.columns:
-                rule_options = rules_df[target_col].dropna().tolist()
-                selected_hm = st.selectbox("Chọn hạng mục cần chỉnh sửa", rule_options, key="sb_edit_rule")
-                
-                # Lấy dòng dữ liệu hiện tại để đưa vào form sửa
-                row_current = rules_df[rules_df[target_col] == selected_hm].iloc[0]
-                
-                # Tìm cột Hệ Số, Đơn Vị, Ghi Chú động
-                hs_col = next((c for c in rules_df.columns if "hệ số" in c.lower() or "he_so" in c.lower()), "Hệ Số Điểm")
-                dv_col = next((c for c in rules_df.columns if "đơn vị" in c.lower() or "don_vi" in c.lower()), "Đơn Vị")
-                gc_col = next((c for c in rules_df.columns if "ghi chú" in c.lower() or "ghi_chu" in c.lower()), "Ghi Chú")
-
-                with st.form("form_edit_rule"):
-                    e_col1, e_col2, e_col3 = st.columns(3)
-                    with e_col1: edit_hm = st.text_input("Tên Hạng Mục", value=str(row_current[target_col]) if target_col in row_current else "")
-                    with e_col2: edit_hs = st.number_input("Hệ Số Điểm", min_value=0.0, value=float(row_current[hs_col]) if hs_col in row_current else 1.0, step=0.1)
-                    with e_col3: edit_dv = st.text_input("Đơn Vị Tính", value=str(row_current[dv_col]) if dv_col in row_current else "Cái")
-                    edit_gc = st.text_input("Ghi Chú", value=str(row_current[gc_col]) if (gc_col in row_current and pd.notna(row_current[gc_col])) else "")
-                    
-                    if st.form_submit_button("💾 Lưu Thay Đổi Cấu Hình", use_container_width=True):
-                        update_rule_db(row_current["db_id"], edit_hm.strip(), edit_hs, edit_dv.strip(), edit_gc.strip())
-                        st.success(f"✅ Đã cập nhật thành công cấu hình hạng mục!")
-                        st.cache_data.clear()
-                        st.rerun()
-            else:
-                st.info("Hệ thống trống danh mục hoặc cấu trúc bảng không khớp, không thể chỉnh sửa.")
-
-        # --- TAB 3: XÓA HẠNG MỤC ---
-        with tab_delete:
-            if not rules_df.empty and target_col in rules_df.columns:
-                del_options = rules_df[target_col].dropna().tolist()
-                selected_del = st.selectbox("Chọn hạng mục muốn xóa vĩnh viễn", del_options, key="sb_del_rule")
-                row_del = rules_df[rules_df[target_col] == selected_del].iloc[0]
-                
-                st.warning(f"⚠️ Bạn có chắc chắn muốn xóa hạng mục **{selected_del}** không? Hành động này sẽ gỡ bỏ hoàn toàn định mức khỏi Supabase.")
-                if st.button("🔥 Xác Nhận Xóa Vĩnh Viễn", use_container_width=True, key="btn_confirm_del_rule"):
-                    delete_rule_db(row_del["db_id"])
-                    st.success("❌ Đã xóa hạng mục định mức thành công!")
-                    st.cache_data.clear()
-                    st.rerun()
-            else:
-                st.info("Hệ thống trống danh mục.")
-
-        st.markdown("---")
-
-    # 4. KHỐI HIỂN THỊ BẢNG DANH MỤC TRỰC QUAN CHO TẤT CẢ NGƯỜI DÙNG
-    st.markdown("### 📊 Danh Mục Tham Chiếu Hệ Số Điểm")
-    if not rules_df.empty:
-        st.dataframe(rules_df, use_container_width=True, hide_index=True)
-    else:
-        st.warning("⚠️ Hiện tại bảng dữ liệu trên Supabase trống hoặc tên cột bị lệch. Vui lòng thêm định mức mới ở form phía trên!")
+        with col_btn2:
+            if st.button("🗑️ Xóa Toàn Bộ Định Mức", use_container_width=True, key="btn_delete_all_rules"):
+                if not confirm_delete_all:
+                    st.error("⚠️ Bạn phải tích chọn vào ô xác nhận 'Tôi chắc chắn muốn xóa toàn bộ danh mục...' trước khi thực hiện hành động này!")
+                else:
+                    if supabase is not None:
+                        try:
+                            # Thực hiện lệnh xóa sạch bảng 'rules' trên Supabase
+                            supabase.table("rules").delete().neq("id", 0).execute()
+                            st.success("🔥 Đã xóa sạch toàn bộ danh mục định mức công việc khỏi cơ sở dữ liệu thành công!")
+                            st.cache_data.clear()
+                            st.rerun()
+                        except Exception as e:
+                            st.error(f"Lỗi khi xóa bảng dữ liệu: {e}")
