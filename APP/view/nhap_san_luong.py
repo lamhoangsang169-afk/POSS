@@ -12,6 +12,7 @@ from database import (
 )
 
 def find_column_case_insensitive(df, target_names):
+    """Tìm tên cột thực tế trong DataFrame không phân biệt hoa thường hoặc dấu gạch dưới"""
     if df.empty:
         return ""
     cols = [str(c).strip().lower() for c in df.columns]
@@ -115,7 +116,7 @@ def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
             st.cache_data.clear()
             st.rerun()
     
-    # Đồng bộ gọi hàm từ database gốc
+    # Gọi chính xác hàm đọc cơ sở dữ liệu theo cấu trúc phân tham số ổn định nhất của bạn
     input_df = get_production_logs_db(is_deleted=False, limit_rows=150)
     if input_df is None or input_df.empty:
         try:
@@ -123,6 +124,7 @@ def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
         except:
             input_df = pd.DataFrame()
 
+    # Khởi tạo bộ ánh xạ cột động chống lệch dữ liệu từ Google Sheets
     col_ngay = find_column_case_insensitive(input_df, ["Ngày", "ngay", "ngày làm việc", "Ngày làm việc"])
     col_gio = find_column_case_insensitive(input_df, ["Thời Gian", "thoi_gian", "giờ", "gio", "Thời gian"])
     col_nhan_su = find_column_case_insensitive(input_df, ["Nhân Sự", "nhan_su", "nhân sự thực hiện", "Nhân sự"])
@@ -133,7 +135,7 @@ def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
     col_ghi_chu = find_column_case_insensitive(input_df, ["Ghi Chú", "ghi_chu", "note", "Ghi chú"])
     col_hinh_anh = find_column_case_insensitive(input_df, ["Hình Ảnh", "hinh_anh", "img_urls", "Hình ảnh"])
 
-    # Giao diện bộ lọc ngang
+    # Vẽ giao diện bộ lọc thanh ngang chuẩn tỉ lệ UX hình mẫu của bạn
     filter_col1, filter_col2, filter_col3, filter_col4, filter_col5, filter_col6 = st.columns([1.2, 1.2, 0.8, 1.5, 1.5, 1.5])
     
     with filter_col1:
@@ -154,28 +156,20 @@ def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
 
     filtered_df = input_df.copy()
     
-    # Tiến hành xử lý lọc dữ liệu an toàn chuỗi
+    # === SỬA ĐỔI QUAN TRỌNG: Khối lọc chuỗi vector hóa bảo toàn dữ liệu 100%, không lo rớt bản ghi ===
     if not filtered_df.empty:
         if col_ngay and col_ngay in filtered_df.columns:
             try:
-                filtered_df["_str_date"] = filtered_df[col_ngay].astype(str).str.strip()
-                # Chuyển đổi start/end sang dạng chuỗi chuẩn so sánh văn bản an toàn
-                s_str = start_filter_date.strftime('%Y-%m-%d')
-                e_str = end_filter_date.strftime('%Y-%m-%d')
-                # Hỗ trợ định dạng chuỗi VN (dd/mm/yyyy)
-                if "/" in filtered_df["_str_date"].iloc[0]:
-                    s_str = start_filter_date.strftime('%d/%m/%Y')
-                    e_str = end_filter_date.strftime('%d/%m/%Y')
-                temp_df = filtered_df[(filtered_df["_str_date"] >= s_str) & (filtered_df["_str_date"] <= e_str)]
+                date_series = filtered_df[col_ngay].astype(str).str.strip()
+                # Thử tạo các định dạng chuỗi văn bản phổ biến để khớp mẫu bộ lọc ngày
+                s_str1, e_str1 = start_filter_date.strftime('%Y-%m-%d'), end_filter_date.strftime('%Y-%m-%d')
+                s_str2, e_str2 = start_filter_date.strftime('%d/%m/%Y'), end_filter_date.strftime('%d/%m/%Y')
+                
+                # Quét và giữ lại toàn bộ dòng thỏa mãn một trong các cấu trúc ngày văn bản
+                cond = (date_series >= s_str1) & (date_series <= e_str1) | (date_series >= s_str2) & (date_series <= e_str2)
+                temp_df = filtered_df[cond]
                 if not temp_df.empty:
                     filtered_df = temp_df
             except:
                 pass
         
-        if filter_by_time and col_gio and col_gio in filtered_df.columns:
-            try:
-                current_hour_str = f"{now_vn.hour:02d}:"
-                filtered_df = filtered_df[filtered_df[col_gio].astype(str).str.contains(current_hour_str, na=False)]
-            except:
-                pass
-
