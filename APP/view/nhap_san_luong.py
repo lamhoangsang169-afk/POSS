@@ -100,7 +100,7 @@ def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
 
     st.markdown("---")
 
-    # ==================== PHẦN 2: DANH SÁCH SẢN LƯỢNG & HÌNH ẢNH (ĐỒNG BỘ APP 1) ====================
+    # ==================== PHẦN 2: DANH SÁCH SẢN LƯỢNG & HÌNH ẢNH ====================
     col_title_1, col_title_2 = st.columns([3, 1])
     with col_title_1:
         st.markdown("<h3 style='color: #1e3a8a;'>Danh Sách Sản Lượng & Hình Ảnh</h3>", unsafe_allow_html=True)
@@ -190,16 +190,19 @@ def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
 
                     selected_ids_to_delete = []
                     for idx, row in paginated_df.iterrows():
+                        # === STT ĐẾM NGƯỢC TỪ TỔNG SỐ BẢN GHI GIẢM DẦN VỀ 1 ===
+                        display_stt = total_rows - (start_idx + paginated_df.index.get_loc(idx))
+                        
                         row_c1, row_c2 = st.columns([4, 1])
                         with row_c1:
                             st.markdown(f"""
                             <div style="background: rgba(255,255,255,0.85); padding: 8px 10px; border-radius: 6px; border: 1px solid rgba(0,0,0,0.1); margin-bottom: 4px; font-size: 0.85rem;">
-                                <b>STT: {row['STT']}</b> &nbsp;|&nbsp; 📅 {row['Ngày']} ⏰ {row['Thời Gian']} &nbsp;|&nbsp; 👤 <b>{row['Nhân Sự']}</b><br>
+                                <b>STT: {display_stt}</b> &nbsp;|&nbsp; 📅 {row['Ngày']} ⏰ {row['Thời Gian']} &nbsp;|&nbsp; 👤 <b>{row['Nhân Sự']}</b><br>
                                 📌 {row['Hạng Mục Công Việc']} &nbsp;|&nbsp; 📦 <b>{row['Số Lượng']} {row['Đơn Vị']}</b> (⭐ <b>{row['Tổng Điểm']}</b> điểm)<br>
                                 💬 <i>{row['Ghi Chú'] if pd.notna(row['Ghi Chú']) and str(row['Ghi Chú']).strip() else 'Không có ghi chú'}</i>
                             </div>
                             """, unsafe_allow_html=True)
-                            if st.checkbox(f"Chọn xóa bản ghi STT {row['STT']}", key=f"chk_{row['db_id']}"):
+                            if st.checkbox(f"Chọn xóa bản ghi STT {display_stt}", key=f"chk_{row['db_id']}"):
                                 selected_ids_to_delete.append(row['db_id'])
                                 
                         with row_c2:
@@ -237,11 +240,14 @@ def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
                             st.warning("⚠️ Vui lòng tích chọn xác nhận trước khi bấm xóa tất cả!")
             else:
                 for idx, row in paginated_df.iterrows():
+                    # === STT ĐẾM NGƯỢC CHO CHẾ ĐỘ CHỈ XEM ===
+                    display_stt = total_rows - (start_idx + paginated_df.index.get_loc(idx))
+                    
                     row_c1, row_c2 = st.columns([4, 1])
                     with row_c1:
                         st.markdown(f"""
                         <div style="background: rgba(255,255,255,0.85); padding: 8px 10px; border-radius: 6px; border: 1px solid rgba(0,0,0,0.1); margin-bottom: 4px; font-size: 0.85rem;">
-                            <b>STT: {row['STT']}</b> &nbsp;|&nbsp; 📅 {row['Ngày']} ⏰ {row['Thời Gian']} &nbsp;|&nbsp; 👤 <b>{row['Nhân Sự']}</b><br>
+                            <b>STT: {display_stt}</b> &nbsp;|&nbsp; 📅 {row['Ngày']} ⏰ {row['Thời Gian']} &nbsp;|&nbsp; 👤 <b>{row['Nhân Sự']}</b><br>
                             📌 {row['Hạng Mục Công Việc']} &nbsp;|&nbsp; 📦 <b>{row['Số Lượng']} {row['Đơn Vị']}</b> (⭐ <b>{row['Tổng Điểm']}</b> điểm)<br>
                             💬 <i>{row['Ghi Chú'] if pd.notna(row['Ghi Chú']) and str(row['Ghi Chú']).strip() else 'Không có ghi chú'}</i>
                         </div>
