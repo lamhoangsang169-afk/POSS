@@ -136,7 +136,7 @@ def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
         if total_records > 0:
             selected_to_delete = []
 
-            # === ĐÃ FIX: Điền tham số số 2 vào st.columns(2) để hết lỗi đỏ ===
+            # THANH PHÂN TRANG (PAGINATION)
             records_per_page = 10
             total_pages = (total_records + records_per_page - 1) // records_per_page
             
@@ -163,7 +163,7 @@ def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
 
             st.markdown("<br>", unsafe_allow_html=True)
 
-            # VÒNG LẶP HIỂN THỊ CÁC THẺ BẢN GHI
+            # VÒNG LẶP HIỂN THỊ CÁC THÈ BẢN GHI
             for idx, row in page_df.iterrows():
                 display_stt = start_idx + page_df.index.get_loc(idx) + 1
                 id_col = "db_id" if "db_id" in filtered_df.columns else ("id" if "id" in filtered_df.columns else filtered_df.columns)
