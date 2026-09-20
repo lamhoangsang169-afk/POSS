@@ -1,4 +1,13 @@
 # view/nhap_san_luong.py
+import os
+import sys
+
+# ==================== SỬA LỖI ĐƯỜNG DẪN IMPORT (BẮT BUỘC) ====================
+# Thêm thư mục gốc vào danh sách tìm kiếm để nhận diện database và utils
+root_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+if root_dir not in sys.path:
+    sys.path.insert(0, root_dir)
+
 import streamlit as st
 import pandas as pd
 import datetime
