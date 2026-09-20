@@ -54,7 +54,6 @@ def add_production_log_db(ngay, gio, nhan_su, hang_muc, anh, don_vi, so_luong, h
             "Ghi Chú": ghi_chu,
             "is_deleted": False
         }
-        # Sửa từ st.session_state["supabase"] sang biến kết nối toàn cục supabase đã khởi tạo thành công
         response = supabase.table("production_logs").insert(data).execute()
         return response
     except Exception as e:
@@ -132,7 +131,7 @@ def load_app_settings_db():
     try:
         res = supabase.table("app_settings").select("*").eq("id", 1).execute()
         if res.data and len(res.data) > 0:
-            return res.data[0]  # Sửa lại thành phần tử đầu tiên của mảng
+            return res.data
     except Exception:
         pass
     return {}
@@ -152,8 +151,8 @@ def load_folders_db():
         return default_folders
     try:
         res = supabase.table("app_folders").select("folders_json").eq("id", 1).execute()
-        if res.data and len(res.data) > 0 and res.data[0].get("folders_json"):
-            return res.data[0]["folders_json"]
+        if res.data and len(res.data) > 0 and res.data.get("folders_json"):
+            return res.data["folders_json"]
     except Exception:
         pass
     return default_folders
@@ -190,7 +189,7 @@ def permanent_delete_db(db_ids):
         st.error(f"Lỗi khi xóa vĩnh viễn: {e}")
         return None
 
-# ==================== CÁC HÀM XỬ LÝ CHẤM CÔNG (MỚI BỔ SUNG BƯỚC 1) ====================
+# ==================== CÁC HÀM XỬ LÝ CHẤM CÔNG ====================
 
 def add_attendance_log_db(ngay, nhan_su, gio_vao):
     """Hàm xử lý khi nhân viên bấm Check-in (Vào ca)"""
@@ -226,3 +225,27 @@ def update_attendance_checkout_db(db_id, gio_ra, so_phut, ghi_chu=""):
     except Exception as e:
         st.error(f"Lỗi Check-out: {e}")
         return None
+
+# ==================== HÀM LẤY ĐỊNH MỨC CÔNG VIỆC (MỚI BỔ SUNG BƯỚC 1) ====================
+
+@st.cache_data(ttl=600, show_spinner=False)
+def get_rules_db():
+    """Lấy danh sách hạng mục định mức công việc từ bảng 'rules' trên Supabase"""
+    if supabase is None:
+        return pd.DataFrame()
+    try:
+        res = supabase.table("rules").select("*").execute()
+        if res.data:
+            df = pd.DataFrame(res.data)
+            df = df.rename(columns={
+                "id": "db_id", 
+                "hang_muc_cong_viec": "Hạng Mục Công Việc",
+                "he_so_diem": "Hệ Số Điểm", 
+                "don_vi": "Đơn Vị",
+                "ghi_chu": "Ghi Chú"
+            })
+            return df
+    except Exception as e:
+        st.error(f"Lỗi khi tải bảng định mức: {e}")
+        pass
+    return pd.DataFrame()
