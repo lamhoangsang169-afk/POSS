@@ -93,6 +93,8 @@ def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
 
             if submitted and nhan_su != "--- Vui lòng chọn nhân sự ---" and hang_muc != "Chưa có dữ liệu định mức":
                 row_rule = rules_df[rules_df["Hạng Mục Công Việc"] == hang_muc] if not rules_df.empty else pd.DataFrame()
+                
+                # Sửa lỗi KeyError: Thêm chỉ mục [0] an toàn chuẩn mã nguồn gốc
                 he_so = float(row_rule["Hệ Số Điểm"].values[0]) if not row_rule.empty and "Hệ Số Điểm" in row_rule.columns else 1.0
                 don_vi = str(row_rule["Đơn Vị"].values[0]) if not row_rule.empty and "Đơn Vị" in row_rule.columns else "Cái"
                 tong_diem = so_luong * he_so
@@ -108,7 +110,7 @@ def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
     st.markdown("---")
 
     # ==================== PHẦN 2: DANH SÁCH SẢN LƯỢNG & HÌNH ẢNH ====================
-    col_title_1, col_title_2 = st.columns([2, 1])
+    col_title_1, col_title_2 = st.columns([3, 1])
     with col_title_1:
         st.markdown("<h3 style='color: #1e3a8a; margin:0;'>Danh Sách Sản Lượng & Hình Ảnh</h3>", unsafe_allow_html=True)
     with col_title_2:
@@ -116,7 +118,6 @@ def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
             st.cache_data.clear()
             st.rerun()
 
-    # Nạp dữ liệu gốc từ Google Sheets không ép tham số lỗi
     try:
         raw_input_df = get_production_logs_db(is_deleted=False, limit_rows=1000)
     except:
@@ -125,7 +126,6 @@ def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
         except:
             raw_input_df = pd.DataFrame()
 
-    # Đưa bộ khung giao diện ra ngoài để luôn render mượt mà
     filter_col1, filter_col2, filter_col3, filter_col4, filter_col5, filter_col6 = st.columns([1.2, 1.2, 0.8, 1.5, 1.5, 1.5])
     
     with filter_col1:
@@ -146,7 +146,6 @@ def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
 
     filtered_df = raw_input_df.copy()
 
-    # Tiến hành xử lý bộ lọc ngày an toàn chuỗi vector hóa
     if not filtered_df.empty and "Ngày" in filtered_df.columns:
         try:
             date_series = filtered_df["Ngày"].astype(str).str.strip()
@@ -174,7 +173,6 @@ def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
     total_records = len(filtered_df)
     st.warning(f"📋 Trong khoảng ngày tìm thấy: **{total_records} bản ghi**")
 
-    # Tính toán trang phân trang lồng đồng bộ ngang hàng vào filter_col6 góc phải cực gọn
     records_per_page = 10
     total_pages = max((total_records + records_per_page - 1) // records_per_page, 1)
     with filter_col6:
@@ -187,4 +185,5 @@ def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
 
         selected_to_delete = []
 
-        # --- KHỐI THAO TÁC XÓA HÀNG LOẠT DÀNH CHO ADMIN ---
+        if current_user_role == "Admin":
+            st.markdown("<div style='background-color: #f8fafc; padding: 12px; border: 1px solid #e2e8f0; border-radius: 8px; margin-bottom: 15px;'>", unsafe_allow_html=True)
