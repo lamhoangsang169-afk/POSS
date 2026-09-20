@@ -37,6 +37,8 @@ def render_dinh_muc_cong_viec(current_menu_name, current_user_role, user_perms):
     rules_df = get_rules_db()
     st.session_state["rules_df"] = rules_df
 
+    is_admin = (current_user_role == "Admin" or user_perms.get("perm_rules", False))
+
     if not rules_df.empty:
         display_df = rules_df.copy()
         
@@ -58,22 +60,30 @@ def render_dinh_muc_cong_viec(current_menu_name, current_user_role, user_perms):
         if task_col_real and task_col_real != "Hạng Mục Công Việc":
             display_df = display_df.rename(columns={task_col_real: "Hạng Mục Công Việc"})
             
-        # === ĐÃ SỬA LỖI Ở ĐÂY: Chỉ định nghĩa và ép buộc lấy đúng 6 cột tiêu chuẩn, loại bỏ hoàn toàn các cột stt viết thường dư thừa ===
         columns_order = ["id", "STT", "Hạng Mục Công Việc", "Đơn Vị", "Hệ Số Điểm", "Ghi Chú"]
         final_columns = [c for c in columns_order if c in display_df.columns]
-        
-        # Lọc sạch bảng
         display_df = display_df[final_columns]
         
-        # Kết xuất bảng lưới dữ liệu lớn hoàn chỉnh lên màn hình
-        st.dataframe(display_df, use_container_width=True, hide_index=True)
+        # === NÂNG CẤP TÍNH NĂNG CHỈNH SỬA TRỰC TIẾP TRÊN BẢNG ===
+        # Cho phép chỉnh sửa (num_rows="dynamic") nếu là Admin, ngược lại chỉ cho xem
+        edited_df = st.data_editor(
+            display_df,
+            use_container_width=True,
+            hide_index=True,
+            num_rows="dynamic" if is_admin else "fixed",
+            disabled=["id", "STT"] if is_admin else True, # Khóa cột ID và STT để tránh gãy cấu trúc dữ liệu
+            key="rules_data_editor"
+        )
     else:
         st.info("Chưa có dữ liệu định mức công việc nào trong hệ thống.")
+        # Nếu database trống hoàn toàn, Admin vẫn có thể tạo bảng mới từ đầu
+        if is_admin:
+            empty_df = pd.DataFrame(columns=["id", "STT", "Hạng Mục Công Việc", "Đơn Vị", "Hệ Số Điểm", "Ghi Chú"])
+            edited_df = st.data_editor(empty_df, use_container_width=True, hide_index=True, num_rows="dynamic", key="rules_empty_editor")
 
     st.markdown("<br>", unsafe_allow_html=True)
 
-    # 2. KHỐI THAO TÁC NÂNG CAO CHỈ HIỂN THỊ KHI LÀ ADMIN
-    is_admin = (current_user_role == "Admin" or user_perms.get("perm_rules", False))
+    # 2. KHỐI THAO TÁC NÂNG CAO LƯU DỮ LIỆU ĐỘNG CHO ADMIN
     if is_admin:
         st.markdown("#### ⚙️ Thao Tác Nâng Cao (Admin)")
         
@@ -82,9 +92,53 @@ def render_dinh_muc_cong_viec(current_menu_name, current_user_role, user_perms):
         col_btn1, col_btn2 = st.columns(2)
         with col_btn1:
             if st.button("📝 Lưu Thay Đổi Định Mức", use_container_width=True, key="btn_save_rules_change"):
-                st.success("✅ Đã ghi nhận và tối ưu hóa toàn bộ cấu hình định mức hiện tại lên hệ thống!")
-                st.cache_data.clear()
-                st.rerun()
+                if supabase is not None:
+                    with st.spinner("⏳ Đang đồng bộ dữ liệu sửa đổi lên Supabase..."):
+                        try:
+                            # 1. Đọc dữ liệu thô từ session state của data_editor để lấy danh sách Thêm/Sửa/Xóa
+                            editor_state = st.session_state["rules_data_editor"]
+                            
+                            # XỬ LÝ HÀNG XÓA (Deleted rows)
+                            if "deleted_rows" in editor_state and editor_state["deleted_rows"]:
+                                for row_idx in editor_state["deleted_rows"]:
+                                    row_id = display_df.iloc[row_idx]["id"]
+                                    supabase.table("rules").delete().eq("id", row_id).execute()
+
+                            # XỬ LÝ HÀNG THÊM MỚI (Added rows)
+                            if "added_rows" in editor_state and editor_state["added_rows"]:
+                                for row_data in editor_state["added_rows"]:
+                                    insert_data = {
+                                        "hang_muc_cong_viec": row_data.get("Hạng Mục Công Việc", ""),
+                                        "don_vi": row_data.get("Đơn Vị", "Cái"),
+                                        "he_so_diem": float(row_data.get("Hệ Số Điểm", 1.0)),
+                                        "ghi_chu": row_data.get("Ghi Chú", "")
+                                    }
+                                    supabase.table("rules").insert(insert_data).execute()
+
+                            # XỬ LÝ HÀNG CHỈNH SỬA Ô DỮ LIỆU (Edited rows)
+                            if "edited_rows" in editor_state and editor_state["edited_rows"]:
+                                for row_idx_str, updated_cols in editor_state["edited_rows"].items():
+                                    row_idx = int(row_idx_str)
+                                    row_id = display_df.iloc[row_idx]["id"]
+                                    
+                                    # Chuyển đổi tên cột giao diện về tên cột Supabase tương ứng
+                                    update_data = {}
+                                    if "Hạng Mục Công Việc" in updated_cols: update_data["hang_muc_cong_viec"] = updated_cols["Hạng Mục Công Việc"]
+                                    if "Đơn Vị" in updated_cols: update_data["don_vi"] = updated_cols["Đơn Vị"]
+                                    if "Hệ Số Điểm" in updated_cols: update_data["he_so_diem"] = float(updated_cols["Hệ Số Điểm"])
+                                    if "Ghi Chú" in updated_cols: update_data["ghi_chu"] = updated_cols["Ghi Chú"]
+                                    
+                                    if update_data:
+                                        supabase.table("rules").update(update_data).eq("id", row_id).execute()
+
+                            st.success("✅ Đã ghi nhận và đồng bộ toàn bộ thao tác Thêm / Sửa / Xóa lên Supabase thành công!")
+                            st.cache_data.clear()
+                            st.rerun()
+                            
+                        except Exception as e:
+                            st.error(f"Lỗi đồng bộ dữ liệu: {e}")
+                else:
+                    st.error("Kết nối cơ sở dữ liệu Supabase thất bại.")
                 
         with col_btn2:
             if st.button("🗑️ Xóa Toàn Bộ Định Mức", use_container_width=True, key="btn_delete_all_rules"):
