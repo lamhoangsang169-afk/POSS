@@ -1,34 +1,23 @@
 # view/nhap_san_luong.py
 import os
 import sys
-import importlib.util
-import streamlit as st
-import pandas as pd
 import datetime
+import pandas as pd
+import streamlit as st
 
-# ==================== NẠP MODULE ĐỘNG THEO ĐƯỜNG DẪN TUYỆT ĐỐI ====================
-current_file_dir = os.path.dirname(os.path.abspath(__file__))
-root_project_dir = os.path.dirname(os.path.dirname(current_file_dir))
+# ==================== ĐỒNG BỘ ĐƯỜNG DẪN IMPORT SYSTEM ====================
+root_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+if root_dir not in sys.path:
+    sys.path.insert(0, root_dir)
 
-def load_module_from_path(module_name, file_path):
-    spec = importlib.util.spec_from_file_location(module_name, file_path)
-    module = importlib.util.module_from_spec(spec)
-    sys.modules[module_name] = module
-    spec.loader.exec_module(module)
-    return module
-
-db_path = os.path.join(root_project_dir, "database.py")
-utils_path = os.path.join(root_project_dir, "utils.py")
-
-db_module = load_module_from_path("database", db_path)
-utils_module = load_module_from_path("utils", utils_path)
-
-VN_TIMEZONE = utils_module.VN_TIMEZONE
-get_production_logs_db = db_module.get_production_logs_db
-add_production_log_db = db_module.add_production_log_db
-update_production_log_deleted_status = db_module.update_production_log_deleted_status
-upload_multiple_images_to_storage = db_module.upload_multiple_images_to_storage
-get_attendance_db = db_module.get_attendance_db
+from utils import VN_TIMEZONE
+from database import (
+    get_production_logs_db,
+    add_production_log_db,
+    update_production_log_deleted_status,
+    upload_multiple_images_to_storage,
+    get_attendance_db
+)
 
 def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
     now_vn = datetime.datetime.now(VN_TIMEZONE)
@@ -36,10 +25,9 @@ def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
     
     st.subheader(f"{current_menu_name} ({today_str})")
 
-    # ==================== PHẦN 1: FORM NHẬP SẢN LƯỢNG PHÍA TRÊN ====================
+    # --- KHỐI 1: FORM CẬP NHẬT SẢN LƯỢNG (GIỮ NGUYÊN LOGIC GỐC CỦA BẠN) ---
     is_admin = (current_user_role == "Admin" or user_perms.get("perm_input", False))
     
-    # Tải lịch sử chấm công để lấy người đang trong ca
     att_df_check = get_attendance_db()
     active_staff = []
     if not att_df_check.empty and "Giờ Ra Ca" in att_df_check.columns:
@@ -50,7 +38,7 @@ def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
     if not is_admin:
         st.info("👁️ Tài khoản của bạn đang ở chế độ **Chỉ xem**. Bạn có thể theo dõi bảng danh sách bên dưới nhưng không được phép thêm hoặc chỉnh sửa dữ liệu.")
     elif not active_staff:
-        st.warning(f"⚠️ Hiện tại chưa có nhân sự nào **Check-in (Vào ca)**. Vui lòng thực hiện Check-in trước khi nhập sản lượng!")
+        st.warning("⚠️ Hiện tại chưa có nhân sự nào **Check-in (Vào ca)** hoặc các ca trước chưa kết thúc. Vui lòng thực hiện Check-in trước khi nhập sản lượng!")
     else:
         req_img = st.session_state.get("require_image", True)
         req_qty = st.session_state.get("require_quantity", True)
@@ -91,8 +79,8 @@ def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
                 st.rerun()
 
     st.markdown("---")
-
-    # ==================== PHẦN 2: DANH SÁCH SẢN LƯỢNG & HÌNH ẢNH ====================
+    
+    # --- KHỐI 2: LƯỚI THẺ SẢN LƯỢNG VÀ BỘ LỌC NGANG CHUẨN UX GIAO DIỆN ---
     col_title_1, col_title_2 = st.columns(2)
     with col_title_1:
         st.markdown("<h3 style='color: #1e3a8a;'>Danh Sách Sản Lượng & Hình Ảnh</h3>", unsafe_allow_html=True)
@@ -100,84 +88,86 @@ def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
         if st.button("🔄 Làm mới dữ liệu", use_container_width=True, key="btn_refresh_input"):
             st.cache_data.clear()
             st.rerun()
-
-    # Tải toàn bộ dữ liệu thô phục vụ bộ lọc
-    raw_input_df = get_production_logs_db(is_deleted=False, limit_rows=1000)
-
-    if not raw_input_df.empty:
-        # --- KHỐI BỘ LỌC HÀNG NGANG ---
+    
+    input_df = get_production_logs_db(is_deleted=False, limit_rows=1000)
+    
+    if not input_df.empty:
+        # Bộ lọc hàng ngang chuẩn xác
         filter_col1, filter_col2, filter_col3, filter_col4, filter_col5 = st.columns([1.2, 1.2, 0.8, 1.5, 1.5])
         
-        with filter_col1:
-            start_filter_date = st.date_input("Từ ngày", now_vn.date() - datetime.timedelta(days=30), key="f_start_date")
-        with filter_col2:
-            end_filter_date = st.date_input("Đến ngày", now_vn.date(), key="f_end_date")
+        with filter_col1: start_filter_date = st.date_input("Từ ngày", datetime.date(2026, 8, 14), key="f_start_date")
+        with filter_col2: end_filter_date = st.date_input("Đến ngày", datetime.date(2026, 9, 20), key="f_end_date")
         with filter_col3:
             st.markdown("<br>", unsafe_allow_html=True)
             filter_by_time = st.checkbox("Lọc theo Giờ", key="f_by_time")
             
-        all_staffs = ["Tất cả"] + sorted(raw_input_df["Nhân Sự"].dropna().unique().tolist())
-        all_tasks = ["Tất cả"] + sorted(raw_input_df["Hạng Mục Công Việc"].dropna().unique().tolist())
+        col_nhan_su = next((c for c in input_df.columns if str(c).lower().strip() in ["nhân sự", "nhan_su"]), "Nhân Sự")
+        col_hang_muc = next((c for c in input_df.columns if "hạng mục" in str(c).lower() or "hang_muc" in str(c).lower()), "Hạng Mục Công Việc")
         
-        with filter_col4:
-            selected_staff = st.selectbox("Lọc theo Nhân Sự", all_staffs, key="f_staff")
-        with filter_col5:
-            selected_task = st.selectbox("Lọc theo Hạng Mục", all_tasks, key="f_task")
+        all_staffs = ["Tất cả"] + sorted(input_df[col_nhan_su].dropna().unique().tolist()) if col_nhan_su in input_df.columns else ["Tất cả"]
+        all_tasks = ["Tất cả"] + sorted(input_df[col_hang_muc].dropna().unique().tolist()) if col_hang_muc in input_df.columns else ["Tất cả"]
+        
+        with filter_col4: selected_staff = st.selectbox("Lọc theo Nhân Sự", all_staffs, key="f_staff")
+        with filter_col5: selected_task = st.selectbox("Lọc theo Hạng Mục", all_tasks, key="f_task")
 
-        # Tiến hành lọc dữ liệu
-        filtered_df = raw_input_df.copy()
-        filtered_df["Ngày_DT"] = pd.to_datetime(filtered_df["Ngày"], errors='coerce').dt.date
-        filtered_df = filtered_df[(filtered_df["Ngày_DT"] >= start_filter_date) & (filtered_df["Ngày_DT"] <= end_filter_date)]
+        filtered_df = input_df.copy()
         
-        if selected_staff != "Tất cả":
-            filtered_df = filtered_df[filtered_df["Nhân Sự"] == selected_staff]
-        if selected_task != "Tất cả":
-            filtered_df = filtered_df[filtered_df["Hạng Mục Công Việc"] == selected_task]
+        col_ngay = next((c for c in filtered_df.columns if str(c).lower().strip() in ["ngày", "ngay"]), "")
+        if col_ngay:
+            filtered_df["Ngày_DT"] = pd.to_datetime(filtered_df[col_ngay], errors='coerce').dt.date
+            filtered_df = filtered_df[(filtered_df["Ngày_DT"] >= start_filter_date) & (filtered_df["Ngày_DT"] <= end_filter_date)]
+        
+        if selected_staff != "Tất cả" and col_nhan_su in filtered_df.columns:
+            filtered_df = filtered_df[filtered_df[col_nhan_su] == selected_staff]
+        if selected_task != "Tất cả" and col_hang_muc in filtered_df.columns:
+            filtered_df = filtered_df[filtered_df[col_hang_muc] == selected_task]
 
         total_records = len(filtered_df)
         st.warning(f"📋 Trong khoảng ngày có: **{total_records} bản ghi**")
 
         if total_records > 0:
-            # --- THANH PHÂN TRANG (PAGINATION) ---
-            records_per_page = 10
-            total_pages = (total_records + records_per_page - 1) // records_per_page
-            
-            st.sidebar.markdown("---")
-            page_number = st.sidebar.number_input(f"Trang hiển thị (1/{total_pages})", min_value=1, max_value=total_pages, value=1, step=1)
-            
-            start_idx = (page_number - 1) * records_per_page
-            end_idx = min(start_idx + records_per_page, total_records)
-            page_df = filtered_df.iloc[start_idx:end_idx]
-
             selected_to_delete = []
 
-            # --- KHỐI THAO TÁC XÓA HÀNG LOẠT ---
+            # === ĐÃ FIX TRIỆT ĐỂ: Đồng bộ chính xác khung chứa nút xóa và hộp chọn ngang hàng giống ảnh cũ ===
             if current_user_role == "Admin":
                 st.markdown("<br>", unsafe_allow_html=True)
-                del_c1, del_c2, del_c3 = st.columns([2.5, 1.2, 1.2])
                 
-                with del_c2:
+                # Nút bấm lớn màu đỏ xóa các dòng được chọn (Đặt riêng biệt phía trên)
+                btn_delete_selected = st.button("🗑️ Xóa Các Bản Ghi Đã Chọn", use_container_width=True, type="primary", key="btn_del_selected_new")
+                
+                st.markdown("<div style='margin-top: 10px;'></div>", unsafe_allow_html=True)
+                
+                # Cấu trúc hàng phụ chứa ô tích chọn xác nhận và nút xóa tất cả trang
+                del_c1, del_c2 = st.columns([2.5, 2.5])
+                with del_c1:
                     st.markdown("<div style='margin-top: 5px;'>", unsafe_allow_html=True)
                     confirm_all = st.checkbox("Xác nhận xóa tất cả trong này", key="chk_confirm_all_del")
                     st.markdown("</div>", unsafe_allow_html=True)
-                with del_c3:
+                with del_c2:
                     btn_del_all = st.button("🗑️ Xóa tất cả cả trang này", use_container_width=True, key="btn_del_page_all")
 
-            # --- KHỐI THỂ CONTAINER HIỂN THỊ BẢN GHI ---
-            for idx, row in page_df.iterrows():
-                display_stt = start_idx + page_df.index.get_loc(idx) + 1
+            st.markdown("<br>", unsafe_allow_html=True)
+
+            # === HIỂN THỊ CÁC THẺ CONTAINER BẢN GHI ===
+            for idx, row in filtered_df.iterrows():
+                display_stt = filtered_df.index.get_loc(idx) + 1
+                id_col = "db_id" if "db_id" in filtered_df.columns else ("id" if "id" in filtered_df.columns else filtered_df.columns[0])
+                row_id = row[id_col]
                 
                 with st.container(border=True):
-                    main_c1, main_c2 = st.columns()
+                    main_c1, main_c2 = st.columns([4, 1])
                     
                     with main_c1:
-                        st.markdown(f"**STT: {display_stt}** | 📅 {row['Ngày']} 🕒 {row['Thời Gian']} | 👤 <b style='color: #1e40af;'>{row['Nhân Sự']}</b>", unsafe_allow_html=True)
-                        st.markdown(f"🏗️ **{row['Hạng Mục Công Việc']}** | 📦 {int(row['Số Lượng'])} {row['Đơn Vị']} | ⭐ **{row['Tổng Điểm']} điểm**")
+                        # Bóc tách tên trường động từ dataframe tránh lỗi lệch tên cột DB
+                        val_ngay = row[col_ngay] if col_ngay else today_str
+                        val_gio = row.get("Thời Gian", row.get("Giờ", row.get("thoi_gian", "00:00:00")))
+                        val_user = row.get(col_nhan_su, "")
+                        val_task = row.get(col_hang_muc, "")
+                        val_qty = row.get("Số Lượng Thực Tế", row.get("Số Lượng", row.get("so_luong", 0)))
+                        val_unit = row.get("Đơn Vị", row.get("don_vi", "Cái"))
+                        val_score = row.get("Tổng Điểm", row.get("tong_diem", 0.0))
+                        val_note = row.get("Ghi Chú", row.get("ghi_chu", ""))
                         
-                        note_text = row['Ghi Chú'] if pd.notna(row['Ghi Chú']) and str(row['Ghi Chú']).strip() else "Không có ghi chú"
-                        st.markdown(f"<span style='color: #64748b; font-size: 0.9rem;'>💬 {note_text}</span>", unsafe_allow_html=True)
+                        st.markdown(f"**STT: {display_stt}** | 📅 {val_ngay} 🕒 {val_gio} | 👤 <b style='color: #1e40af;'>{val_user}</b>", unsafe_allow_html=True)
+                        st.markdown(f"🏗️ **{val_task}** | 📦 {int(val_qty)} {val_unit} | ⭐ **{float(val_score):.1f} điểm**")
                         
-                        if current_user_role == "Admin":
-                            st.markdown("<br>", unsafe_allow_html=True)
-                            if st.checkbox(f"Chọn xóa bản ghi STT {display_stt}", key=f"chk_del_{row['db_id']}"):
-                                selected_to_delete.append(row['db_id'])
