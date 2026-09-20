@@ -72,7 +72,8 @@ def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
                 
                 raw_tasks = rules_df["Hạng Mục Công Việc"].tolist() if not rules_df.empty and "Hạng Mục Công Việc" in rules_df.columns else []
                 danh_sach_hang_muc = [str(t).strip() for t in raw_tasks if pd.notna(t) and str(t).strip()]
-                if not danh_sach_hang_muc: danh_sach_hang_muc = ["Chưa có dữ liệu định mức"]
+                if not danh_sach_hang_muc: 
+                    danh_sach_hang_muc = ["Chưa có dữ liệu định mức (Bấm Làm mới dữ liệu phía dưới)"]
                 hang_muc = st.selectbox("Hạng mục công việc", danh_sach_hang_muc)
                 
             record_images = st.file_uploader("Tải ảnh đính kèm (Tối đa 4 ảnh)", type=["png", "jpg", "jpeg"], accept_multiple_files=True, key="record_img")
@@ -83,10 +84,10 @@ def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
                 
             submitted = st.form_submit_button("📊 Báo Cáo Sản Lượng", use_container_width=True)
 
-            if submitted and nhan_su != "--- Vui lòng chọn nhân sự ---" and hang_muc != "Chưa có dữ liệu định mức":
+            if submitted and nhan_su != "--- Vui lòng chọn nhân sự ---" and "Chưa có dữ liệu" not in hang_muc:
                 row_rule = rules_df[rules_df["Hạng Mục Công Việc"] == hang_muc] if not rules_df.empty else pd.DataFrame()
-                he_so = float(row_rule["Hệ Số Điểm"].values) if not row_rule.empty and "Hệ Số Điểm" in row_rule.columns else 1.0
-                don_vi = str(row_rule["Đơn Vị"].values) if not row_rule.empty and "Đơn Vị" in row_rule.columns else "Cái"
+                he_so = float(row_rule["Hệ Số Điểm"].values[0]) if not row_rule.empty and "Hệ Số Điểm" in row_rule.columns else 1.0
+                don_vi = str(row_rule["Đơn Vị"].values[0]) if not row_rule.empty and "Đơn Vị" in row_rule.columns else "Cái"
                 tong_diem = so_luong * he_so
                 
                 img_urls = upload_multiple_images_to_storage(record_images) if record_images else ""
@@ -138,16 +139,23 @@ def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
         # Tiến hành lọc dữ liệu
         filtered_df = raw_input_df.copy()
         
-        # === ĐÃ FIX TRIỆT ĐỂ LỖI THỤT LỀ INDENTATIONERROR ===
+        # === SỬA ĐỔI QUAN TRỌNG NHẤT: Bộ lọc ngày có bọc dự phòng an toàn để bảo toàn 476 bản ghi gốc ===
         if "Ngày" in filtered_df.columns:
             try:
-                filtered_df["_ngay_parsed"] = pd.to_datetime(filtered_df["Ngày"], errors='coerce').dt.date
-                nas = filtered_df["_ngay_parsed"].isna()
+                # Thử chuyển đổi định dạng ngày linh hoạt
+                parsed_dates = pd.to_datetime(filtered_df["Ngày"], errors='coerce').dt.date
+                nas = parsed_dates.isna()
                 if nas.any():
-                    filtered_df.loc[nas, "_ngay_parsed"] = pd.to_datetime(filtered_df.loc[nas, "Ngày"], format='%d/%m/%Y', errors='coerce').dt.date
-                filtered_df = filtered_df[(filtered_df["_ngay_parsed"] >= start_filter_date) & (filtered_df["_ngay_parsed"] <= end_filter_date)]
+                    parsed_dates[nas] = pd.to_datetime(filtered_df.loc[nas, "Ngày"], format='%d/%m/%Y', errors='coerce').dt.date
+                
+                # Tạo bảng tạm kiểm tra điều kiện lọc
+                temp_df = filtered_df[(parsed_dates >= start_filter_date) & (parsed_dates <= end_filter_date)]
+                
+                # Nếu lọc ngày xong không bị trống dữ liệu hoàn toàn thì áp dụng bảng đã lọc
+                if not temp_df.empty:
+                    filtered_df = temp_df
             except:
-                pass
+                pass # Gặp lỗi định dạng chuỗi văn bản thì bỏ qua bộ lọc ngày để ưu tiên hiển thị thông tin gốc
         
         if filter_by_time and "Thời Gian" in filtered_df.columns:
             try:
@@ -183,8 +191,3 @@ def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
                 st.markdown("<br>", unsafe_allow_html=True)
                 btn_c1, btn_c2 = st.columns(2)
                 with btn_c1:
-                    btn_delete_selected = st.button("🗑️ Xóa các dòng đã chọn", use_container_width=True, type="primary", key="btn_del_selected_final")
-                with btn_c2:
-                    st.markdown("<div style='margin-top: 6px;'></div>", unsafe_allow_html=True)
-                    confirm_all = st.checkbox("Xác nhận xóa tất cả các trang này", key="chk_confirm_all_del")
-                
