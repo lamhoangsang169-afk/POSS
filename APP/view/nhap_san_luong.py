@@ -88,8 +88,8 @@ def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
 
                     if is_valid:
                         row_rule = rules_df[rules_df["Hạng Mục Công Việc"] == hang_muc] if not rules_df.empty else pd.DataFrame()
-                        he_so = float(row_rule["Hệ Số Điểm"].values) if not row_rule.empty else 1.0
-                        don_vi = row_rule["Đơn Vị"].values if not row_rule.empty else "Cái"
+                        he_so = float(row_rule["Hệ Số Điểm"].values[0]) if not row_rule.empty else 1.0
+                        don_vi = row_rule["Đơn Vị"].values[0] if not row_rule.empty else "Cái"
                         tong_diem = so_luong * he_so
                         
                         img_urls = upload_multiple_images_to_storage(record_images) if record_images else ""
@@ -101,8 +101,8 @@ def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
 
     st.markdown("---")
     
-    # --- KHỐI 2: LƯỚI THÈ SẢN LƯỢNG VÀ BỘ LỌC NGANG CHUẨN UX GIAO DIỆN ---
-    col_title_1, col_title_2 = st.columns(2)
+    # --- KHỐI 2: LƯỚI THẺ SẢN LƯỢNG VÀ BỘ LỌC NGANG CHUẨN UX GIAO DIỆN ---
+    col_title_1, col_title_2 = st.columns([3, 1])
     with col_title_1:
         st.markdown("<h2 style='color: #1e3a8a; margin-top: 0px; font-size: 1.5rem;'>Danh Sách Sản Lượng & Hình Ảnh</h2>", unsafe_allow_html=True)
     with col_title_2:
