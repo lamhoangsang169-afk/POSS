@@ -157,10 +157,8 @@ def load_folders_db():
         pass
     return default_folders
 
-# ==================== CÁC HÀM QUẢN LÝ THÙNG RÁC ====================
-
 def update_production_log_deleted_status(db_ids, is_deleted):
-    """Cập nhật trạng thái xóa (chuyển vào thùng rác hoặc khôi phục)"""
+    """Cập nhật trạng thái xóa"""
     if supabase is None or not db_ids:
         return None
     try:
@@ -172,13 +170,13 @@ def update_production_log_deleted_status(db_ids, is_deleted):
         return None
 
 def upload_multiple_images_to_storage(uploaded_files):
-    """Giả lập hàm lưu trữ ảnh để giao diện hoạt động không bị gãy"""
+    """Hàm lưu trữ ảnh"""
     if not uploaded_files:
         return ""
     return "image_placeholder_url.png"
 
 def permanent_delete_db(db_ids):
-    """Xóa vĩnh viễn các bản ghi trong thùng rác"""
+    """Xóa vĩnh viễn trong thùng rác"""
     if supabase is None or not db_ids:
         return None
     try:
@@ -189,10 +187,8 @@ def permanent_delete_db(db_ids):
         st.error(f"Lỗi khi xóa vĩnh viễn: {e}")
         return None
 
-# ==================== CÁC HÀM XỬ LÝ CHẤM CÔNG ====================
-
 def add_attendance_log_db(ngay, nhan_su, gio_vao):
-    """Hàm xử lý khi nhân viên bấm Check-in (Vào ca)"""
+    """Hàm xử lý khi nhân viên bấm Check-in"""
     if supabase is None:
         return None
     try:
@@ -211,7 +207,7 @@ def add_attendance_log_db(ngay, nhan_su, gio_vao):
         return None
 
 def update_attendance_checkout_db(db_id, gio_ra, so_phut, ghi_chu=""):
-    """Hàm xử lý khi nhân viên bấm Check-out (Ra ca)"""
+    """Hàm xử lý khi nhân viên bấm Check-out"""
     if supabase is None:
         return None
     try:
@@ -226,11 +222,9 @@ def update_attendance_checkout_db(db_id, gio_ra, so_phut, ghi_chu=""):
         st.error(f"Lỗi Check-out: {e}")
         return None
 
-# ==================== HÀM LẤY ĐỊNH MỨC CÔNG VIỆC ====================
-
 @st.cache_data(ttl=600, show_spinner=False)
 def get_rules_db():
-    """Lấy danh sách hạng mục định mức công việc từ bảng 'rules' trên Supabase"""
+    """Lấy danh sách hạng mục định mức công việc"""
     if supabase is None:
         return pd.DataFrame()
     try:
@@ -250,10 +244,8 @@ def get_rules_db():
         pass
     return pd.DataFrame()
 
-# ==================== CÁC HÀM QUẢN LÝ ĐỊNH MỨC CÔNG VIỆC ====================
-
 def add_rule_db(hang_muc, he_so, don_vi, ghi_chu=""):
-    """Thêm một hạng mục định mức mới vào bảng 'rules'"""
+    """Thêm một hạng mục định mức mới"""
     if supabase is None:
         return None
     try:
@@ -270,7 +262,7 @@ def add_rule_db(hang_muc, he_so, don_vi, ghi_chu=""):
         return None
 
 def update_rule_db(db_id, hang_muc, he_so, don_vi, ghi_chu=""):
-    """Cập nhật hạng mục định mức hiện có theo ID"""
+    """Cập nhật hạng mục định mức"""
     if supabase is None:
         return None
     try:
@@ -287,8 +279,12 @@ def update_rule_db(db_id, hang_muc, he_so, don_vi, ghi_chu=""):
         return None
 
 def delete_rule_db(db_id):
-    """Xóa hoàn toàn một hạng mục định mức khỏi bảng 'rules'"""
+    """Xóa hoàn toàn một hạng mục định mức"""
     if supabase is None:
         return None
     try:
         response = supabase.table("rules").delete().eq("id", db_id).execute()
+        return response
+    except Exception as e:
+        st.error(f"Lỗi xóa định mức: {e}")
+        return None
