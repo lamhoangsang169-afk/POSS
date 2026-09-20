@@ -1,19 +1,18 @@
 # view/nhap_san_luong.py
 import os
 import sys
+import streamlit as st
+import pandas as pd
+import datetime
 
-# ==================== ĐIỀU HƯỚNG ĐƯỜNG DẪN ĐỘNG (SỬA LỖI WINDOWS & LINUX) ====================
+# ==================== ĐIỀU HƯỚNG ĐƯỜNG DẪN TUYỆT ĐỐI (SỬA LỖI WINDOWS & LINUX) ====================
 current_file_dir = os.path.dirname(os.path.abspath(__file__))
 root_project_dir = os.path.dirname(os.path.dirname(current_file_dir))
 
 if root_project_dir not in sys.path:
     sys.path.insert(0, root_project_dir)
 
-import streamlit as st
-import pandas as pd
-import datetime
-
-# Thay đổi cách gọi từ thư mục gốc thông qua việc nạp module cha
+# Import chuẩn hóa bằng cách gọi tên từ thư mục gốc của dự án
 try:
     from database import (
         get_production_logs_db,
@@ -24,16 +23,18 @@ try:
     )
     from utils import VN_TIMEZONE
 except ImportError:
-    # Phương án dự phòng cưỡng ép nạp trực tiếp module từ thư mục chạy hệ thống
-    sys.path.append(os.getcwd())
-    from database import (
-        get_production_logs_db,
-        add_production_log_db,
-        update_production_log_deleted_status,
-        upload_multiple_images_to_storage,
-        get_attendance_db
-    )
-    from utils import VN_TIMEZONE
+    # Nếu chạy trên một số môi trường Linux đặc biệt, cưỡng ép tìm kiếm package qua module gốc
+    sys.path.append(root_project_dir)
+    import database
+    import utils
+    
+    get_production_logs_db = database.get_production_logs_db
+    add_production_log_db = database.add_production_log_db
+    update_production_log_deleted_status = database.update_production_log_deleted_status
+    upload_multiple_images_to_storage = database.upload_multiple_images_to_storage
+    get_attendance_db = database.get_attendance_db
+    VN_TIMEZONE = utils.VN_TIMEZONE
+
 
 def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
     now_vn = datetime.datetime.now(VN_TIMEZONE)
