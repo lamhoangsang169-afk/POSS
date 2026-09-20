@@ -19,13 +19,6 @@ from database import (
     get_attendance_db
 )
 
-def get_col_value(row, primary_keys, default_val=""):
-    """Hàm bổ trợ tìm kiếm dữ liệu linh hoạt theo tên cột tiếng Việt hoặc tiếng Anh"""
-    for key in primary_keys:
-        if key in row.index:
-            return row[key]
-    return default_val
-
 def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
     now_vn = datetime.datetime.now(VN_TIMEZONE)
     today_str = str(now_vn.date())
@@ -108,7 +101,7 @@ def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
 
     st.markdown("---")
     
-    # --- KHỐI 2: LƯỚI THẺ SẢN LƯỢNG VÀ BỘ LỌC NGANG CHUẨN UX GIAO DIỆN ---
+    # --- KHỐI 2: LƯỚI THÈ SẢN LƯỢNG VÀ BỘ LỌC NGANG CHUẨN UX GIAO DIỆN ---
     col_title_1, col_title_2 = st.columns(2)
     with col_title_1:
         st.markdown("<h2 style='color: #1e3a8a; margin-top: 0px; font-size: 1.5rem;'>Danh Sách Sản Lượng & Hình Ảnh</h2>", unsafe_allow_html=True)
@@ -130,7 +123,6 @@ def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
             st.markdown("<br style='margin-top: 25px;'>", unsafe_allow_html=True)
             filter_by_time = st.checkbox("Lọc theo Giờ", key="f_by_time")
             
-        # Tìm cột Tên Nhân Sự và Hạng Mục
         col_nhan_su = "Nhân Sự" if "Nhân Sự" in input_df.columns else ("nhan_su" if "nhan_su" in input_df.columns else "")
         col_hang_muc = "Hạng Mục Công Việc" if "Hạng Mục Công Việc" in input_df.columns else ("hang_muc" if "hang_muc" in input_df.columns else "")
         
@@ -142,7 +134,6 @@ def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
         with filter_col5:
             selected_task = st.selectbox("Lọc theo Hạng Mục", all_tasks, key="f_task")
 
-        # Tiến hành xử lý lọc dữ liệu công việc
         filtered_df = input_df.copy()
         
         col_ngay = "Ngày" if "Ngày" in filtered_df.columns else ("ngay" if "ngay" in filtered_df.columns else "")
@@ -161,7 +152,6 @@ def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
         if total_records > 0:
             selected_to_delete = []
 
-            # Thao tác quản lý xóa nâng cao cho Admin
             if current_user_role == "Admin":
                 st.markdown("<div style='margin-top: 10px;'></div>", unsafe_allow_html=True)
                 if st.button("❌ Xóa các dòng đã chọn", use_container_width=True, key="btn_del_selected"):
@@ -182,3 +172,8 @@ def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
                 with del_c2:
                     if st.button("🗑️ Xóa tất cả cả trang này", use_container_width=True, key="btn_del_page_all"):
                         if not confirm_all:
+                            st.error("⚠️ Bạn phải tích chọn ô 'Xác nhận xóa tất cả cả trang này' trước khi thực hiện!")
+                        else:
+                            id_col = "id" if "id" in filtered_df.columns else ("db_id" if "db_id" in filtered_df.columns else filtered_df.columns)
+                            all_page_ids = filtered_df[id_col].tolist()
+                            update_production_log_deleted_status(all_page_ids, True)
