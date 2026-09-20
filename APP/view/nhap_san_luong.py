@@ -52,7 +52,7 @@ def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
     if not is_admin:
         st.info("👁️ Tài khoản của bạn đang ở chế độ **Chỉ xem**. Bạn có thể theo dõi bảng danh sách bên dưới nhưng không được phép thêm hoặc chỉnh sửa dữ liệu.")
     elif not active_staff:
-        st.warning(f"⚠️ Hiện tại chưa có nhân sự nào **Check-in (Vào ca)**. Vui lòng thực hiện Check-in trước khi nhập sản lượng!")
+        st.warning("⚠️ Hiện tại chưa có nhân sự nào **Check-in (Vào ca)**. Vui lòng thực hiện Check-in trước khi nhập sản lượng!")
     else:
         with st.form("entry_form"):
             f_col1, f_col2, f_col3 = st.columns(3)
@@ -100,7 +100,7 @@ def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
     st.markdown("---")
 
     # ==================== PHẦN 2: DANH SÁCH SẢN LƯỢNG & HÌNH ẢNH ====================
-    col_title_1, col_title_2 = st.columns([3, 1])
+    col_title_1, col_title_2 = st.columns([5, 1])
     with col_title_1:
         st.markdown("<h3 style='color: #1e3a8a;'>Danh Sách Sản Lượng & Hình Ảnh</h3>", unsafe_allow_html=True)
     with col_title_2:
@@ -138,7 +138,10 @@ def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
         # Tiến hành lọc dữ liệu
         filtered_df = raw_input_df.copy()
         try:
-            filtered_df["_ngay_str"] = filtered_df["Ngày"].astype(str).str.strip()
+            filtered_df["_ngay_str"] = filtered_df["Grid"].astype(str).str.strip()
+            # Dự phòng nếu tên cột là Ngày
+            if "Ngày" in filtered_df.columns:
+                filtered_df["_ngay_str"] = filtered_df["Ngày"].astype(str).str.strip()
             s_str = start_filter_date.strftime("%Y-%m-%d")
             e_str = end_filter_date.strftime("%Y-%m-%d")
             filtered_df = filtered_df[(filtered_df["_ngay_str"] >= s_str) & (filtered_df["_ngay_str"] <= e_str)]
@@ -177,7 +180,7 @@ def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
             # Khối nút thao tác xóa hàng loạt cho Admin giống thiết kế của bạn
             if current_user_role == "Admin":
                 st.markdown("<br>", unsafe_allow_html=True)
-                btn_c1, btn_c2 = st.columns([3, 2])
+                btn_c1, btn_c2 = st.columns([5, 1])
                 with btn_c1:
                     btn_delete_selected = st.button("🗑️ Xóa các dòng đã chọn", use_container_width=True, type="primary", key="btn_del_selected_final")
                 with btn_c2:
@@ -187,7 +190,3 @@ def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
                 st.markdown("<div style='margin-top: 10px;'></div>", unsafe_allow_html=True)
                 btn_del_all = st.button("🗑️ Xóa tất cả cả trang này", use_container_width=True, key="btn_del_page_all")
 
-            st.markdown("<br>", unsafe_allow_html=True)
-
-            # VÒNG LẶP HIỂN THỊ CÁC THẺ BẢN GHI
-            for idx, row in page_df.iterrows():
