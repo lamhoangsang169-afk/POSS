@@ -2,12 +2,19 @@ import os
 import sys
 import streamlit as st
 
-# ==================== CẤU HÌNH ĐƯỜNG DẪN HỆ THỐNG ====================
-# Ép Python tìm kiếm file bên trong thư mục APP/view
+# ==================== CẤU HÌNH ĐƯỜNG DẪN HỆ THỐNG CHUẨN XÁC ====================
+# Đảm bảo hệ thống nhận diện thư mục gốc chứa database.py và utils.py
 current_dir = os.path.dirname(os.path.abspath(__file__))
+if current_dir not in sys.path:
+    sys.path.insert(0, current_dir)
+
+# Đảm bảo hệ thống nhận diện thư mục APP/view chứa các trang nghiệp vụ
 view_path = os.path.join(current_dir, "APP", "view")
 if view_path not in sys.path:
-    sys.path.append(view_path)
+    sys.path.insert(0, view_path)
+
+# thiết lập biến môi trường để hỗ trợ các module con truy xuất ngược
+os.environ["PYTHONPATH"] = current_dir
 
 # ==================== IMPORT CÁC TRANG NGHIỆP VỤ TỪ APP/view ====================
 import nhap_san_luong
@@ -36,7 +43,6 @@ def render_main_content(current_menu_name):
         cham_cong.render_cham_cong(current_menu_name, current_user_role)
         
     elif current_menu_name in ["📊 Báo Cáo & Biểu Đồ", "report"]:
-        # Gọi đúng tên hàm render_bao_cao trong file bao_cao.py của bạn
         bao_cao.render_bao_cao(current_menu_name)
         
     elif current_menu_name in ["📂 Thư Mục Báo Cáo", "report_folder"]:
