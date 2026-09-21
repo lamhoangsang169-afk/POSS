@@ -1,4 +1,6 @@
 # database.py
+import time
+import datetime
 import streamlit as st
 import pandas as pd
 from supabase import create_client, Client
@@ -43,16 +45,16 @@ def get_staff_list_db():
 def add_production_log_db(ngay, gio, nhan_su, hang_muc, anh, don_vi, so_luong, he_so, tong_diem, ghi_chu):
     try:
         data = {
-            "Ngày": ngay,
-            "Giờ": gio,
-            "Nhân Sự": nhan_su,
-            "Hạng Mục Công Việc": hang_muc,
-            "Hình Ảnh": anh,
-            "Đơn Vi": don_vi,
-            "Số Lượng Thực Tế": so_luong,
-            "Hệ Số Điểm": he_so,
-            "Tổng Điểm": tong_diem,
-            "Ghi Chú": ghi_chu,
+            "ngay": ngay,
+            "thoi_gian": gio,
+            "nhan_su": nhan_su,
+            "hang_muc_cong_viec": hang_muc,
+            "hinh_anh_url": anh,
+            "don_vi": don_vi,
+            "so_luong": so_luong,
+            "he_so_diem": he_so,
+            "tong_diem": tong_diem,
+            "ghi_chu": ghi_chu,
             "is_deleted": False
         }
         response = supabase.table("production_logs").insert(data).execute()
@@ -171,9 +173,36 @@ def update_production_log_deleted_status(db_ids, is_deleted):
         return None
 
 def upload_multiple_images_to_storage(uploaded_files):
-    if not uploaded_files:
+    """
+    Tải nhiều ảnh trực tiếp lên Supabase Storage Bucket 'production_images'
+    và trả về chuỗi các đường dẫn URL phân cách bằng dấu phẩy.
+    """
+    if not uploaded_files or supabase is None:
         return ""
-    return "image_placeholder_url.png"
+    
+    uploaded_urls = []
+    bucket_name = "production_images"
+
+    for file in uploaded_files:
+        try:
+            file_ext = file.name.split(".")[-1]
+            unique_filename = f"{int(time.time())}_{file.name.replace(' ', '_')}"
+            file_bytes = file.read()
+            
+            # Upload ảnh lên Supabase Storage
+            supabase.storage.from_(bucket_name).upload(
+                path=unique_filename,
+                file=file_bytes,
+                file_options={"content-type": file.type}
+            )
+            
+            # Lấy link xem công khai (Public URL)
+            public_url = supabase.storage.from_(bucket_name).get_public_url(unique_filename)
+            uploaded_urls.append(public_url)
+        except Exception as e:
+            st.error(f"Lỗi upload ảnh {file.name}: {e}")
+            
+    return ",".join(uploaded_urls)
 
 def permanent_delete_db(db_ids):
     if supabase is None or not db_ids:
