@@ -277,6 +277,8 @@ if "rules_df" not in st.session_state:
 
 st.session_state.folders = load_folders_db()
 db_settings = load_app_settings_db()
+if db_settings is None:
+    db_settings = {}
 
 if "primary_color" not in st.session_state: st.session_state.primary_color = db_settings.get("primary_color", "#ff4b4b")
 if "bg_color" not in st.session_state: st.session_state.bg_color = db_settings.get("bg_color", "#ffffff")
@@ -308,7 +310,6 @@ st.markdown(f"""
 with st.sidebar:
     st.markdown('<div class="fixed-avatar-container">', unsafe_allow_html=True)
     
-    # Xử lý hiển thị ảnh đại diện từ base64 nếu có
     has_custom_avatar = False
     avatar_bytes_obj = None
     if st.session_state.get("avatar_base64"):
@@ -330,7 +331,6 @@ with st.sidebar:
     else:
         st.markdown(f'<div style="width:140px; height:140px; border-radius:50%; background:#cbd5e1; display:flex; align-items:center; justify-content:center; font-size:50px; border:3px solid {st.session_state.primary_color}; box-shadow:0 4px 10px rgba(0,0,0,0.3); margin: 0 auto;">👤</div>', unsafe_allow_html=True)
 
-    # Nút cài đặt avatar thu gọn (⚙️)
     st.markdown('<div style="position: absolute; bottom: 2px; right: 10px; z-index: 9999999;">', unsafe_allow_html=True)
     with st.popover("⚙️"):
         st.markdown("##### ⚙️ Cài Đặt Ảnh Đại Diện")
