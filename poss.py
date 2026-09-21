@@ -307,7 +307,69 @@ st.markdown(f"""
 # ==================== THANH ĐIỀU HƯỚNG BÊN TRÁI (SIDEBAR) ====================
 with st.sidebar:
     st.markdown('<div class="fixed-avatar-container">', unsafe_allow_html=True)
-    st.markdown(f'<div style="width:140px; height:140px; border-radius:50%; background:#cbd5e1; display:flex; align-items:center; justify-content:center; font-size:50px; border:3px solid {st.session_state.primary_color}; box-shadow:0 4px 10px rgba(0,0,0,0.3); margin: 0 auto;">👤</div>', unsafe_allow_html=True)
+    
+    # Xử lý hiển thị ảnh đại diện từ base64 nếu có
+    has_custom_avatar = False
+    avatar_bytes_obj = None
+    if st.session_state.get("avatar_base64"):
+        try:
+            pure_b64 = st.session_state.avatar_base64.split(",")[1] if "," in st.session_state.avatar_base64 else st.session_state.avatar_base64
+            pure_b64 += "=" * (-len(pure_b64) % 4)
+            avatar_bytes_obj = base64.b64decode(pure_b64)
+            has_custom_avatar = True
+        except Exception:
+            pass
+
+    st.markdown('<div class="avatar-wrapper">', unsafe_allow_html=True)
+    if has_custom_avatar:
+        with st.popover(" ", use_container_width=False):
+            st.markdown("##### 🔍 Xem Ảnh Đại Diện Lớn")
+            st.image(avatar_bytes_obj, use_container_width=True)
+        encoded_img = base64.b64encode(avatar_bytes_obj).decode("utf-8")
+        st.markdown(f'<div style="cursor: pointer; text-align: center;"><img src="data:image/jpeg;base64,{encoded_img}" style="width:140px; height:140px; border-radius:50%; object-fit:cover; border:3px solid {st.session_state.primary_color}; box-shadow:0 4px 10px rgba(0,0,0,0.3);"></div>', unsafe_allow_html=True)
+    else:
+        st.markdown(f'<div style="width:140px; height:140px; border-radius:50%; background:#cbd5e1; display:flex; align-items:center; justify-content:center; font-size:50px; border:3px solid {st.session_state.primary_color}; box-shadow:0 4px 10px rgba(0,0,0,0.3); margin: 0 auto;">👤</div>', unsafe_allow_html=True)
+
+    # Nút cài đặt avatar thu gọn (⚙️)
+    st.markdown('<div style="position: absolute; bottom: 2px; right: 10px; z-index: 9999999;">', unsafe_allow_html=True)
+    with st.popover("⚙️"):
+        st.markdown("##### ⚙️ Cài Đặt Ảnh Đại Diện")
+        avatar_file = st.file_uploader("Tải ảnh mới", type=["png", "jpg", "jpeg"], key="avatar_uploader_popover_unique", label_visibility="collapsed")
+        if avatar_file is not None:
+            current_file_sig = f"{avatar_file.name}_{avatar_file.size}"
+            if st.session_state.get("last_processed_avatar") != current_file_sig:
+                compressed_avatar = compress_image_to_base64(avatar_file, max_size=(300, 300), quality=60)
+                if compressed_avatar:
+                    st.session_state.avatar_base64 = compressed_avatar
+                    st.session_state["last_processed_avatar"] = current_file_sig
+                    save_app_settings_db({
+                        "primary_color": st.session_state.primary_color, 
+                        "bg_color": st.session_state.bg_color,
+                        "sidebar_bg": st.session_state.sidebar_bg, 
+                        "sidebar_opacity": st.session_state.sidebar_opacity,
+                        "text_color": st.session_state.text_color, 
+                        "bg_image_base64": st.session_state.get("bg_image_base64"),
+                        "avatar_base64": st.session_state.avatar_base64
+                    })
+                    st.success("✅ Đã cập nhật ảnh đại diện thành công!")
+                    st.rerun()
+        if st.session_state.get("avatar_base64"):
+            st.markdown("---")
+            if st.button("🗑️ Xóa Ảnh Đại Diện", use_container_width=True, key="btn_remove_avatar_unique"):
+                st.session_state.avatar_base64 = None
+                st.session_state["last_processed_avatar"] = None
+                save_app_settings_db({
+                    "primary_color": st.session_state.primary_color, 
+                    "bg_color": st.session_state.bg_color,
+                    "sidebar_bg": st.session_state.sidebar_bg, 
+                    "sidebar_opacity": st.session_state.sidebar_opacity,
+                    "text_color": st.session_state.text_color, 
+                    "bg_image_base64": st.session_state.get("bg_image_base64"),
+                    "avatar_base64": None
+                })
+                st.success("✅ Đã xóa ảnh đại diện!")
+                st.rerun()
+    st.markdown('</div></div>', unsafe_allow_html=True)
 
     role_badge = "👑 Quản Trị Viên (Admin)" if current_user_role == "Admin" else "👤 Nhân Viên"
     st.markdown(f"""
