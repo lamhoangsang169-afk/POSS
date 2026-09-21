@@ -306,7 +306,14 @@ sidebar_rgba = hex_to_rgba(st.session_state.sidebar_bg, st.session_state.sidebar
 
 st.markdown(f"""
 <style>
-    .stApp {{ {bg_style} color: {st.session_state.text_color} !important; }}
+    .stApp {{ 
+        {bg_style} 
+        color: {st.session_state.text_color} !important; 
+        -webkit-print-color-adjust: exact;
+    }}
+    h1, h2, h3, h4, h5, h6, p, span, label, div {{
+        color: {st.session_state.text_color} !important;
+    }}
     [data-testid="stSidebar"] {{ background-color: {sidebar_rgba} !important; backdrop-filter: blur(8px); }}
     [data-testid="stSidebar"] > div:first-child {{ display: flex; flex-direction: column; height: 100vh; overflow-y: auto !important; padding: 0px !important; }}
     .fixed-avatar-container {{ position: sticky; top: 0; z-index: 999999; background-color: {sidebar_rgba}; padding-top: 15px; padding-bottom: 15px; border-bottom: 2px solid {st.session_state.primary_color}; margin-bottom: 10px; text-align: center; flex-shrink: 0; backdrop-filter: blur(8px); }}
