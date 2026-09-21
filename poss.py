@@ -267,7 +267,7 @@ def get_user_permissions(identifier):
 user_perms = get_user_permissions(st.session_state.user_identifier)
 current_user_role = user_perms["role"]
 
-# ==================== KHỞI TẠO BIẾN TRẠNG THÁI SESSION ====================
+# ==================== KHỞI TẠO & ĐỒNG BỘ CẤU HÌNH TỪ DATABASE (PERSISTENT) ====================
 st.session_state.staff_list = get_staff_list_db()
 if "rules_df" not in st.session_state:
     try:
@@ -277,7 +277,7 @@ if "rules_df" not in st.session_state:
 
 st.session_state.folders = load_folders_db()
 
-# Xử lý an toàn triệt để chống lỗi AttributeError cho db_settings
+# Đọc an toàn cấu hình từ Supabase
 raw_settings = load_app_settings_db()
 db_settings = {}
 if isinstance(raw_settings, dict):
@@ -286,14 +286,17 @@ elif hasattr(raw_settings, "data") and isinstance(raw_settings.data, list) and l
     if isinstance(raw_settings.data[0], dict):
         db_settings = raw_settings.data[0]
 
-if "primary_color" not in st.session_state: st.session_state.primary_color = db_settings.get("primary_color", "#ff4b4b")
-if "bg_color" not in st.session_state: st.session_state.bg_color = db_settings.get("bg_color", "#ffffff")
-if "sidebar_bg" not in st.session_state: st.session_state.sidebar_bg = db_settings.get("sidebar_bg", "#f0f2f6")
-if "sidebar_opacity" not in st.session_state: st.session_state.sidebar_opacity = float(db_settings.get("sidebar_opacity", 0.9))
-if "text_color" not in st.session_state: st.session_state.text_color = db_settings.get("text_color", "#31333F")
-if "bg_image_base64" not in st.session_state: st.session_state.bg_image_base64 = db_settings.get("bg_image_base64", None)
-if "avatar_base64" not in st.session_state: st.session_state.avatar_base64 = db_settings.get("avatar_base64", None)
-if "current_menu" not in st.session_state: st.session_state.current_menu = "1. Nhập Sản Lượng"
+# Luôn nạp và cập nhật giá trị cố định để F5 / reboot không bị mất
+st.session_state.primary_color = db_settings.get("primary_color", st.session_state.get("primary_color", "#ff4b4b"))
+st.session_state.bg_color = db_settings.get("bg_color", st.session_state.get("bg_color", "#ffffff"))
+st.session_state.sidebar_bg = db_settings.get("sidebar_bg", st.session_state.get("sidebar_bg", "#f0f2f6"))
+st.session_state.sidebar_opacity = float(db_settings.get("sidebar_opacity", st.session_state.get("sidebar_opacity", 0.9)))
+st.session_state.text_color = db_settings.get("text_color", st.session_state.get("text_color", "#31333F"))
+st.session_state.bg_image_base64 = db_settings.get("bg_image_base64", st.session_state.get("bg_image_base64", None))
+st.session_state.avatar_base64 = db_settings.get("avatar_base64", st.session_state.get("avatar_base64", None))
+
+if "current_menu" not in st.session_state: 
+    st.session_state.current_menu = "1. Nhập Sản Lượng"
 
 bg_style = f"background-color: {st.session_state.bg_color};"
 if st.session_state.bg_image_base64:
@@ -548,7 +551,7 @@ def render_main_content(current_menu_name):
                     "bg_image_base64": st.session_state.get("bg_image_base64"),
                     "avatar_base64": st.session_state.get("avatar_base64")
                 })
-                st.success("✅ Đã lưu cài đặt giao diện thành công lên hệ thống!")
+                st.success("✅ Đã lưu cài đặt giao diện vĩnh viễn lên cơ sở dữ liệu thành công!")
                 st.rerun()
 
             st.markdown("---")
