@@ -109,15 +109,14 @@ def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
             st.cache_data.clear()
             st.rerun()
 
-    raw_input_df = get_production_logs_db(is_deleted=False, limit_rows=1000)
+    raw_input_df = get_production_logs_db(is_deleted=False, limit_rows=2000)
 
     if not raw_input_df.empty:
         f_col1, f_col2, f_col3, f_col4, f_col5, f_col6 = st.columns([1.2, 1.2, 1.0, 1.1, 1.1, 1.0])
         
         with f_col1:
-            # === ĐẶT MẶC ĐỊNH LÀ NGÀY THỰC TẾ (HÔM NAY) HOẶC LẤY TRƯỚC ĐÓ 30 NGÀY TÙY Ý ===
-            default_start = now_vn.date()
-            start_filter_date = st.date_input("Từ ngày", default_start, key="f_start_date")
+            # === MẶC ĐỊNH LÀ NGÀY THỰC TẾ HÔM NAY ===
+            start_filter_date = st.date_input("Từ ngày", now_vn.date(), key="f_start_date")
         with f_col2:
             end_filter_date = st.date_input("Đến ngày", now_vn.date(), key="f_end_date")
         with f_col3:
@@ -214,9 +213,13 @@ def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
                                     sub_cols = st.columns(min(len(urls), 4), gap="small")
                                     for i, u in enumerate(urls):
                                         with sub_cols[i]:
-                                            with st.popover("🔍", help="Xem ảnh lớn"): 
-                                                st.image(u, use_container_width=True)
-                                            st.image(u, width=40)
+                                            # === BỌC AN TOÀN TRÁNH TRÁNH VĂNG LỖI FILENOTFOUNDERROR ===
+                                            try:
+                                                with st.popover("🔍", help="Xem ảnh lớn"): 
+                                                    st.image(u, use_container_width=True)
+                                                st.image(u, width=40)
+                                            except Exception:
+                                                st.markdown("<small style='color: gray;'>Lỗi tải ảnh</small>", unsafe_allow_html=True)
                             else:
                                 st.markdown("<small style='color: gray;'>Không ảnh</small>", unsafe_allow_html=True)
 
@@ -260,9 +263,13 @@ def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
                                 sub_cols = st.columns(min(len(urls), 4), gap="small")
                                 for i, u in enumerate(urls):
                                     with sub_cols[i]:
-                                        with st.popover("🔍", help="Xem ảnh lớn"): 
-                                            st.image(u, use_container_width=True)
-                                        st.image(u, width=40)
+                                        # === BỌC AN TOÀN TRÁNH TRÁNH VĂNG LỖI FILENOTFOUNDERROR ===
+                                        try:
+                                            with st.popover("🔍", help="Xem ảnh lớn"): 
+                                                st.image(u, use_container_width=True)
+                                            st.image(u, width=40)
+                                        except Exception:
+                                            st.markdown("<small style='color: gray;'>Lỗi tải ảnh</small>", unsafe_allow_html=True)
                         else:
                             st.markdown("<small style='color: gray;'>Không ảnh</small>", unsafe_allow_html=True)
                     st.markdown("---")
