@@ -101,6 +101,42 @@ def get_detailed_storage_usage():
     except Exception:
         return "0 MB / 500 MB", "0 MB / 1 GB"
 
+# ==================== CÁC HÀM CRUD BỔ SUNG ====================
+def save_staff_list_db(edited_df):
+    if supabase is None:
+        return
+    try:
+        res_old = supabase.table("staff").select("id, name").execute()
+        old_staffs = {row["id"]: row["name"] for row in res_old.data} if res_old.data else {}
+        old_ids = list(old_staffs.keys())
+        
+        current_ids_in_editor = []
+        for _, row in edited_df.iterrows():
+            name = str(row.get("Nhân Sự", "")).strip()
+            row_id = row.get("id")
+            if not name or name.lower() in ["nan", "none"]:
+                continue
+            if pd.notna(row_id) and int(row_id) in old_ids:
+                supabase.table("staff").update({"name": name}).eq("id", int(row_id)).execute()
+                current_ids_in_editor.append(int(row_id))
+            else:
+                res_ins = supabase.table("staff").insert({"name": name}).execute()
+                if res_ins.data:
+                    current_ids_in_editor.append(res_ins.data[0]["id"])
+        st.cache_data.clear()
+    except Exception as e:
+        st.error(f"Lỗi khi lưu nhân sự: {e}")
+
+def save_app_settings_db(settings_dict):
+    if supabase is None:
+        return
+    try:
+        payload = {"id": 1, **settings_dict}
+        supabase.table("app_settings").upsert(payload).execute()
+        st.cache_data.clear()
+    except Exception as e:
+        st.error(f"Lỗi lưu cấu hình: {e}")
+
 # ==================== KIỂM TRA ĐĂNG NHẬP SESSION ====================
 if "logged_in" not in st.session_state:
     st.session_state.logged_in = False
@@ -285,7 +321,6 @@ with st.sidebar:
     st.markdown("---")
     st.markdown("### 📂 CHỨC NĂNG HỆ THỐNG")
     
-    # Menu chọn danh mục nghiệp vụ
     menu_options = [
         "1. Nhập Sản Lượng",
         "📊 Báo Cáo & Biểu Đồ",
@@ -298,7 +333,6 @@ with st.sidebar:
     if chosen_menu:
         st.session_state.current_menu = chosen_menu
 
-    # Các mục cấu hình hệ thống (Admin)
     if current_user_role == "Admin":
         st.markdown("---")
         st.markdown("### ⚙️ Cấu Hình Hệ Thống\n(Admin)")
@@ -342,6 +376,70 @@ def render_main_content(current_menu_name):
         dinh_muc_cong_viec.render_dinh_muc_cong_viec(current_menu_name, current_user_role, user_perms)
     elif current_menu_name == "🗑️ Thùng Rác":
         thung_rac.render_thung_rac(current_menu_name, current_user_role)
+        
+    # ==================== CÀI ĐẶT GIAO DIỆN ====================
+    elif current_menu_name == "🎨 Cài Đặt Giao Diện":
+        col_ui_h1, col_ui_h2 = st.columns([3, 1])
+        with col_ui_h1:
+            st.header("Cài Đặt Giao Diện & Nhân Sự")
+        with col_ui_h2:
+            if st.button("🔄 Làm mới dữ liệu", use_container_width=True, key="btn_refresh_ui"):
+                st.cache_data.clear()
+                st.rerun()
+
+        if current_user_role != "Admin":
+            st.warning("🔒 Chỉ Quản trị viên mới được phép cài đặt giao diện và danh sách nhân sự!")
+        else:
+            with st.form("ui_settings_form"):
+                c_col1, c_col2 = st.columns(2)
+                with c_col1:
+                    picker_bg = st.color_picker("Màu nền ứng dụng", value=st.session_state.get("bg_color", "#ffffff"))
+                    picker_text = st.color_picker("Màu chữ", value=st.session_state.get("text_color", "#31333F"))
+                with c_col2:
+                    picker_primary = st.color_picker("Màu chủ đạo", value=st.session_state.get("primary_color", "#ff4b4b"))
+                    picker_sidebar = st.color_picker("Màu nền sidebar", value=st.session_state.get("sidebar_bg", "#f0f2f6"))
+                    
+                slider_opacity = st.slider("Độ mờ sidebar", 0.1, 1.0, float(st.session_state.get("sidebar_opacity", 0.9)), 0.05)
+                bg_file_upload = st.file_uploader("🖼️ Tải lên hình nền ứng dụng", type=["png", "jpg", "jpeg"])
+                
+                submitted_settings = st.form_submit_button("💾 Lưu Cài Đặt", use_container_width=True)
+                
+                if submitted_settings:
+                    st.session_state.bg_color = picker_bg
+                    st.session_state.text_color = picker_text
+                    st.session_state.primary_color = picker_primary
+                    st.session_state.sidebar_bg = picker_sidebar
+                    st.session_state.sidebar_opacity = slider_opacity
+                    
+                    if bg_file_upload is not None:
+                        compressed_bg = compress_image_to_base64(bg_file_upload, max_size=(1920, 1080), quality=80)
+                        if compressed_bg:
+                            st.session_state.bg_image_base64 = compressed_bg
+                            
+                    save_app_settings_db({
+                        "primary_color": st.session_state.primary_color, 
+                        "bg_color": st.session_state.bg_color,
+                        "sidebar_bg": st.session_state.sidebar_bg, 
+                        "sidebar_opacity": st.session_state.sidebar_opacity,
+                        "text_color": st.session_state.text_color, 
+                        "bg_image_base64": st.session_state.get("bg_image_base64"),
+                        "avatar_base64": st.session_state.get("avatar_base64")
+                    })
+                    st.success("✅ Đã lưu cài đặt giao diện thành công!")
+                    st.rerun()
+
+            st.markdown("---")
+            st.subheader("👥 Quản Lý Danh Sách Nhân Sự")
+            with st.form("staff_form"):
+                staff_df = get_staff_df_db()
+                edited_staff = st.data_editor(staff_df, num_rows="dynamic", use_container_width=True, hide_index=True, disabled=["id"])
+                
+                submitted_staff = st.form_submit_button("💾 Lưu Nhân Sự", use_container_width=True)
+                if submitted_staff:
+                    save_staff_list_db(edited_staff)
+                    st.session_state.staff_list = get_staff_list_db()
+                    st.success("✅ Đã cập nhật danh sách nhân sự thành công!")
+                    st.rerun()
     else:
         st.subheader(current_menu_name)
         st.info(f"Đang hiển thị nội dung cho mục: {current_menu_name}")
