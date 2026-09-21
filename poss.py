@@ -101,7 +101,7 @@ def get_detailed_storage_usage():
     except Exception:
         return "0 MB / 500 MB", "0 MB / 1 GB"
 
-# ==================== CÁC HÀM CRUD BỔ SUNG ====================
+# ==================== CÁC HÀM CRUD BỔ SUNG (ĐÃ TÍCH HỢP XÓA CACHE CHUẨN XÁC) ====================
 def save_staff_list_db(edited_df):
     if supabase is None:
         return
@@ -138,6 +138,8 @@ def save_app_settings_db(settings_dict):
     try:
         payload = {"id": 1, **settings_dict}
         supabase.table("app_settings").upsert(payload).execute()
+        # Xóa cache ngay lập tức để dữ liệu mới cập nhật đồng bộ trên mọi thiết bị[cite: 13]
+        load_app_settings_db.clear()
         st.cache_data.clear()
     except Exception as e:
         st.error(f"Lỗi lưu cấu hình: {e}")
@@ -148,6 +150,8 @@ def save_folders_db(folders_list):
     try:
         payload = {"id": 1, "folders_json": folders_list}
         supabase.table("app_folders").upsert(payload).execute()
+        # Xóa cache ngay lập tức[cite: 13]
+        load_folders_db.clear()
         st.cache_data.clear()
     except Exception as e:
         st.error(f"Lỗi lưu thư mục: {e}")
@@ -278,13 +282,7 @@ if "rules_df" not in st.session_state:
 st.session_state.folders = load_folders_db()
 
 # Đọc an toàn cấu hình từ Supabase
-raw_settings = load_app_settings_db()
-db_settings = {}
-if isinstance(raw_settings, dict):
-    db_settings = raw_settings
-elif hasattr(raw_settings, "data") and isinstance(raw_settings.data, list) and len(raw_settings.data) > 0:
-    if isinstance(raw_settings.data[0], dict):
-        db_settings = raw_settings.data[0]
+db_settings = load_app_settings_db()
 
 # Luôn nạp và cập nhật giá trị cố định để F5 / reboot không bị mất
 st.session_state.primary_color = db_settings.get("primary_color", st.session_state.get("primary_color", "#ff4b4b"))
