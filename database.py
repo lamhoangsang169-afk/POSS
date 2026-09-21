@@ -75,7 +75,7 @@ def get_production_logs_db(is_deleted=False, limit_rows=1000):
                 "id": "db_id", "ngay": "Ngày", "thoi_gian": "Thời Gian",
                 "nhan_su": "Nhân Sự", "hang_muc_cong_viec": "Hạng Mục Công Việc",
                 "hinh_anh_url": "Hình Ảnh", "don_vi": "Đơn Vị", "so_luong": "Số Lượng",
-                "he_so_diem": "Hệ Số", "tong_diem": "Tổng Điểm", "ghi_chu": "Ghi Chú"
+                "he_so": "Hệ Số", "tong_diem": "Tổng Điểm", "ghi_chu": "Ghi Chú"
             })
             df.insert(0, "STT", range(1, len(df) + 1))
             return df
@@ -94,7 +94,7 @@ def get_production_logs_by_date_range(start_date, end_date):
                 "id": "db_id", "ngay": "Ngày", "thoi_gian": "Thời Gian",
                 "nhan_su": "Nhân Sự", "hang_muc_cong_viec": "Hạng Mục Công Việc",
                 "hinh_anh_url": "Hình Ảnh", "don_vi": "Đơn Vị", "so_luong": "Số Lượng",
-                "he_so_diem": "Hệ Số", "tong_diem": "Tổng Điểm", "ghi_chu": "Ghi Chú"
+                "he_so": "Hệ Số", "tong_diem": "Tổng Điểm", "ghi_chu": "Ghi Chú"
             })
             return df
     except Exception:
@@ -134,8 +134,9 @@ def load_app_settings_db():
         return {}
     try:
         res = supabase.table("app_settings").select("*").eq("id", 1).execute()
+        # ĐÃ SỬA: Trả về trực tiếp phần tử dictionary đầu tiên thay vì trả về cả list
         if res.data and len(res.data) > 0:
-            return res.data
+            return res.data[0]
     except Exception:
         pass
     return {}
@@ -155,8 +156,11 @@ def load_folders_db():
         return default_folders
     try:
         res = supabase.table("app_folders").select("folders_json").eq("id", 1).execute()
-        if res.data and len(res.data) > 0 and res.data.get("folders_json"):
-            return res.data["folders_json"]
+        # ĐÃ SỬA: Kiểm tra an toàn danh sách trả về từ Supabase
+        if res.data and len(res.data) > 0:
+            folders_data = res.data[0].get("folders_json")
+            if folders_data:
+                return folders_data
     except Exception:
         pass
     return default_folders
@@ -173,10 +177,6 @@ def update_production_log_deleted_status(db_ids, is_deleted):
         return None
 
 def upload_multiple_images_to_storage(uploaded_files):
-    """
-    Tải nhiều ảnh trực tiếp lên Supabase Storage Bucket 'production_images'
-    và trả về chuỗi các đường dẫn URL phân cách bằng dấu phẩy.
-    """
     if not uploaded_files or supabase is None:
         return ""
     
@@ -189,14 +189,12 @@ def upload_multiple_images_to_storage(uploaded_files):
             unique_filename = f"{int(time.time())}_{file.name.replace(' ', '_')}"
             file_bytes = file.read()
             
-            # Upload ảnh lên Supabase Storage
             supabase.storage.from_(bucket_name).upload(
                 path=unique_filename,
                 file=file_bytes,
                 file_options={"content-type": file.type}
             )
             
-            # Lấy link xem công khai (Public URL)
             public_url = supabase.storage.from_(bucket_name).get_public_url(unique_filename)
             uploaded_urls.append(public_url)
         except Exception as e:
@@ -308,6 +306,6 @@ def delete_rule_db(db_id):
     try:
         response = supabase.table("rules").delete().eq("id", db_id).execute()
         return response
-    except Exception as e:
-        st.error(f"Lỗi xóa định mức: {e}")
-        return None
+    except Exception:
+        pass
+    return None
