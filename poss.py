@@ -276,9 +276,15 @@ if "rules_df" not in st.session_state:
         st.session_state.rules_df = pd.DataFrame()
 
 st.session_state.folders = load_folders_db()
-db_settings = load_app_settings_db()
-if db_settings is None:
-    db_settings = {}
+
+# Xử lý an toàn triệt để chống lỗi AttributeError cho db_settings
+raw_settings = load_app_settings_db()
+db_settings = {}
+if isinstance(raw_settings, dict):
+    db_settings = raw_settings
+elif hasattr(raw_settings, "data") and isinstance(raw_settings.data, list) and len(raw_settings.data) > 0:
+    if isinstance(raw_settings.data[0], dict):
+        db_settings = raw_settings.data[0]
 
 if "primary_color" not in st.session_state: st.session_state.primary_color = db_settings.get("primary_color", "#ff4b4b")
 if "bg_color" not in st.session_state: st.session_state.bg_color = db_settings.get("bg_color", "#ffffff")
