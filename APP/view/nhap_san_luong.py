@@ -115,7 +115,6 @@ def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
         f_col1, f_col2, f_col3, f_col4, f_col5, f_col6 = st.columns([1.2, 1.2, 1.0, 1.1, 1.1, 1.0])
         
         with f_col1:
-            # === MẶC ĐỊNH LÀ NGÀY THỰC TẾ HÔM NAY ===
             start_filter_date = st.date_input("Từ ngày", now_vn.date(), key="f_start_date")
         with f_col2:
             end_filter_date = st.date_input("Đến ngày", now_vn.date(), key="f_end_date")
@@ -213,13 +212,20 @@ def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
                                     sub_cols = st.columns(min(len(urls), 4), gap="small")
                                     for i, u in enumerate(urls):
                                         with sub_cols[i]:
-                                            # === BỌC AN TOÀN TRÁNH TRÁNH VĂNG LỖI FILENOTFOUNDERROR ===
                                             try:
-                                                with st.popover("🔍", help="Xem ảnh lớn"): 
-                                                    st.image(u, use_container_width=True)
-                                                st.image(u, width=40)
+                                                # Khối xử lý hiển thị ảnh an toàn chặn crash app
+                                                if u.startswith("http://") or u.startswith("https://"):
+                                                    with st.popover("🔍", help="Xem ảnh lớn"): 
+                                                        st.image(u, use_container_width=True)
+                                                    st.image(u, width=40)
+                                                elif os.path.exists(u):
+                                                    with st.popover("🔍", help="Xem ảnh lớn"): 
+                                                        st.image(u, use_container_width=True)
+                                                    st.image(u, width=40)
+                                                else:
+                                                    st.caption("⚠️ Không tìm thấy ảnh")
                                             except Exception:
-                                                st.markdown("<small style='color: gray;'>Lỗi tải ảnh</small>", unsafe_allow_html=True)
+                                                st.caption("❌ Lỗi hiển thị")
                             else:
                                 st.markdown("<small style='color: gray;'>Không ảnh</small>", unsafe_allow_html=True)
 
@@ -263,13 +269,19 @@ def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
                                 sub_cols = st.columns(min(len(urls), 4), gap="small")
                                 for i, u in enumerate(urls):
                                     with sub_cols[i]:
-                                        # === BỌC AN TOÀN TRÁNH TRÁNH VĂNG LỖI FILENOTFOUNDERROR ===
                                         try:
-                                            with st.popover("🔍", help="Xem ảnh lớn"): 
-                                                st.image(u, use_container_width=True)
-                                            st.image(u, width=40)
+                                            if u.startswith("http://") or u.startswith("https://"):
+                                                with st.popover("🔍", help="Xem ảnh lớn"): 
+                                                    st.image(u, use_container_width=True)
+                                                st.image(u, width=40)
+                                            elif os.path.exists(u):
+                                                with st.popover("🔍", help="Xem ảnh lớn"): 
+                                                    st.image(u, use_container_width=True)
+                                                st.image(u, width=40)
+                                            else:
+                                                st.caption("⚠️ Không tìm thấy ảnh")
                                         except Exception:
-                                            st.markdown("<small style='color: gray;'>Lỗi tải ảnh</small>", unsafe_allow_html=True)
+                                            st.caption("❌ Lỗi hiển thị")
                         else:
                             st.markdown("<small style='color: gray;'>Không ảnh</small>", unsafe_allow_html=True)
                     st.markdown("---")
