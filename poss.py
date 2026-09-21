@@ -142,6 +142,16 @@ def save_app_settings_db(settings_dict):
     except Exception as e:
         st.error(f"Lỗi lưu cấu hình: {e}")
 
+def save_folders_db(folders_list):
+    if supabase is None:
+        return
+    try:
+        payload = {"id": 1, "folders_json": folders_list}
+        supabase.table("app_folders").upsert(payload).execute()
+        st.cache_data.clear()
+    except Exception as e:
+        st.error(f"Lỗi lưu thư mục: {e}")
+
 # ==================== KIỂM TRA ĐĂNG NHẬP SESSION ====================
 if "logged_in" not in st.session_state:
     st.session_state.logged_in = False
@@ -388,6 +398,41 @@ def render_main_content(current_menu_name):
     elif current_menu_name == "🗑️ Thùng Rác":
         thung_rac.render_thung_rac(current_menu_name, current_user_role)
         
+    # ==================== QUẢN LÝ THƯ MỤC & MENU ====================
+    elif current_menu_name == "📁 Quản Lý Thư Mục & Menu":
+        col_mf_h1, col_mf_h2 = st.columns([3, 1])
+        with col_mf_h1:
+            st.header("Quản Lý Thư Mục & Menu")
+        with col_mf_h2:
+            if st.button("🔄 Làm mới dữ liệu", use_container_width=True, key="btn_refresh_mf"):
+                st.cache_data.clear()
+                st.rerun()
+
+        if current_user_role != "Admin":
+            st.warning("🔒 Bạn không có quyền truy cập trang quản lý cấu hình hệ thống này.")
+        else:
+            with st.form("manage_menu_form"):
+                current_folder_name = st.session_state.folders[0]["folder_name"] if st.session_state.folders else "📌 Quản Lý Nghiệp Vụ"
+                new_folder_name = st.text_input("Tên thư mục", value=current_folder_name)
+                
+                current_items = st.session_state.folders[0]["items"] if st.session_state.folders else []
+                
+                updated_items = []
+                for i_idx in range(5):
+                    default_name = current_items[i_idx]["name"] if i_idx < len(current_items) else f"{i_idx+1}. Mục {i_idx+1}"
+                    default_id = current_items[i_idx]["id"] if i_idx < len(current_items) else f"menu_{i_idx+1}"
+                    
+                    new_name = st.text_input(f"Tên hiển thị {i_idx+1}", value=default_name)
+                    updated_items.append({"id": default_id, "name": new_name})
+                    
+                submitted_mf = st.form_submit_button("💾 Lưu Thay Đổi", use_container_width=True)
+                if submitted_mf:
+                    new_folders_structure = [{"folder_name": new_folder_name, "items": updated_items}]
+                    st.session_state.folders = new_folders_structure
+                    save_folders_db(new_folders_structure)
+                    st.success("✅ Đã lưu cấu hình thư mục & menu thành công!")
+                    st.rerun()
+
     # ==================== CÀI ĐẶT GIAO DIỆN ====================
     elif current_menu_name == "🎨 Cài Đặt Giao Diện":
         col_ui_h1, col_ui_h2 = st.columns([3, 1])
@@ -414,7 +459,6 @@ def render_main_content(current_menu_name):
             slider_opacity = st.slider("Độ mờ sidebar", 0.1, 1.0, float(st.session_state.get("sidebar_opacity", 0.9)), 0.05)
             bg_file_upload = st.file_uploader("🖼️ Tải lên hình nền ứng dụng", type=["png", "jpg", "jpeg"], key="bg_uploader_direct")
             
-            # Áp dụng trực tiếp vào session_state ngay khi thay đổi widget
             st.session_state.bg_color = picker_bg
             st.session_state.text_color = picker_text
             st.session_state.primary_color = picker_primary
