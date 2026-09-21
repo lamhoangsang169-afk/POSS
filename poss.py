@@ -268,18 +268,24 @@ if "rules_df" not in st.session_state:
 st.session_state.folders = load_folders_db()
 db_settings = load_app_settings_db()
 
-if "primary_color" not in st.session_state: st.session_state.primary_color = "#ff4b4b"
-if "bg_color" not in st.session_state: st.session_state.bg_color = "#ffffff"
-if "sidebar_bg" not in st.session_state: st.session_state.sidebar_bg = "#f0f2f6"
-if "sidebar_opacity" not in st.session_state: st.session_state.sidebar_opacity = 0.9
-if "text_color" not in st.session_state: st.session_state.text_color = "#31333F"
-if "avatar_base64" not in st.session_state: st.session_state.avatar_base64 = None
+if "primary_color" not in st.session_state: st.session_state.primary_color = db_settings.get("primary_color", "#ff4b4b")
+if "bg_color" not in st.session_state: st.session_state.bg_color = db_settings.get("bg_color", "#ffffff")
+if "sidebar_bg" not in st.session_state: st.session_state.sidebar_bg = db_settings.get("sidebar_bg", "#f0f2f6")
+if "sidebar_opacity" not in st.session_state: st.session_state.sidebar_opacity = float(db_settings.get("sidebar_opacity", 0.9))
+if "text_color" not in st.session_state: st.session_state.text_color = db_settings.get("text_color", "#31333F")
+if "bg_image_base64" not in st.session_state: st.session_state.bg_image_base64 = db_settings.get("bg_image_base64", None)
+if "avatar_base64" not in st.session_state: st.session_state.avatar_base64 = db_settings.get("avatar_base64", None)
 if "current_menu" not in st.session_state: st.session_state.current_menu = "1. Nhập Sản Lượng"
+
+bg_style = f"background-color: {st.session_state.bg_color};"
+if st.session_state.bg_image_base64:
+    bg_style = f"background-image: url(data:image/jpeg;base64,{st.session_state.bg_image_base64}); background-size: cover; background-repeat: no-repeat; background-position: center; background-attachment: fixed;"
 
 sidebar_rgba = hex_to_rgba(st.session_state.sidebar_bg, st.session_state.sidebar_opacity)
 
 st.markdown(f"""
 <style>
+    .stApp {{ {bg_style} color: {st.session_state.text_color} !important; }}
     [data-testid="stSidebar"] {{ background-color: {sidebar_rgba} !important; backdrop-filter: blur(8px); }}
     [data-testid="stSidebar"] > div:first-child {{ display: flex; flex-direction: column; height: 100vh; overflow-y: auto !important; padding: 0px !important; }}
     .fixed-avatar-container {{ position: sticky; top: 0; z-index: 999999; background-color: {sidebar_rgba}; padding-top: 15px; padding-bottom: 15px; border-bottom: 2px solid {st.session_state.primary_color}; margin-bottom: 10px; text-align: center; flex-shrink: 0; backdrop-filter: blur(8px); }}
@@ -395,52 +401,56 @@ def render_main_content(current_menu_name):
         if current_user_role != "Admin":
             st.warning("🔒 Chỉ Quản trị viên mới được phép cài đặt giao diện và danh sách nhân sự!")
         else:
-            with st.form("ui_settings_form"):
-                c_col1, c_col2 = st.columns(2)
-                with c_col1:
-                    picker_bg = st.color_picker("Màu nền ứng dụng", value=st.session_state.get("bg_color", "#ffffff"))
-                    picker_text = st.color_picker("Màu chữ", value=st.session_state.get("text_color", "#31333F"))
-                with c_col2:
-                    picker_primary = st.color_picker("Màu chủ đạo", value=st.session_state.get("primary_color", "#ff4b4b"))
-                    picker_sidebar = st.color_picker("Màu nền sidebar", value=st.session_state.get("sidebar_bg", "#f0f2f6"))
-                    
-                slider_opacity = st.slider("Độ mờ sidebar", 0.1, 1.0, float(st.session_state.get("sidebar_opacity", 0.9)), 0.05)
-                bg_file_upload = st.file_uploader("🖼️ Tải lên hình nền ứng dụng", type=["png", "jpg", "jpeg"])
+            st.markdown("### 🎨 Tùy Chỉnh Giao Diện Trực Tiếp")
+            
+            c_col1, c_col2 = st.columns(2)
+            with c_col1:
+                picker_bg = st.color_picker("Màu nền ứng dụng", value=st.session_state.get("bg_color", "#ffffff"))
+                picker_text = st.color_picker("Màu chữ", value=st.session_state.get("text_color", "#31333F"))
+            with c_col2:
+                picker_primary = st.color_picker("Màu chủ đạo", value=st.session_state.get("primary_color", "#ff4b4b"))
+                picker_sidebar = st.color_picker("Màu nền sidebar", value=st.session_state.get("sidebar_bg", "#f0f2f6"))
                 
-                submitted_settings = st.form_submit_button("💾 Lưu Cài Đặt", use_container_width=True)
-                
-                if submitted_settings:
-                    st.session_state.bg_color = picker_bg
-                    st.session_state.text_color = picker_text
-                    st.session_state.primary_color = picker_primary
-                    st.session_state.sidebar_bg = picker_sidebar
-                    st.session_state.sidebar_opacity = slider_opacity
+            slider_opacity = st.slider("Độ mờ sidebar", 0.1, 1.0, float(st.session_state.get("sidebar_opacity", 0.9)), 0.05)
+            bg_file_upload = st.file_uploader("🖼️ Tải lên hình nền ứng dụng", type=["png", "jpg", "jpeg"], key="bg_uploader_direct")
+            
+            # Áp dụng trực tiếp vào session_state ngay khi thay đổi widget
+            st.session_state.bg_color = picker_bg
+            st.session_state.text_color = picker_text
+            st.session_state.primary_color = picker_primary
+            st.session_state.sidebar_bg = picker_sidebar
+            st.session_state.sidebar_opacity = slider_opacity
+            
+            if bg_file_upload is not None:
+                compressed_bg = compress_image_to_base64(bg_file_upload, max_size=(1920, 1080), quality=80)
+                if compressed_bg:
+                    st.session_state.bg_image_base64 = compressed_bg
                     
-                    if bg_file_upload is not None:
-                        compressed_bg = compress_image_to_base64(bg_file_upload, max_size=(1920, 1080), quality=80)
-                        if compressed_bg:
-                            st.session_state.bg_image_base64 = compressed_bg
-                            
-                    save_app_settings_db({
-                        "primary_color": st.session_state.primary_color, 
-                        "bg_color": st.session_state.bg_color,
-                        "sidebar_bg": st.session_state.sidebar_bg, 
-                        "sidebar_opacity": st.session_state.sidebar_opacity,
-                        "text_color": st.session_state.text_color, 
-                        "bg_image_base64": st.session_state.get("bg_image_base64"),
-                        "avatar_base64": st.session_state.get("avatar_base64")
-                    })
-                    st.success("✅ Đã lưu cài đặt giao diện thành công!")
-                    st.rerun()
+            if st.button("💾 Lưu Cài Đặt Giao Diện", use_container_width=True, type="primary"):
+                save_app_settings_db({
+                    "primary_color": st.session_state.primary_color, 
+                    "bg_color": st.session_state.bg_color,
+                    "sidebar_bg": st.session_state.sidebar_bg, 
+                    "sidebar_opacity": st.session_state.sidebar_opacity,
+                    "text_color": st.session_state.text_color, 
+                    "bg_image_base64": st.session_state.get("bg_image_base64"),
+                    "avatar_base64": st.session_state.get("avatar_base64")
+                })
+                st.success("✅ Đã lưu cài đặt giao diện thành công lên hệ thống!")
+                st.rerun()
 
             st.markdown("---")
             st.subheader("👥 Quản Lý Danh Sách Nhân Sự")
             
-            # Lấy dữ liệu nhân sự mới nhất
-            staff_df = get_staff_df_db()
+            try:
+                staff_df = get_staff_df_db()
+                if staff_df is None or staff_df.empty:
+                    staff_df = pd.DataFrame(columns=["id", "name"])
+            except Exception as e:
+                st.error(f"Lỗi tải dữ liệu nhân sự: {e}")
+                staff_df = pd.DataFrame(columns=["id", "name"])
             
             with st.form("staff_form"):
-                # Cấu hình rõ cột ID không chỉnh sửa và cột name cho phép nhập liệu
                 edited_staff = st.data_editor(
                     staff_df, 
                     num_rows="dynamic", 
@@ -455,6 +465,7 @@ def render_main_content(current_menu_name):
                 submitted_staff = st.form_submit_button("💾 Lưu Nhân Sự", use_container_width=True)
                 if submitted_staff:
                     save_staff_list_db(edited_staff)
+                    st.cache_data.clear()
                     st.session_state.staff_list = get_staff_list_db()
                     st.success("✅ Đã cập nhật danh sách nhân sự thành công!")
                     st.rerun()
