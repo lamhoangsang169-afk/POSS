@@ -112,7 +112,7 @@ def save_staff_list_db(edited_df):
         
         current_ids_in_editor = []
         for _, row in edited_df.iterrows():
-            name = str(row.get("Nhân Sự", "")).strip()
+            name = str(row.get("name", "")).strip()
             row_id = row.get("id")
             if not name or name.lower() in ["nan", "none"]:
                 continue
@@ -123,6 +123,11 @@ def save_staff_list_db(edited_df):
                 res_ins = supabase.table("staff").insert({"name": name}).execute()
                 if res_ins.data:
                     current_ids_in_editor.append(res_ins.data[0]["id"])
+                    
+        ids_to_delete = [oid for oid in old_ids if oid not in current_ids_in_editor]
+        for del_id in ids_to_delete:
+            supabase.table("staff").delete().eq("id", del_id).execute()
+            
         st.cache_data.clear()
     except Exception as e:
         st.error(f"Lỗi khi lưu nhân sự: {e}")
@@ -430,9 +435,22 @@ def render_main_content(current_menu_name):
 
             st.markdown("---")
             st.subheader("👥 Quản Lý Danh Sách Nhân Sự")
+            
+            # Lấy dữ liệu nhân sự mới nhất
+            staff_df = get_staff_df_db()
+            
             with st.form("staff_form"):
-                staff_df = get_staff_df_db()
-                edited_staff = st.data_editor(staff_df, num_rows="dynamic", use_container_width=True, hide_index=True, disabled=["id"])
+                # Cấu hình rõ cột ID không chỉnh sửa và cột name cho phép nhập liệu
+                edited_staff = st.data_editor(
+                    staff_df, 
+                    num_rows="dynamic", 
+                    use_container_width=True, 
+                    hide_index=True,
+                    column_config={
+                        "id": st.column_config.NumberColumn("ID", disabled=True),
+                        "name": st.column_config.TextColumn("Họ và tên nhân sự", required=True)
+                    }
+                )
                 
                 submitted_staff = st.form_submit_button("💾 Lưu Nhân Sự", use_container_width=True)
                 if submitted_staff:
