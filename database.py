@@ -129,18 +129,19 @@ def get_attendance_db():
         pass
     return pd.DataFrame()
 
+@st.cache_data(ttl=60, show_spinner=False)
 def load_app_settings_db():
     if supabase is None:
         return {}
     try:
         res = supabase.table("app_settings").select("*").eq("id", 1).execute()
-        # ĐÃ SỬA: Trả về trực tiếp phần tử dictionary đầu tiên thay vì trả về cả list
         if res.data and len(res.data) > 0:
             return res.data[0]
     except Exception:
         pass
     return {}
 
+@st.cache_data(ttl=60, show_spinner=False)
 def load_folders_db():
     default_folders = [{
         "folder_name": "📌 Quản Lý Nghiệp Vụ",
@@ -156,7 +157,6 @@ def load_folders_db():
         return default_folders
     try:
         res = supabase.table("app_folders").select("folders_json").eq("id", 1).execute()
-        # ĐÃ SỬA: Kiểm tra an toàn danh sách trả về từ Supabase
         if res.data and len(res.data) > 0:
             folders_data = res.data[0].get("folders_json")
             if folders_data:
