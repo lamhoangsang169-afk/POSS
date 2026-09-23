@@ -164,7 +164,6 @@ def load_folders_db():
         pass
     return default_folders
 
-# Bỏ cache để luôn truy vấn trực tiếp dữ liệu mới nhất từ Supabase
 def load_loai_loi_db():
     default_ds = ["Sản phẩm hỏng", "Lỗi nguyên vật liệu", "Lỗi thao tác", "Lỗi máy móc / thiết bị", "Khác"]
     if supabase is None:
@@ -185,12 +184,14 @@ def save_loai_loi_db(ds_loai_loi):
     if supabase is None:
         return
     try:
+        # Lấy dữ liệu hiện tại trước để bảo toàn các cài đặt khác
         res = supabase.table("app_storage_table").select("data").eq("id", "main_config").execute()
         current_data = res.data[0].get("data", {}) if res.data and len(res.data) > 0 else {}
         
         if not isinstance(current_data, dict):
             current_data = {}
             
+        # Chỉ cập nhật riêng trường danh sách loại lỗi, giữ nguyên các cài đặt còn lại
         current_data["ds_loai_loi"] = ds_loai_loi
         
         supabase.table("app_storage_table").upsert({
@@ -198,7 +199,6 @@ def save_loai_loi_db(ds_loai_loi):
             "data": current_data
         }).execute()
         
-        # Xóa sạch toàn bộ cache của Streamlit để cập nhật ngay lập tức
         st.cache_data.clear()
     except Exception as e:
         st.error(f"Lỗi lưu danh mục lỗi lên Database: {e}")
