@@ -311,7 +311,7 @@ def delete_rule_db(db_id):
     return None
 
 
-# --- CÁC HÀM XỬ LÝ CHO QUẢN LÝ LỖI SẢN XUẤT (BỔ SUNG) ---
+# --- CÁC HÀM XỬ LÝ CHO QUẢN LÝ LỖI SẢN XUẤT ---
 
 @st.cache_data(ttl=600, show_spinner=False)
 def get_error_logs_db(limit_rows=1000):
@@ -355,32 +355,32 @@ def add_error_log_with_images_db(ngay, nhan_su, phan_loai_loi, so_luong, ghi_chu
         st.error(f"Lỗi ghi nhận báo cáo lỗi: {e}")
         return None
 
-@st.cache_data(ttl=60, show_spinner=False)
+@st.cache_data(ttl=10, show_spinner=False)
 def get_error_categories_db():
-    """Tải danh mục loại lỗi từ bảng app_settings (ID = 999) trên Supabase"""
+    """Tải danh mục loại lỗi từ bảng riêng error_settings trên Supabase"""
     default_categories = ["Sản phẩm hỏng", "Lỗi nguyên vật liệu", "Lỗi thao tác", "Lỗi máy móc / thiết bị", "Khác"]
     if supabase is None:
         return default_categories
     try:
-        res = supabase.table("app_settings").select("*").eq("id", 999).execute()
+        res = supabase.table("error_settings").select("*").eq("id", 1).execute()
         if res.data and len(res.data) > 0:
-            categories = res.data[0].get("value_json")
-            if categories:
+            categories = res.data[0].get("categories_json")
+            if categories and isinstance(categories, list):
                 return categories
     except Exception:
         pass
     return default_categories
 
 def save_error_categories_db(categories_list):
-    """Lưu hoặc cập nhật danh mục loại lỗi lên Supabase"""
+    """Lưu hoặc cập nhật danh mục loại lỗi lên bảng error_settings"""
     if supabase is None:
         return None
     try:
         data = {
-            "id": 999,
-            "value_json": categories_list
+            "id": 1,
+            "categories_json": categories_list
         }
-        response = supabase.table("app_settings").upsert(data).execute()
+        response = supabase.table("error_settings").upsert(data).execute()
         return response
     except Exception as e:
         st.error(f"Lỗi lưu danh mục lỗi: {e}")
