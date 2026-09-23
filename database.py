@@ -311,7 +311,7 @@ def delete_rule_db(db_id):
     return None
 
 
-# --- CÁC HÀM XỬ LÝ CHO QUẢN LÝ LỖI SẢN XUẤT ---
+# --- CÁC HÀM XỬ LÝ CHO QUẢN LÝ LỖI SẢN XUẤT (BỔ SUNG) ---
 
 @st.cache_data(ttl=600, show_spinner=False)
 def get_error_logs_db(limit_rows=1000):
@@ -322,7 +322,6 @@ def get_error_logs_db(limit_rows=1000):
         res = supabase.table("error_logs").select("*").order("id", desc=True).limit(limit_rows).execute()
         if res.data:
             df = pd.DataFrame(res.data)
-            # Đổi tên cột cho khớp giao diện hiển thị
             df = df.rename(columns={
                 "id": "db_id", 
                 "ngay": "Ngày", 
@@ -337,8 +336,8 @@ def get_error_logs_db(limit_rows=1000):
         pass
     return pd.DataFrame()
 
-def add_error_log_db(ngay, nhan_su, phan_loai_loi, so_luong, ghi_chu, so_anh_dinh_kem):
-    """Thêm một báo cáo lỗi mới vào Supabase"""
+def add_error_log_with_images_db(ngay, nhan_su, phan_loai_loi, so_luong, ghi_chu, images_base64_str):
+    """Thêm một báo cáo lỗi mới kèm chuỗi ảnh base64 vào Supabase"""
     if supabase is None:
         return None
     try:
@@ -348,10 +347,41 @@ def add_error_log_db(ngay, nhan_su, phan_loai_loi, so_luong, ghi_chu, so_anh_din
             "phan_loai_loi": phan_loai_loi,
             "so_luong": so_luong,
             "ghi_chu": ghi_chu,
-            "so_anh_dinh_kem": so_anh_dinh_kem
+            "so_anh_dinh_kem": images_base64_str
         }
         response = supabase.table("error_logs").insert(data).execute()
         return response
     except Exception as e:
         st.error(f"Lỗi ghi nhận báo cáo lỗi: {e}")
+        return None
+
+@st.cache_data(ttl=60, show_spinner=False)
+def get_error_categories_db():
+    """Tải danh mục loại lỗi từ bảng app_settings (ID = 999) trên Supabase"""
+    default_categories = ["Sản phẩm hỏng", "Lỗi nguyên vật liệu", "Lỗi thao tác", "Lỗi máy móc / thiết bị", "Khác"]
+    if supabase is None:
+        return default_categories
+    try:
+        res = supabase.table("app_settings").select("*").eq("id", 999).execute()
+        if res.data and len(res.data) > 0:
+            categories = res.data[0].get("value_json")
+            if categories:
+                return categories
+    except Exception:
+        pass
+    return default_categories
+
+def save_error_categories_db(categories_list):
+    """Lưu hoặc cập nhật danh mục loại lỗi lên Supabase"""
+    if supabase is None:
+        return None
+    try:
+        data = {
+            "id": 999,
+            "value_json": categories_list
+        }
+        response = supabase.table("app_settings").upsert(data).execute()
+        return response
+    except Exception as e:
+        st.error(f"Lỗi lưu danh mục lỗi: {e}")
         return None
