@@ -151,7 +151,7 @@ def load_folders_db():
             {"id": "menu_3", "name": "3. Tham Chiếu Định Mức"},
             {"id": "menu_4", "name": "4. Thùng Rác Sản Lượng"},
             {"id": "menu_5", "name": "5. Thư Mục Báo Cáo"},
-            {"id": "menu_6", "name": "🛠️ Quản Lý Lỗi"}
+            {"id": "menu_6", "name": "6. Quản Lý Lỗi"}
         ]
     }]
     if supabase is None:
@@ -165,6 +165,31 @@ def load_folders_db():
     except Exception:
         pass
     return default_folders
+
+@st.cache_data(ttl=60, show_spinner=False)
+def load_loai_loi_db():
+    if supabase is None:
+        return ["Sản phẩm hỏng", "Lỗi nguyên vật liệu", "Lỗi thao tác", "Lỗi máy móc / thiết bị", "Khác"]
+    try:
+        res = supabase.table("app_settings").select("ds_loai_loi").eq("id", 1).execute()
+        if res.data and len(res.data) > 0 and res.data[0].get("ds_loai_loi"):
+            return res.data[0].get("ds_loai_loi")
+    except Exception:
+        pass
+    return ["Sản phẩm hỏng", "Lỗi nguyên vật liệu", "Lỗi thao tác", "Lỗi máy móc / thiết bị", "Khác"]
+
+def save_loai_loi_db(ds_loai_loi):
+    if supabase is None:
+        return
+    try:
+        res = supabase.table("app_settings").select("*").eq("id", 1).execute()
+        current = res.data[0] if res.data and len(res.data) > 0 else {"id": 1}
+        current["ds_loai_loi"] = ds_loai_loi
+        supabase.table("app_settings").upsert(current).execute()
+        load_app_settings_db.clear()
+        st.cache_data.clear()
+    except Exception as e:
+        st.error(f"Lỗi lưu danh mục lỗi: {e}")
 
 def update_production_log_deleted_status(db_ids, is_deleted):
     if supabase is None or not db_ids:
