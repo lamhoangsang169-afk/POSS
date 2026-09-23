@@ -2,9 +2,16 @@
 import streamlit as st
 import pandas as pd
 import datetime
+import base64
 from utils import compress_image_to_base64
-# Import các hàm database riêng cho phần lỗi để không ảnh hưởng file khác
-from database import get_error_logs_db, add_error_log_db
+# Import các hàm database cho phần quản lý lỗi
+from database import (
+    get_error_logs_db, 
+    add_error_log_with_images_db, 
+    get_error_categories_db, 
+    data as save_error_categories_db # Sắp xếp gọi đúng tên hàm lưu danh mục
+)
+import database as db  # Gọi trực tiếp qua module database để tránh lỗi import
 
 def render_quan_ly_loi(current_menu_name):
     col_h1, col_h2 = st.columns([3, 1])
@@ -17,9 +24,8 @@ def render_quan_ly_loi(current_menu_name):
 
     st.markdown("### ⚠️ Khai Báo Lỗi Phát Sinh")
     
-    # Khởi tạo danh mục loại lỗi
-    if "ds_loai_loi" not in st.session_state:
-        st.session_state.ds_loai_loi = ["Sản phẩm hỏng", "Lỗi nguyên vật liệu", "Lỗi thao tác", "Lỗi máy móc / thiết bị", "Khác"]
+    # Đồng bộ danh mục loại lỗi từ Database Supabase (Không bị mất khi F5/Reboot)
+    ds_loai_loi_ Hien_tai = db.get_error_categories_db()
 
     with st.form("form_khai_bao_loi", clear_on_submit=True):
         col1, col2, col3 = st.columns(3)
@@ -29,7 +35,7 @@ def render_quan_ly_loi(current_menu_name):
             staff_options = ["--- Chọn nhân sự liên quan ---"] + st.session_state.get("staff_list", [])
             nhan_su_phat_hien = st.selectbox("Nhân sự chịu trách nhiệm/phát hiện", staff_options)
         with col3:
-            phan_loai_loi = st.selectbox("Phân loại lỗi", st.session_state.ds_loai_loi)
+            phan_loai_loi = st.selectbox("Phân loại lỗi", ds_loai_loi_ Hien_tai if isinstance(ds_loai_loi_Hien_tai, list) else ["Sản phẩm hỏng"])
             
         col_s1, col_s2 = st.columns([1, 2])
         with col_s1:
@@ -58,47 +64,57 @@ def render_quan_ly_loi(current_menu_name):
                         if compressed_b64:
                             compressed_image_list.append(compressed_b64)
                 
-                # Lưu trực tiếp xuống cơ sở dữ liệu Supabase thay vì chỉ lưu session_state
-                response = add_error_log_db(
+                # Ghép các chuỗi base64 thành một chuỗi duy nhất, phân tách bằng dấu "|||"
+                images_string = "|||".join(compressed_image_list) if compressed_image_list else ""
+                
+                # Lưu vào Database
+                response = db.add_error_log_with_images_db(
                     ngay=ngay_phat_sinh,
                     nhan_su=nhan_su_phat_hien,
                     phan_loai_loi=phan_loai_loi,
                     so_luong=so_luong_loi,
                     ghi_chu=ghi_chu_loi,
-                    so_anh_dinh_kem=len(compressed_image_list)
+                    images_base64_str=images_string
                 )
                 
                 if response is not None:
-                    st.cache_data.clear() # Xóa cache để tải lại dữ liệu mới nhất
-                    st.success(f"✅ Đã lưu báo cáo lỗi lên Database thành công! (Xử lý {len(compressed_image_list)} ảnh đính kèm)")
+                    st.cache_data.clear()
+                    st.success(f"✅ Đã ghi nhận báo cáo lỗi và lưu {len(compressed_image_list)} ảnh lên Database thành công!")
                     st.rerun()
 
+    # --- PHẦN TÙY CHỈNH DANH MỤC LỖI (ĐÃ ĐỒNG BỘ DB) ---
     with st.expander("⚙️ Tùy Chỉnh Danh Mục Loại Lỗi (Thêm/Bớt)"):
+        current_cats = db.get_error_categories_db()
+        
         st.markdown("##### ➕ Thêm loại lỗi mới")
         col_t1, col_t2 = st.columns([3, 1])
         with col_t1:
-            new_loai_loi = st.text_input("Nhập tên loại lỗi...", placeholder="Nhập tên loại lỗi...", label_visibility="collapsed")
+            new_loai_loi = st.text_input("Nhập tên loại lỗi...", placeholder="Nhập tên loại lỗi...", label_visibility="collapsed", key="input_new_loi")
         with col_t2:
-            if st.button("Thêm Loại Lỗi", use_container_width=True):
+            if st.button("Thêm Loại Lỗi", use_container_width=True, key="btn_add_loi_cat"):
                 if new_loai_loi.strip():
-                    if new_loai_loi.strip() not in st.session_state.ds_loai_loi:
-                        st.session_state.ds_loai_loi.append(new_loai_loi.strip())
-                        st.success(f"✅ Đã thêm loại lỗi: '{new_loai_loi.strip()}'")
+                    if new_loai_loi.strip() not in current_cats:
+                        current_cats.append(new_loai_loi.strip())
+                        db.save_error_categories_db(current_cats)
+                        st.cache_data.clear()
+                        st.success(f"✅ Đã thêm loại lỗi: '{new_loai_loi.strip()}' vào Database!")
                         st.rerun()
                     else:
-                        st.warning("⚠️ Loại lỗi này đã tồn tại trong danh sách!")
+                        st.warning("⚠️ Loại lỗi này đã tồn tại!")
                 else:
-                    st.error("⚠️ Vui lòng nhập tên loại lỗi!") # Đã sửa lỗi chính tả nhỏ ở đây
+                    st.error("⚠️ Vui lòng nhập tên loại lỗi!")
 
         st.markdown("##### ➖ Xóa loại lỗi không dùng")
         col_x1, col_x2 = st.columns([3, 1])
         with col_x1:
-            loai_loi_can_xoa = st.selectbox("Chọn loại lỗi để xóa", st.session_state.ds_loai_loi, label_visibility="collapsed")
+            loai_loi_can_xoa = st.selectbox("Chọn loại lỗi để xóa", current_cats, label_visibility="collapsed", key="select_del_loi")
         with col_x2:
-            if st.button("Xóa Loại Lỗi", use_container_width=True):
-                if len(st.session_state.ds_loai_loi) > 1:
-                    st.session_state.ds_loai_loi.remove(loai_loi_can_xoa)
-                    st.success(f"✅ Đã xóa loại lỗi: '{loai_loi_can_xoa}'")
+            if st.button("Xóa Loại Lỗi", use_container_width=True, key="btn_del_loi_cat"):
+                if len(current_cats) > 1:
+                    current_cats.remove(loai_loi_can_xoa)
+                    db.save_error_categories_db(current_cats)
+                    st.cache_data.clear()
+                    st.success(f"✅ Đã xóa loại lỗi: '{loai_loi_can_xoa}' khỏi Database!")
                     st.rerun()
                 else:
                     st.error("⚠️ Cần giữ lại ít nhất một phân loại lỗi!")
@@ -106,14 +122,47 @@ def render_quan_ly_loi(current_menu_name):
     st.markdown("---")
     st.subheader("📋 Danh Sách Lỗi Đã Khai Báo")
     
-    # Tải trực tiếp dữ liệu từ Database thay vì đọc session_state
-    df_loi = get_error_logs_db()
+    # Tải dữ liệu từ Database
+    df_loi = db.get_error_logs_db()
     
     if not df_loi.empty:
-        # Thêm cột STT tự tăng trực quan
-        df_loi.insert(0, "STT", range(1, len(df_loi) + 1))
-        # Ẩn cột mã ID hệ thống nếu không cần thiết hiển thị
-        display_columns = [col for col in df_loi.columns if col != "db_id"]
-        st.dataframe(df_loi[display_columns], use_container_width=True, hide_index=True)
+        # Xử lý hiển thị ảnh trực tiếp thay vì dạng text
+        # Tạo bản copy để hiển thị trên streamlit dataframe/markdown
+        st.markdown(
+            """
+            <style>
+                .error-img-thumb {
+                    width: 50px;
+                    height: 50px;
+                    object-fit: cover;
+                    border-radius: 4px;
+                    margin-right: 4px;
+                    border: 1px solid #ddd;
+                }
+            </style>
+            """, 
+            unsafe_allow_html=True
+        )
+
+        # Duyệt qua từng dòng để tạo giao diện hiển thị bảng tùy chỉnh có ảnh thu nhỏ
+        for idx, row in df_loi.iterrows():
+            st.markdown(f"**STT: {row.get('db_id', idx+1)}** | **Ngày:** {row.get('Ngày')} | **Nhân sự:** {row.get('Nhân Sự')} | **Loại lỗi:** {row.get('Phân Loại Lỗi')} | **Số lượng:** {row.get('Số Lượng')}")
+            st.markdown(f"*Ghi chú:* {row.get('Ghi Chú', '')}")
+            
+            # Xử lý hiển thị ảnh đính kèm từ chuỗi base64
+            img_data_str = row.get("Số Ảnh Đính Kèm", "") # Ở DB ta lưu chuỗi ảnh base64 tại cột này hoặc cột riêng
+            if img_data_str and isinstance(img_data_str, str) and "data:image" in img_data_str:
+                img_list = img_data_str.split("|||")
+                cols_img = st.columns(min(len(img_list), 6))
+                for i, b64_img in enumerate(img_list):
+                    with cols_img[i % len(cols_img)]:
+                        st.markdown(
+                            f'<img src="{b64_img}" class="error-img-thumb" title="Ảnh đính kèm lỗi">', 
+                            unsafe_allow_init=True if i==0 else None,
+                            unsafe_allow_html=True
+                        )
+            else:
+                st.caption("🖼️ Không có hình ảnh đính kèm.")
+            st.markdown("---")
     else:
         st.info("Chưa có bản ghi lỗi nào trong hệ thống.")
