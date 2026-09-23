@@ -309,3 +309,49 @@ def delete_rule_db(db_id):
     except Exception:
         pass
     return None
+
+
+# --- CÁC HÀM XỬ LÝ CHO QUẢN LÝ LỖI SẢN XUẤT ---
+
+@st.cache_data(ttl=600, show_spinner=False)
+def get_error_logs_db(limit_rows=1000):
+    """Tải danh sách báo cáo lỗi từ Supabase"""
+    if supabase is None:
+        return pd.DataFrame()
+    try:
+        res = supabase.table("error_logs").select("*").order("id", desc=True).limit(limit_rows).execute()
+        if res.data:
+            df = pd.DataFrame(res.data)
+            # Đổi tên cột cho khớp giao diện hiển thị
+            df = df.rename(columns={
+                "id": "db_id", 
+                "ngay": "Ngày", 
+                "nhan_su": "Nhân Sự",
+                "phan_loai_loi": "Phân Loại Lỗi", 
+                "so_luong": "Số Lượng",
+                "ghi_chu": "Ghi Chú", 
+                "so_anh_dinh_kem": "Số Ảnh Đính Kèm"
+            })
+            return df
+    except Exception:
+        pass
+    return pd.DataFrame()
+
+def add_error_log_db(ngay, nhan_su, phan_loai_loi, so_luong, ghi_chu, so_anh_dinh_kem):
+    """Thêm một báo cáo lỗi mới vào Supabase"""
+    if supabase is None:
+        return None
+    try:
+        data = {
+            "ngay": str(ngay),
+            "nhan_su": nhan_su,
+            "phan_loai_loi": phan_loai_loi,
+            "so_luong": so_luong,
+            "ghi_chu": ghi_chu,
+            "so_anh_dinh_kem": so_anh_dinh_kem
+        }
+        response = supabase.table("error_logs").insert(data).execute()
+        return response
+    except Exception as e:
+        st.error(f"Lỗi ghi nhận báo cáo lỗi: {e}")
+        return None
