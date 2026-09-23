@@ -4,7 +4,6 @@ import pandas as pd
 import datetime
 
 def render_quan_ly_loi(current_menu_name):
-    # Tiêu đề trang khớp với hình mẫu
     col_h1, col_h2 = st.columns([3, 1])
     with col_h1:
         st.header("6. Quản Lý Lỗi Sản Xuất")
@@ -13,21 +12,54 @@ def render_quan_ly_loi(current_menu_name):
             st.cache_data.clear()
             st.rerun()
 
+    # Khởi tạo danh sách loại lỗi mặc định trong session_state nếu chưa có
+    if "ds_loai_loi" not in st.session_state:
+        st.session_state.ds_loai_loi = ["Khác", "Lỗi nguyên vật liệu", "Lỗi thao tác", "Lỗi máy móc / thiết bị"]
+
+    # Khung tùy chỉnh danh mục loại lỗi (Thêm/Bớt) giống hình mẫu
+    with st.expander("⚙️ Tùy Chỉnh Danh Mục Loại Lỗi (Thêm/Bớt)"):
+        st.markdown("##### ➕ Thêm loại lỗi mới")
+        col_t1, col_t2 = st.columns([3, 1])
+        with col_t1:
+            new_loai_loi = st.text_input("Nhập tên loại lỗi...", placeholder="Nhập tên loại lỗi...", label_visibility="collapsed")
+        with col_t2:
+            if st.button("Thêm Loại Lỗi", use_container_width=True):
+                if new_loai_loi.strip():
+                    if new_loai_loi.strip() not in st.session_state.ds_loai_loi:
+                        st.session_state.ds_loai_loi.append(new_loai_loi.strip())
+                        st.success(f"✅ Đã thêm loại lỗi: '{new_loai_loi.strip()}'")
+                        st.rerun()
+                    else:
+                        st.warning("⚠️ Loại lỗi này đã tồn tại trong danh sách!")
+                else:
+                    st.error("⚠️ Vui lòng nhập tên loại lỗi!")
+
+        st.markdown("##### ➖ Xóa loại lỗi không dùng")
+        col_x1, col_x2 = st.columns([3, 1])
+        with col_x1:
+            loai_loi_can_xoa = st.selectbox("Chọn loại lỗi để xóa", st.session_state.ds_loai_loi, label_visibility="collapsed")
+        with col_x2:
+            if st.button("Xóa Loại Lỗi", use_container_width=True):
+                if len(st.session_state.ds_loai_loi) > 1:
+                    st.session_state.ds_loai_loi.remove(loai_loi_can_xoa)
+                    st.success(f"✅ Đã xóa loại lỗi: '{loai_loi_can_xoa}'")
+                    st.rerun()
+                else:
+                    st.error("⚠️ Cần giữ lại ít nhất một phân loại lỗi!")
+
     st.markdown("### ⚠️ Khai Báo Lỗi Phát Sinh")
     
     with st.form("form_khai_bao_loi"):
-        # Hàng thứ nhất gồm 3 cột
         col1, col2, col3 = st.columns(3)
         with col1:
             ngay_phat_sinh = st.date_input("Ngày phát sinh", value=datetime.date.today())
         with col2:
-            # Lấy danh sách nhân sự từ session nếu có, hoặc danh sách mẫu
             staff_options = ["--- Chọn nhân sự liên quan ---"] + st.session_state.get("staff_list", [])
             nhan_su_phat_hien = st.selectbox("Nhân sự chịu trách nhiệm/phát hiện", staff_options)
         with col3:
-            phan_loai_loi = st.selectbox("Phân loại lỗi", ["Khác", "Lỗi nguyên vật liệu", "Lỗi thao tác", "Lỗi máy móc / thiết bị"])
+            # Danh sách phân loại lỗi tự động cập nhật theo các mục bạn đã thêm/bớt ở trên
+            phan_loai_loi = st.selectbox("Phân loại lỗi", st.session_state.ds_loai_loi)
             
-        # Hàng thứ hai gồm 2 cột
         col_s1, col_s2 = st.columns([1, 2])
         with col_s1:
             so_luong_loi = st.number_input("Số lượng sản phẩm lỗi", min_value=1, value=1, step=1)
@@ -44,6 +76,4 @@ def render_quan_ly_loi(current_menu_name):
 
     st.markdown("---")
     st.subheader("📋 Danh Sách Lỗi Đã Khai Báo")
-    
-    # Hiển thị thông báo khi chưa có dữ liệu hoặc bảng dữ liệu trống
     st.info("Chưa có bản ghi lỗi nào trong hệ thống.")
