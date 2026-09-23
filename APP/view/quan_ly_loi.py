@@ -16,7 +16,7 @@ def render_quan_ly_loi(current_menu_name):
 
     st.markdown("### ⚠️ Khai Báo Lỗi Phát Sinh")
     
-    # Đồng bộ danh mục loại lỗi từ Database Supabase (Không bị mất khi F5/Reboot)
+    # Tải danh mục loại lỗi từ Database
     ds_loai_loi_hien_tai = db.get_error_categories_db()
 
     with st.form("form_khai_bao_loi", clear_on_submit=True):
@@ -56,10 +56,8 @@ def render_quan_ly_loi(current_menu_name):
                         if compressed_b64:
                             compressed_image_list.append(compressed_b64)
                 
-                # Ghép các chuỗi base64 thành một chuỗi duy nhất, phân tách bằng dấu "|||"
                 images_string = "|||".join(compressed_image_list) if compressed_image_list else ""
                 
-                # Lưu vào Database
                 response = db.add_error_log_with_images_db(
                     ngay=ngay_phat_sinh,
                     nhan_su=nhan_su_phat_hien,
@@ -76,7 +74,7 @@ def render_quan_ly_loi(current_menu_name):
 
     # --- PHẦN TÙY CHỈNH DANH MỤC LỖI (ĐÃ ĐỒNG BỘ DB) ---
     with st.expander("⚙️ Tùy Chỉnh Danh Mục Loại Lỗi (Thêm/Bớt)"):
-        current_cats = db.get_error_categories_db()
+        current_cats = list(db.get_error_categories_db())
         
         st.markdown("##### ➕ Thêm loại lỗi mới")
         col_t1, col_t2 = st.columns([3, 1])
@@ -88,7 +86,7 @@ def render_quan_ly_loi(current_menu_name):
                     if new_loai_loi.strip() not in current_cats:
                         current_cats.append(new_loai_loi.strip())
                         db.save_error_categories_db(current_cats)
-                        st.cache_data.clear()
+                        st.cache_data.clear() # Xóa cache ngay lập tức để cập nhật dữ liệu mới
                         st.success(f"✅ Đã thêm loại lỗi: '{new_loai_loi.strip()}' vào Database!")
                         st.rerun()
                     else:
@@ -105,7 +103,7 @@ def render_quan_ly_loi(current_menu_name):
                 if len(current_cats) > 1:
                     current_cats.remove(loai_loi_can_xoa)
                     db.save_error_categories_db(current_cats)
-                    st.cache_data.clear()
+                    st.cache_data.clear() # Xóa cache ngay lập tức
                     st.success(f"✅ Đã xóa loại lỗi: '{loai_loi_can_xoa}' khỏi Database!")
                     st.rerun()
                 else:
@@ -114,7 +112,6 @@ def render_quan_ly_loi(current_menu_name):
     st.markdown("---")
     st.subheader("📋 Danh Sách Lỗi Đã Khai Báo")
     
-    # Tải dữ liệu từ Database
     df_loi = db.get_error_logs_db()
     
     if not df_loi.empty:
