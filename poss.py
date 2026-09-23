@@ -415,16 +415,24 @@ with st.sidebar:
     st.markdown("---")
     st.markdown("### 📂 CHỨC NĂNG HỆ THỐNG")
     
-    menu_options = [
-        "1. Nhập Sản Lượng",
-        "📊 Báo Cáo & Biểu Đồ",
-        "📂 Thư Mục Báo Cáo",
-        "📋 Định Mức Công Việc",
-        "🛠️ Quản Lý Lỗi",
-        "🗑️ Thùng Rác"
-    ]
+    # Nạp danh sách menu động từ session_state.folders
+    dynamic_menu_items = []
+    if st.session_state.get("folders") and len(st.session_state.folders) > 0:
+        for item in st.session_state.folders[0].get("items", []):
+            if item.get("name"):
+                dynamic_menu_items.append(item.get("name"))
+                
+    if not dynamic_menu_items:
+        dynamic_menu_items = [
+            "1. Nhập Sản Lượng",
+            "📊 Báo Cáo & Biểu Đồ",
+            "📂 Thư Mục Báo Cáo",
+            "📋 Định Mức Công Việc",
+            "🛠️ Quản Lý Lỗi",
+            "🗑️ Thùng Rác"
+        ]
     
-    chosen_menu = st.radio("📌 Danh Mục Nghiệp Vụ", menu_options, label_visibility="collapsed")
+    chosen_menu = st.radio("📌 Danh Mục Nghiệp Vụ", dynamic_menu_items, label_visibility="collapsed")
     if chosen_menu:
         st.session_state.current_menu = chosen_menu
 
@@ -459,19 +467,20 @@ with st.sidebar:
 # ==================== ĐIỀU HƯỚNG NỘI DUNG CHÍNH (MAIN CONTENT) ====================
 @st.fragment
 def render_main_content(current_menu_name):
-    if current_menu_name == "1. Nhập Sản Lượng":
+    # Sử dụng từ khóa kiểm tra linh hoạt để hỗ trợ menu động
+    if "Nhập Sản Lượng" in current_menu_name:
         nhap_san_luong.render_nhap_san_luong(current_menu_name, current_user_role, user_perms)
-    elif current_menu_name == "⏱️ Chấm Công Ca Làm Việc":
+    elif "Chấm Công" in current_menu_name:
         cham_cong.render_cham_cong(current_menu_name, current_user_role)
-    elif current_menu_name == "📊 Báo Cáo & Biểu Đồ":
+    elif "Báo Cáo" in current_menu_name or "Thống Kê" in current_menu_name:
         bao_cao.render_bao_cao(current_menu_name)
-    elif current_menu_name == "📂 Thư Mục Báo Cáo":
+    elif "Thư Mục Báo Cáo" in current_menu_name:
         thu_muc_bao_cao.render_thu_muc_bao_cao(current_menu_name)
-    elif current_menu_name == "📋 Định Mức Công Việc":
+    elif "Định Mức" in current_menu_name:
         dinh_muc_cong_viec.render_dinh_muc_cong_viec(current_menu_name, current_user_role, user_perms)
-    elif current_menu_name == "🛠️ Quản Lý Lỗi":
+    elif "Quản Lý Lỗi" in current_menu_name:
         quan_ly_loi.render_quan_ly_loi(current_menu_name)
-    elif current_menu_name == "🗑️ Thùng Rác":
+    elif "Thùng Rác" in current_menu_name:
         thung_rac.render_thung_rac(current_menu_name, current_user_role)
         
     # ==================== QUẢN LÝ THƯ MỤC & MENU ====================
@@ -493,13 +502,16 @@ def render_main_content(current_menu_name):
                 
                 current_items = st.session_state.folders[0]["items"] if st.session_state.folders else []
                 
+                # Tự động mở rộng số lượng ô nhập dựa trên số mục hiện có (tối thiểu 6 ô để thoải mái thêm mới)
+                total_items_count = max(len(current_items), 6)
                 updated_items = []
-                for i_idx in range(6):
-                    default_name = current_items[i_idx]["name"] if i_idx < len(current_items) else f"{i_idx+1}. Mục {i_idx+1}"
+                for i_idx in range(total_items_count):
+                    default_name = current_items[i_idx]["name"] if i_idx < len(current_items) else f"{i_idx+1}. Mục mới"
                     default_id = current_items[i_idx]["id"] if i_idx < len(current_items) else f"menu_{i_idx+1}"
                     
                     new_name = st.text_input(f"Tên hiển thị {i_idx+1}", value=default_name)
-                    updated_items.append({"id": default_id, "name": new_name})
+                    if new_name.strip():
+                        updated_items.append({"id": default_id, "name": new_name.strip()})
                     
                 submitted_mf = st.form_submit_button("💾 Lưu Thay Đổi", use_container_width=True)
                 if submitted_mf:
