@@ -477,7 +477,7 @@ def render_main_content(current_menu_name):
         thu_muc_bao_cao.render_thu_muc_bao_cao(current_menu_name)
     elif "định mức" in menu_lower or "tham chiếu" in menu_lower:
         dinh_muc_cong_viec.render_dinh_muc_cong_viec(current_menu_name, current_user_role, user_perms)
-    elif "quản lý lỗi" in menu_lower:
+    elif "quản lý lỗi" in menu_lower or "quan ly loi" in menu_lower or "lỗi" in menu_lower:
         quan_ly_loi.render_quan_ly_loi(current_menu_name)
     elif "thùng rác" in menu_lower:
         thung_rac.render_thung_rac(current_menu_name, current_user_role)
