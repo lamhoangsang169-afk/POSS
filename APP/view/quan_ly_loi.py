@@ -2,6 +2,7 @@
 import streamlit as st
 import pandas as pd
 import datetime
+from utils import compress_image_to_base64
 
 def render_quan_ly_loi(current_menu_name):
     col_h1, col_h2 = st.columns([3, 1])
@@ -33,15 +34,30 @@ def render_quan_ly_loi(current_menu_name):
         with col_s2:
             ghi_chu_loi = st.text_input("Ghi chú nguyên nhân / Biện pháp xử lý", placeholder="Nhập nguyên nhân và hướng khắc phục...")
             
+        # Thêm mục tải lên và nén ảnh đính kèm
+        uploaded_images = st.file_uploader(
+            "🖼️ Tải lên hình ảnh đính kèm sự cố (Có thể chọn nhiều ảnh)", 
+            type=["png", "jpg", "jpeg"], 
+            accept_multiple_files=True, 
+            key="uploader_loi_images"
+        )
+            
         st.markdown("<br>", unsafe_allow_html=True)
         submitted = st.form_submit_button("🚨 Ghi Nhận Lỗi Sản Xuất", use_container_width=True)
         if submitted:
             if nhan_su_phat_hien == "--- Chọn nhân sự liên quan ---":
                 st.warning("⚠️ Vui lòng chọn nhân sự liên quan!")
             else:
-                st.success("✅ Đã ghi nhận báo cáo lỗi sản xuất thành công!")
+                # Tiến hành nén ảnh để làm nhẹ dung lượng trước khi lưu
+                compressed_image_list = []
+                if uploaded_images:
+                    for img_file in uploaded_images:
+                        compressed_b64 = compress_image_to_base64(img_file, max_size=(800, 800), quality=70)
+                        if compressed_b64:
+                            compressed_image_list.append(compressed_b64)
+                
+                st.success(f"✅ Đã ghi nhận báo cáo lỗi thành công! (Đã nén và xử lý {len(compressed_image_list)} ảnh đính kèm)")
 
-    # Đặt khung tùy chỉnh danh mục loại lỗi nằm bên dưới form khai báo giống hình mẫu
     with st.expander("⚙️ Tùy Chỉnh Danh Mục Loại Lỗi (Thêm/Bớt)"):
         st.markdown("##### ➕ Thêm loại lỗi mới")
         col_t1, col_t2 = st.columns([3, 1])
