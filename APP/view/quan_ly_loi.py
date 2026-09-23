@@ -3,6 +3,7 @@ import streamlit as st
 import pandas as pd
 import datetime
 from utils import compress_image_to_base64
+from database import load_loai_loi_db, save_loai_loi_db
 
 def render_quan_ly_loi(current_menu_name):
     col_h1, col_h2 = st.columns([3, 1])
@@ -15,11 +16,14 @@ def render_quan_ly_loi(current_menu_name):
 
     st.markdown("### ⚠️ Khai Báo Lỗi Phát Sinh")
     
-    # Khởi tạo danh mục loại lỗi
-    if "ds_loai_loi" not in st.session_state:
+    # Nạp danh mục loại lỗi từ Database (hoặc dùng mặc định nếu chưa có)
+    db_loai_loi = load_loai_loi_db()
+    if db_loai_loi and isinstance(db_loai_loi, list) and len(db_loai_loi) > 0:
+        st.session_state.ds_loai_loi = db_loai_loi
+    elif "ds_loai_loi" not in st.session_state:
         st.session_state.ds_loai_loi = ["Sản phẩm hỏng", "Lỗi nguyên vật liệu", "Lỗi thao tác", "Lỗi máy móc / thiết bị", "Khác"]
 
-    # Khởi tạo danh sách lưu các báo cáo lỗi đã khai báo
+    # Khởi tạo danh sách lưu các báo cáo lỗi đã khai báo trong session
     if "ds_bao_cao_loi" not in st.session_state:
         st.session_state.ds_bao_cao_loi = []
 
@@ -81,12 +85,14 @@ def render_quan_ly_loi(current_menu_name):
                 if new_loai_loi.strip():
                     if new_loai_loi.strip() not in st.session_state.ds_loai_loi:
                         st.session_state.ds_loai_loi.append(new_loai_loi.strip())
+                        # Lưu trực tiếp lên Database để không bị mất khi F5
+                        save_loai_loi_db(st.session_state.ds_loai_loi)
                         st.success(f"✅ Đã thêm loại lỗi: '{new_loai_loi.strip()}'")
                         st.rerun()
                     else:
                         st.warning("⚠️ Loại lỗi này đã tồn tại trong danh sách!")
                 else:
-                    st.error("⚠️ Vuint lòng nhập tên loại lỗi!")
+                    st.error("⚠️ Vui lòng nhập tên loại lỗi!")
 
         st.markdown("##### ➖ Xóa loại lỗi không dùng")
         col_x1, col_x2 = st.columns([3, 1])
@@ -96,6 +102,8 @@ def render_quan_ly_loi(current_menu_name):
             if st.button("Xóa Loại Lỗi", use_container_width=True):
                 if len(st.session_state.ds_loai_loi) > 1:
                     st.session_state.ds_loai_loi.remove(loai_loi_can_xoa)
+                    # Lưu trực tiếp lên Database để không bị mất khi F5
+                    save_loai_loi_db(st.session_state.ds_loai_loi)
                     st.success(f"✅ Đã xóa loại lỗi: '{loai_loi_can_xoa}'")
                     st.rerun()
                 else:
