@@ -2,16 +2,8 @@
 import streamlit as st
 import pandas as pd
 import datetime
-import base64
 from utils import compress_image_to_base64
-# Import các hàm database cho phần quản lý lỗi
-from database import (
-    get_error_logs_db, 
-    add_error_log_with_images_db, 
-    get_error_categories_db, 
-    data as save_error_categories_db # Sắp xếp gọi đúng tên hàm lưu danh mục
-)
-import database as db  # Gọi trực tiếp qua module database để tránh lỗi import
+import database as db
 
 def render_quan_ly_loi(current_menu_name):
     col_h1, col_h2 = st.columns([3, 1])
@@ -25,7 +17,7 @@ def render_quan_ly_loi(current_menu_name):
     st.markdown("### ⚠️ Khai Báo Lỗi Phát Sinh")
     
     # Đồng bộ danh mục loại lỗi từ Database Supabase (Không bị mất khi F5/Reboot)
-    ds_loai_loi_ Hien_tai = db.get_error_categories_db()
+    ds_loai_loi_hien_tai = db.get_error_categories_db()
 
     with st.form("form_khai_bao_loi", clear_on_submit=True):
         col1, col2, col3 = st.columns(3)
@@ -35,7 +27,7 @@ def render_quan_ly_loi(current_menu_name):
             staff_options = ["--- Chọn nhân sự liên quan ---"] + st.session_state.get("staff_list", [])
             nhan_su_phat_hien = st.selectbox("Nhân sự chịu trách nhiệm/phát hiện", staff_options)
         with col3:
-            phan_loai_loi = st.selectbox("Phân loại lỗi", ds_loai_loi_ Hien_tai if isinstance(ds_loai_loi_Hien_tai, list) else ["Sản phẩm hỏng"])
+            phan_loai_loi = st.selectbox("Phân loại lỗi", ds_loai_loi_hien_tai if isinstance(ds_loai_loi_hien_tai, list) else ["Sản phẩm hỏng"])
             
         col_s1, col_s2 = st.columns([1, 2])
         with col_s1:
@@ -126,8 +118,6 @@ def render_quan_ly_loi(current_menu_name):
     df_loi = db.get_error_logs_db()
     
     if not df_loi.empty:
-        # Xử lý hiển thị ảnh trực tiếp thay vì dạng text
-        # Tạo bản copy để hiển thị trên streamlit dataframe/markdown
         st.markdown(
             """
             <style>
@@ -144,13 +134,11 @@ def render_quan_ly_loi(current_menu_name):
             unsafe_allow_html=True
         )
 
-        # Duyệt qua từng dòng để tạo giao diện hiển thị bảng tùy chỉnh có ảnh thu nhỏ
         for idx, row in df_loi.iterrows():
             st.markdown(f"**STT: {row.get('db_id', idx+1)}** | **Ngày:** {row.get('Ngày')} | **Nhân sự:** {row.get('Nhân Sự')} | **Loại lỗi:** {row.get('Phân Loại Lỗi')} | **Số lượng:** {row.get('Số Lượng')}")
             st.markdown(f"*Ghi chú:* {row.get('Ghi Chú', '')}")
             
-            # Xử lý hiển thị ảnh đính kèm từ chuỗi base64
-            img_data_str = row.get("Số Ảnh Đính Kèm", "") # Ở DB ta lưu chuỗi ảnh base64 tại cột này hoặc cột riêng
+            img_data_str = row.get("Số Ảnh Đính Kèm", "")
             if img_data_str and isinstance(img_data_str, str) and "data:image" in img_data_str:
                 img_list = img_data_str.split("|||")
                 cols_img = st.columns(min(len(img_list), 6))
@@ -158,7 +146,6 @@ def render_quan_ly_loi(current_menu_name):
                     with cols_img[i % len(cols_img)]:
                         st.markdown(
                             f'<img src="{b64_img}" class="error-img-thumb" title="Ảnh đính kèm lỗi">', 
-                            unsafe_allow_init=True if i==0 else None,
                             unsafe_allow_html=True
                         )
             else:
