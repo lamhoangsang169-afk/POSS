@@ -150,7 +150,8 @@ def load_folders_db():
             {"id": "menu_2", "name": "2. Báo Cáo Thống Kê"},
             {"id": "menu_3", "name": "3. Tham Chiếu Định Mức"},
             {"id": "menu_4", "name": "4. Thùng Rác Sản Lượng"},
-            {"id": "menu_5", "name": "5. Thư Mục Báo Cáo"}
+            {"id": "menu_5", "name": "5. Thư Mục Báo Cáo"},
+            {"id": "menu_6", "name": "🛠️ Quản Lý Lỗi"}
         ]
     }]
     if supabase is None:
