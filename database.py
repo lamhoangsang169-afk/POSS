@@ -64,6 +64,7 @@ def add_production_log_db(ngay, gio, nhan_su, hang_muc, anh, don_vi, so_luong, h
         return None
 
 def get_production_logs_db(is_deleted=False, limit_rows=1000):
+    """Tăng limit_rows lên 1000 để tải đầy đủ toàn bộ bản ghi từ Supabase"""
     if supabase is None:
         return pd.DataFrame()
     try:
@@ -149,8 +150,7 @@ def load_folders_db():
             {"id": "menu_2", "name": "2. Báo Cáo Thống Kê"},
             {"id": "menu_3", "name": "3. Tham Chiếu Định Mức"},
             {"id": "menu_4", "name": "4. Thùng Rác Sản Lượng"},
-            {"id": "menu_5", "name": "5. Thư Mục Báo Cáo"},
-            {"id": "menu_6", "name": "6. Quản Lý Lỗi"}
+            {"id": "menu_5", "name": "5. Thư Mục Báo Cáo"}
         ]
     }]
     if supabase is None:
@@ -164,37 +164,6 @@ def load_folders_db():
     except Exception:
         pass
     return default_folders
-
-@st.cache_data(ttl=60, show_spinner=False)
-def load_loai_loi_db():
-    default_ds = ["Sản phẩm hỏng", "Lỗi nguyên vật liệu", "Lỗi thao tác", "Lỗi máy móc / thiết bị", "Khác"]
-    if supabase is None:
-        return default_ds
-    try:
-        res = supabase.table("app_settings").select("ds_loai_loi").eq("id", 1).execute()
-        if res.data and len(res.data) > 0:
-            val = res.data[0].get("ds_loai_loi")
-            if val and isinstance(val, list) and len(val) > 0:
-                return val
-    except Exception:
-        pass
-    return default_ds
-
-def save_loai_loi_db(ds_loai_loi):
-    if supabase is None:
-        return
-    try:
-        # Kiểm tra xem dòng id=1 đã tồn tại trong app_settings chưa
-        res = supabase.table("app_settings").select("id").eq("id", 1).execute()
-        if res.data and len(res.data) > 0:
-            supabase.table("app_settings").update({"ds_loai_loi": ds_loai_loi}).eq("id", 1).execute()
-        else:
-            supabase.table("app_settings").insert({"id": 1, "ds_loai_loi": ds_loai_loi}).execute()
-            
-        load_loai_loi_db.clear()
-        st.cache_data.clear()
-    except Exception as e:
-        st.error(f"Lỗi lưu danh mục lỗi lên Database: {e}")
 
 def update_production_log_deleted_status(db_ids, is_deleted):
     if supabase is None or not db_ids:
