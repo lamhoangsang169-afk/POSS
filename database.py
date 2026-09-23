@@ -5,6 +5,7 @@ import streamlit as st
 import pandas as pd
 from supabase import create_client, Client
 
+# Khởi tạo kết nối Supabase an toàn từ st.secrets
 def init_supabase():
     try:
         url = st.secrets["supabase"]["SUPABASE_URL"]
@@ -132,9 +133,9 @@ def load_app_settings_db():
     if supabase is None:
         return {}
     try:
-        res = supabase.table("app_storage_table").select("data").eq("id", "main_config").execute()
+        res = supabase.table("app_settings").select("*").eq("id", 1).execute()
         if res.data and len(res.data) > 0:
-            return res.data[0].get("data", {})
+            return res.data[0]
     except Exception:
         pass
     return {}
@@ -164,18 +165,17 @@ def load_folders_db():
         pass
     return default_folders
 
+@st.cache_data(ttl=60, show_spinner=False)
 def load_loai_loi_db():
     default_ds = ["Sản phẩm hỏng", "Lỗi nguyên vật liệu", "Lỗi thao tác", "Lỗi máy móc / thiết bị", "Khác"]
     if supabase is None:
         return default_ds
     try:
-        res = supabase.table("app_storage_table").select("data").eq("id", "main_config").execute()
+        res = supabase.table("app_settings").select("ds_loai_loi").eq("id", 1).execute()
         if res.data and len(res.data) > 0:
-            data_json = res.data[0].get("data", {})
-            if isinstance(data_json, dict) and "ds_loai_loi" in data_json:
-                val = data_json["ds_loai_loi"]
-                if isinstance(val, list) and len(val) > 0:
-                    return val
+            val = res.data[0].get("ds_loai_loi")
+            if val and isinstance(val, list) and len(val) > 0:
+                return val
     except Exception:
         pass
     return default_ds
@@ -184,21 +184,14 @@ def save_loai_loi_db(ds_loai_loi):
     if supabase is None:
         return
     try:
-        # Lấy dữ liệu hiện tại trước để bảo toàn các cài đặt khác
-        res = supabase.table("app_storage_table").select("data").eq("id", "main_config").execute()
-        current_data = res.data[0].get("data", {}) if res.data and len(res.data) > 0 else {}
-        
-        if not isinstance(current_data, dict):
-            current_data = {}
+        # Kiểm tra xem dòng id=1 đã tồn tại trong app_settings chưa
+        res = supabase.table("app_settings").select("id").eq("id", 1).execute()
+        if res.data and len(res.data) > 0:
+            supabase.table("app_settings").update({"ds_loai_loi": ds_loai_loi}).eq("id", 1).execute()
+        else:
+            supabase.table("app_settings").insert({"id": 1, "ds_loai_loi": ds_loai_loi}).execute()
             
-        # Chỉ cập nhật riêng trường danh sách loại lỗi, giữ nguyên các cài đặt còn lại
-        current_data["ds_loai_loi"] = ds_loai_loi
-        
-        supabase.table("app_storage_table").upsert({
-            "id": "main_config",
-            "data": current_data
-        }).execute()
-        
+        load_loai_loi_db.clear()
         st.cache_data.clear()
     except Exception as e:
         st.error(f"Lỗi lưu danh mục lỗi lên Database: {e}")
