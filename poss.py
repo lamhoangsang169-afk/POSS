@@ -44,6 +44,7 @@ import cham_cong
 import bao_cao
 import thu_muc_bao_cao
 import dinh_muc_cong_viec
+import quan_ly_loi
 import thung_rac
 
 # Cấu hình giao diện trang web Streamlit
@@ -101,7 +102,7 @@ def get_detailed_storage_usage():
     except Exception:
         return "0 MB / 500 MB", "0 MB / 1 GB"
 
-# ==================== CÁC HÀM CRUD BỔ SUNG (ĐÃ TÍCH HỢP XÓA CACHE CHUẨN XÁC) ====================
+# ==================== CÁC HÀM CRUD BỔ SUNG ====================
 def save_staff_list_db(edited_df):
     if supabase is None:
         return
@@ -138,7 +139,6 @@ def save_app_settings_db(settings_dict):
     try:
         payload = {"id": 1, **settings_dict}
         supabase.table("app_settings").upsert(payload).execute()
-        # Xóa cache ngay lập tức để dữ liệu mới cập nhật đồng bộ trên mọi thiết bị[cite: 13]
         load_app_settings_db.clear()
         st.cache_data.clear()
     except Exception as e:
@@ -150,7 +150,6 @@ def save_folders_db(folders_list):
     try:
         payload = {"id": 1, "folders_json": folders_list}
         supabase.table("app_folders").upsert(payload).execute()
-        # Xóa cache ngay lập tức[cite: 13]
         load_folders_db.clear()
         st.cache_data.clear()
     except Exception as e:
@@ -271,7 +270,7 @@ def get_user_permissions(identifier):
 user_perms = get_user_permissions(st.session_state.user_identifier)
 current_user_role = user_perms["role"]
 
-# ==================== KHỞI TẠO & ĐỒNG BỘ CẤU HÌNH TỪ DATABASE (PERSISTENT) ====================
+# ==================== KHỞI TẠO & ĐỒNG BỘ CẤU HÌNH TỪ DATABASE ====================
 st.session_state.staff_list = get_staff_list_db()
 if "rules_df" not in st.session_state:
     try:
@@ -281,10 +280,8 @@ if "rules_df" not in st.session_state:
 
 st.session_state.folders = load_folders_db()
 
-# Đọc an toàn cấu hình từ Supabase
 db_settings = load_app_settings_db()
 
-# Luôn nạp và cập nhật giá trị cố định để F5 / reboot không bị mất
 st.session_state.primary_color = db_settings.get("primary_color", st.session_state.get("primary_color", "#ff4b4b"))
 st.session_state.bg_color = db_settings.get("bg_color", st.session_state.get("bg_color", "#ffffff"))
 st.session_state.sidebar_bg = db_settings.get("sidebar_bg", st.session_state.get("sidebar_bg", "#f0f2f6"))
@@ -423,6 +420,7 @@ with st.sidebar:
         "📊 Báo Cáo & Biểu Đồ",
         "📂 Thư Mục Báo Cáo",
         "📋 Định Mức Công Việc",
+        "🛠️ Quản Lý Lỗi",
         "🗑️ Thùng Rác"
     ]
     
@@ -471,6 +469,8 @@ def render_main_content(current_menu_name):
         thu_muc_bao_cao.render_thu_muc_bao_cao(current_menu_name)
     elif current_menu_name == "📋 Định Mức Công Việc":
         dinh_muc_cong_viec.render_dinh_muc_cong_viec(current_menu_name, current_user_role, user_perms)
+    elif current_menu_name == "🛠️ Quản Lý Lỗi":
+        quan_ly_loi.render_quan_ly_loi(current_menu_name)
     elif current_menu_name == "🗑️ Thùng Rác":
         thung_rac.render_thung_rac(current_menu_name, current_user_role)
         
@@ -494,7 +494,7 @@ def render_main_content(current_menu_name):
                 current_items = st.session_state.folders[0]["items"] if st.session_state.folders else []
                 
                 updated_items = []
-                for i_idx in range(5):
+                for i_idx in range(6):
                     default_name = current_items[i_idx]["name"] if i_idx < len(current_items) else f"{i_idx+1}. Mục {i_idx+1}"
                     default_id = current_items[i_idx]["id"] if i_idx < len(current_items) else f"menu_{i_idx+1}"
                     
