@@ -3,6 +3,8 @@ import streamlit as st
 import pandas as pd
 import datetime
 from utils import compress_image_to_base64
+# Import các hàm database riêng cho phần lỗi để không ảnh hưởng file khác
+from database import get_error_logs_db, add_error_log_db
 
 def render_quan_ly_loi(current_menu_name):
     col_h1, col_h2 = st.columns([3, 1])
@@ -18,10 +20,6 @@ def render_quan_ly_loi(current_menu_name):
     # Khởi tạo danh mục loại lỗi
     if "ds_loai_loi" not in st.session_state:
         st.session_state.ds_loai_loi = ["Sản phẩm hỏng", "Lỗi nguyên vật liệu", "Lỗi thao tác", "Lỗi máy móc / thiết bị", "Khác"]
-
-    # Khởi tạo danh sách lưu các báo cáo lỗi đã khai báo
-    if "ds_bao_cao_loi" not in st.session_state:
-        st.session_state.ds_bao_cao_loi = []
 
     with st.form("form_khai_bao_loi", clear_on_submit=True):
         col1, col2, col3 = st.columns(3)
@@ -48,6 +46,7 @@ def render_quan_ly_loi(current_menu_name):
             
         st.markdown("<br>", unsafe_allow_html=True)
         submitted = st.form_submit_button("🚨 Ghi Nhận Lỗi Sản Xuất", use_container_width=True)
+        
         if submitted:
             if nhan_su_phat_hien == "--- Chọn nhân sự liên quan ---":
                 st.warning("⚠️ Vui lòng chọn nhân sự liên quan!")
@@ -59,17 +58,20 @@ def render_quan_ly_loi(current_menu_name):
                         if compressed_b64:
                             compressed_image_list.append(compressed_b64)
                 
-                # Lưu thông tin vào danh sách trong session_state
-                new_entry = {
-                    "Ngày": str(ngay_phat_sinh),
-                    "Nhân Sự": nhan_su_phat_hien,
-                    "Phân Loại Lỗi": phan_loai_loi,
-                    "Số Lượng": so_luong_loi,
-                    "Ghi Chú": ghi_chu_loi,
-                    "Số Ảnh Đính Kèm": len(compressed_image_list)
-                }
-                st.session_state.ds_bao_cao_loi.insert(0, new_entry)
-                st.success(f"✅ Đã ghi nhận báo cáo lỗi thành công! (Đã nén và xử lý {len(compressed_image_list)} ảnh đính kèm)")
+                # Lưu trực tiếp xuống cơ sở dữ liệu Supabase thay vì chỉ lưu session_state
+                response = add_error_log_db(
+                    ngay=ngay_phat_sinh,
+                    nhan_su=nhan_su_phat_hien,
+                    phan_loai_loi=phan_loai_loi,
+                    so_luong=so_luong_loi,
+                    ghi_chu=ghi_chu_loi,
+                    so_anh_dinh_kem=len(compressed_image_list)
+                )
+                
+                if response is not None:
+                    st.cache_data.clear() # Xóa cache để tải lại dữ liệu mới nhất
+                    st.success(f"✅ Đã lưu báo cáo lỗi lên Database thành công! (Xử lý {len(compressed_image_list)} ảnh đính kèm)")
+                    st.rerun()
 
     with st.expander("⚙️ Tùy Chỉnh Danh Mục Loại Lỗi (Thêm/Bớt)"):
         st.markdown("##### ➕ Thêm loại lỗi mới")
@@ -86,7 +88,7 @@ def render_quan_ly_loi(current_menu_name):
                     else:
                         st.warning("⚠️ Loại lỗi này đã tồn tại trong danh sách!")
                 else:
-                    st.error("⚠️ Vuint lòng nhập tên loại lỗi!")
+                    st.error("⚠️ Vui lòng nhập tên loại lỗi!") # Đã sửa lỗi chính tả nhỏ ở đây
 
         st.markdown("##### ➖ Xóa loại lỗi không dùng")
         col_x1, col_x2 = st.columns([3, 1])
@@ -104,10 +106,14 @@ def render_quan_ly_loi(current_menu_name):
     st.markdown("---")
     st.subheader("📋 Danh Sách Lỗi Đã Khai Báo")
     
-    # Hiển thị bảng danh sách nếu có dữ liệu
-    if st.session_state.ds_bao_cao_loi:
-        df_loi = pd.DataFrame(st.session_state.ds_bao_cao_loi)
+    # Tải trực tiếp dữ liệu từ Database thay vì đọc session_state
+    df_loi = get_error_logs_db()
+    
+    if not df_loi.empty:
+        # Thêm cột STT tự tăng trực quan
         df_loi.insert(0, "STT", range(1, len(df_loi) + 1))
-        st.dataframe(df_loi, use_container_width=True, hide_index=True)
+        # Ẩn cột mã ID hệ thống nếu không cần thiết hiển thị
+        display_columns = [col for col in df_loi.columns if col != "db_id"]
+        st.dataframe(df_loi[display_columns], use_container_width=True, hide_index=True)
     else:
         st.info("Chưa có bản ghi lỗi nào trong hệ thống.")
