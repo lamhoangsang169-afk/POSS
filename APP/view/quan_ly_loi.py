@@ -15,10 +15,15 @@ def render_quan_ly_loi(current_menu_name):
 
     st.markdown("### ⚠️ Khai Báo Lỗi Phát Sinh")
     
+    # Khởi tạo danh mục loại lỗi
     if "ds_loai_loi" not in st.session_state:
         st.session_state.ds_loai_loi = ["Sản phẩm hỏng", "Lỗi nguyên vật liệu", "Lỗi thao tác", "Lỗi máy móc / thiết bị", "Khác"]
 
-    with st.form("form_khai_bao_loi"):
+    # Khởi tạo danh sách lưu các báo cáo lỗi đã khai báo
+    if "ds_bao_cao_loi" not in st.session_state:
+        st.session_state.ds_bao_cao_loi = []
+
+    with st.form("form_khai_bao_loi", clear_on_submit=True):
         col1, col2, col3 = st.columns(3)
         with col1:
             ngay_phat_sinh = st.date_input("Ngày phát sinh", value=datetime.date.today())
@@ -34,7 +39,6 @@ def render_quan_ly_loi(current_menu_name):
         with col_s2:
             ghi_chu_loi = st.text_input("Ghi chú nguyên nhân / Biện pháp xử lý", placeholder="Nhập nguyên nhân và hướng khắc phục...")
             
-        # Thêm mục tải lên và nén ảnh đính kèm
         uploaded_images = st.file_uploader(
             "🖼️ Tải lên hình ảnh đính kèm sự cố (Có thể chọn nhiều ảnh)", 
             type=["png", "jpg", "jpeg"], 
@@ -48,7 +52,6 @@ def render_quan_ly_loi(current_menu_name):
             if nhan_su_phat_hien == "--- Chọn nhân sự liên quan ---":
                 st.warning("⚠️ Vui lòng chọn nhân sự liên quan!")
             else:
-                # Tiến hành nén ảnh để làm nhẹ dung lượng trước khi lưu
                 compressed_image_list = []
                 if uploaded_images:
                     for img_file in uploaded_images:
@@ -56,6 +59,16 @@ def render_quan_ly_loi(current_menu_name):
                         if compressed_b64:
                             compressed_image_list.append(compressed_b64)
                 
+                # Lưu thông tin vào danh sách trong session_state
+                new_entry = {
+                    "Ngày": str(ngay_phat_sinh),
+                    "Nhân Sự": nhan_su_phat_hien,
+                    "Phân Loại Lỗi": phan_loai_loi,
+                    "Số Lượng": so_luong_loi,
+                    "Ghi Chú": ghi_chu_loi,
+                    "Số Ảnh Đính Kèm": len(compressed_image_list)
+                }
+                st.session_state.ds_bao_cao_loi.insert(0, new_entry)
                 st.success(f"✅ Đã ghi nhận báo cáo lỗi thành công! (Đã nén và xử lý {len(compressed_image_list)} ảnh đính kèm)")
 
     with st.expander("⚙️ Tùy Chỉnh Danh Mục Loại Lỗi (Thêm/Bớt)"):
@@ -73,7 +86,7 @@ def render_quan_ly_loi(current_menu_name):
                     else:
                         st.warning("⚠️ Loại lỗi này đã tồn tại trong danh sách!")
                 else:
-                    st.error("⚠️ Vui lòng nhập tên loại lỗi!")
+                    st.error("⚠️ Vuint lòng nhập tên loại lỗi!")
 
         st.markdown("##### ➖ Xóa loại lỗi không dùng")
         col_x1, col_x2 = st.columns([3, 1])
@@ -90,4 +103,11 @@ def render_quan_ly_loi(current_menu_name):
 
     st.markdown("---")
     st.subheader("📋 Danh Sách Lỗi Đã Khai Báo")
-    st.info("Chưa có bản ghi lỗi nào trong hệ thống.")
+    
+    # Hiển thị bảng danh sách nếu có dữ liệu
+    if st.session_state.ds_bao_cao_loi:
+        df_loi = pd.DataFrame(st.session_state.ds_bao_cao_loi)
+        df_loi.insert(0, "STT", range(1, len(df_loi) + 1))
+        st.dataframe(df_loi, use_container_width=True, hide_index=True)
+    else:
+        st.info("Chưa có bản ghi lỗi nào trong hệ thống.")
