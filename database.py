@@ -5,7 +5,6 @@ import streamlit as st
 import pandas as pd
 from supabase import create_client, Client
 
-# Khởi tạo kết nối Supabase an toàn từ st.secrets
 def init_supabase():
     try:
         url = st.secrets["supabase"]["SUPABASE_URL"]
@@ -64,7 +63,6 @@ def add_production_log_db(ngay, gio, nhan_su, hang_muc, anh, don_vi, so_luong, h
         return None
 
 def get_production_logs_db(is_deleted=False, limit_rows=1000):
-    """Tăng limit_rows lên 1000 để tải đầy đủ toàn bộ bản ghi từ Supabase"""
     if supabase is None:
         return pd.DataFrame()
     try:
@@ -134,9 +132,9 @@ def load_app_settings_db():
     if supabase is None:
         return {}
     try:
-        res = supabase.table("app_settings").select("*").eq("id", 1).execute()
+        res = supabase.table("app_storage_table").select("data").eq("id", "main_config").execute()
         if res.data and len(res.data) > 0:
-            return res.data[0]
+            return res.data[0].get("data", {})
     except Exception:
         pass
     return {}
@@ -168,28 +166,42 @@ def load_folders_db():
 
 @st.cache_data(ttl=60, show_spinner=False)
 def load_loai_loi_db():
+    default_ds = ["Sản phẩm hỏng", "Lỗi nguyên vật liệu", "Lỗi thao tác", "Lỗi máy móc / thiết bị", "Khác"]
     if supabase is None:
-        return ["Sản phẩm hỏng", "Lỗi nguyên vật liệu", "Lỗi thao tác", "Lỗi máy móc / thiết bị", "Khác"]
+        return default_ds
     try:
-        res = supabase.table("app_settings").select("ds_loai_loi").eq("id", 1).execute()
-        if res.data and len(res.data) > 0 and res.data[0].get("ds_loai_loi"):
-            return res.data[0].get("ds_loai_loi")
+        res = supabase.table("app_storage_table").select("data").eq("id", "main_config").execute()
+        if res.data and len(res.data) > 0:
+            data_json = res.data[0].get("data", {})
+            if isinstance(data_json, dict) and "ds_loai_loi" in data_json:
+                val = data_json["ds_loai_loi"]
+                if isinstance(val, list) and len(val) > 0:
+                    return val
     except Exception:
         pass
-    return ["Sản phẩm hỏng", "Lỗi nguyên vật liệu", "Lỗi thao tác", "Lỗi máy móc / thiết bị", "Khác"]
+    return default_ds
 
 def save_loai_loi_db(ds_loai_loi):
     if supabase is None:
         return
     try:
-        res = supabase.table("app_settings").select("*").eq("id", 1).execute()
-        current = res.data[0] if res.data and len(res.data) > 0 else {"id": 1}
-        current["ds_loai_loi"] = ds_loai_loi
-        supabase.table("app_settings").upsert(current).execute()
-        load_app_settings_db.clear()
+        res = supabase.table("app_storage_table").select("data").eq("id", "main_config").execute()
+        current_data = res.data[0].get("data", {}) if res.data and len(res.data) > 0 else {}
+        
+        if not isinstance(current_data, dict):
+            current_data = {}
+            
+        current_data["ds_loai_loi"] = ds_loai_loi
+        
+        supabase.table("app_storage_table").upsert({
+            "id": "main_config",
+            "data": current_data
+        }).execute()
+        
+        load_loai_loi_db.clear()
         st.cache_data.clear()
     except Exception as e:
-        st.error(f"Lỗi lưu danh mục lỗi: {e}")
+        st.error(f"Lỗi lưu danh mục lỗi lên Database: {e}")
 
 def update_production_log_deleted_status(db_ids, is_deleted):
     if supabase is None or not db_ids:
