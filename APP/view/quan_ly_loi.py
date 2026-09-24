@@ -196,13 +196,13 @@ def render_quan_ly_loi(current_menu_name):
                         color: #333333;
                         line-height: 1.5;
                     }
-                    .error-thumb-img {
-                        width: 70px;
-                        height: 70px;
+                    .error-thumb-img-fixed {
+                        width: 50px !important;
+                        height: 50px !important;
                         object-fit: cover;
                         border-radius: 6px;
                         border: 1px solid #ccc;
-                        margin-bottom: 5px;
+                        display: block;
                     }
                 </style>
                 """, 
@@ -256,23 +256,23 @@ def render_quan_ly_loi(current_menu_name):
                 with col_imgs:
                     if img_data_str and isinstance(img_data_str, str) and len(img_data_str.strip()) > 20 and "data:image" in img_data_str:
                         img_list = img_data_str.split("|||")
-                        img_cols = st.columns(min(len(img_list), 3))
-                        for i, b64_img in enumerate(img_list):
-                            with img_cols[i % len(img_cols)]:
-                                # Sử dụng icon ký tự Unicode thu phóng/khung mở rộng (⛶) giống hình mẫu
+                        for b64_img in img_list:
+                            try:
+                                header, encoded = b64_img.split(",", 1)
+                                img_bytes = base64.b64decode(encoded)
+                                
+                                # Nút icon Fullscreen (⛶) để mở xem ảnh lớn với kích thước gốc đầy đủ
                                 with st.popover("⛶", help="Fullscreen"):
                                     st.markdown("##### 🔍 Chi Tiết Ảnh Lỗi")
-                                    try:
-                                        header, encoded = b64_img.split(",", 1)
-                                        img_bytes = base64.b64decode(encoded)
-                                        st.image(img_bytes, use_container_width=True)
-                                    except Exception:
-                                        st.error("Không thể tải ảnh phóng to.")
+                                    st.image(img_bytes, use_container_width=True)
                                 
+                                # Hiển thị hình ảnh thu nhỏ cố định 50x50px bằng CSS
                                 st.markdown(
-                                    f'<img src="{b64_img}" class="error-thumb-img" title="Ảnh đính kèm lỗi">', 
+                                    f'<img src="{b64_img}" class="error-thumb-img-fixed" title="Ảnh đính kèm lỗi">', 
                                     unsafe_allow_html=True
                                 )
+                            except Exception:
+                                st.error("Không thể tải ảnh.")
                     else:
                         st.caption("🖼️ Không có ảnh.")
                 
