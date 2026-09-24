@@ -6,7 +6,7 @@ import base64
 import os
 import database as db
 
-def render_quan_ly_loi(current_menu_name):
+def render_quan_ly_loi(current_menu_name, current_user_role=None, user_perms=None):
     # Khởi tạo các biến session state để lưu trạng thái bộ lọc tránh bị mất khi F5 hoặc thao tác
     if "loi_start_date" not in st.session_state:
         st.session_state.loi_start_date = datetime.date.today() - datetime.timedelta(days=30)
@@ -248,7 +248,6 @@ def render_quan_ly_loi(current_menu_name):
 
                 with col_imgs:
                     if img_data_str and isinstance(img_data_str, str) and img_data_str.strip():
-                        # Hỗ trợ phân tách bằng "|||" hoặc dấu phẩy
                         separator = "|||" if "|||" in img_data_str else ","
                         urls = [u.strip() for u in img_data_str.split(separator) if u.strip()]
                         if urls:
