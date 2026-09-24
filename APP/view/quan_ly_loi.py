@@ -196,14 +196,6 @@ def render_quan_ly_loi(current_menu_name):
                         color: #333333;
                         line-height: 1.5;
                     }
-                    .error-thumb-img {
-                        width: 70px;
-                        height: 70px;
-                        object-fit: cover;
-                        border-radius: 6px;
-                        border: 1px solid #ccc;
-                        margin-bottom: 5px;
-                    }
                 </style>
                 """, 
                 unsafe_allow_html=True
@@ -256,23 +248,14 @@ def render_quan_ly_loi(current_menu_name):
                 with col_imgs:
                     if img_data_str and isinstance(img_data_str, str) and len(img_data_str.strip()) > 20 and "data:image" in img_data_str:
                         img_list = img_data_str.split("|||")
-                        img_cols = st.columns(min(len(img_list), 3))
-                        for i, b64_img in enumerate(img_list):
-                            with img_cols[i % len(img_cols)]:
-                                # Nút biểu tượng Fullscreen (⤢) thu gọn dạng icon popover giống hình mẫu
-                                with st.popover("⤢", help="Xem ảnh lớn (Fullscreen)"):
-                                    st.markdown("##### 🔍 Chi Tiết Ảnh Lỗi")
-                                    try:
-                                        header, encoded = b64_img.split(",", 1)
-                                        img_bytes = base64.b64decode(encoded)
-                                        st.image(img_bytes, use_container_width=True)
-                                    except Exception:
-                                        st.error("Không thể tải ảnh phóng to.")
-                                
-                                st.markdown(
-                                    f'<img src="{b64_img}" class="error-thumb-img" title="Ảnh đính kèm lỗi">', 
-                                    unsafe_allow_html=True
-                                )
+                        for b64_img in img_list:
+                            try:
+                                header, encoded = b64_img.split(",", 1)
+                                img_bytes = base64.b64decode(encoded)
+                                # Hiển thị ảnh thu nhỏ với chiều rộng 50px cố định, tự động tích hợp nút Fullscreen khi rê chuột
+                                st.image(img_bytes, width=50)
+                            except Exception:
+                                st.error("Không thể tải ảnh.")
                     else:
                         st.caption("🖼️ Không có ảnh.")
                 
