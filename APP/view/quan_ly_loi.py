@@ -19,32 +19,33 @@ def render_quan_ly_loi(current_menu_name):
     # Tải danh mục loại lỗi từ Database Supabase
     ds_loai_loi_hien_tai = db.get_error_categories_db()
 
-    # Các trường nhập liệu
-    col1, col2, col3 = st.columns(3)
-    with col1:
-        ngay_phat_sinh = st.date_input("Ngày phát sinh", value=datetime.date.today(), key="input_ngay_loi")
-    with col2:
-        staff_options = ["--- Chọn nhân sự liên quan ---"] + st.session_state.get("staff_list", [])
-        nhan_su_phat_hien = st.selectbox("Nhân sự chịu trách nhiệm/phát hiện", staff_options, key="select_nhan_su_loi")
-    with col3:
-        phan_loai_loi = st.selectbox("Phân loại lỗi", ds_loai_loi_hien_tai if isinstance(ds_loai_loi_hien_tai, list) else ["Sản phẩm hỏng"], key="select_phan_loai_loi")
-        
-    col_s1, col_s2 = st.columns([1, 2])
-    with col_s1:
-        so_luong_loi = st.number_input("Số lượng sản phẩm lỗi", min_value=1, value=1, step=1, key="num_so_luong_loi")
-    with col_s2:
-        ghi_chu_loi = st.text_input("Ghi chú nguyên nhân / Biện pháp xử lý", placeholder="Nhập nguyên nhân và hướng khắc phục...", key="txt_ghi_chu_loi")
-        
-    # File uploader trực tiếp
+    # Sử dụng st.form để gom nhóm và chống chớp màn hình khi chọn selectbox/nhập liệu
+    with st.form("form_khai_bao_loi", clear_on_submit=True):
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            ngay_phat_sinh = st.date_input("Ngày phát sinh", value=datetime.date.today(), key="input_ngay_loi")
+        with col2:
+            staff_options = ["--- Chọn nhân sự liên quan ---"] + st.session_state.get("staff_list", [])
+            nhan_su_phat_hien = st.selectbox("Nhân sự chịu trách nhiệm/phát hiện", staff_options, key="select_nhan_su_loi")
+        with col3:
+            phan_loai_loi = st.selectbox("Phân loại lỗi", ds_loai_loi_hien_tai if isinstance(ds_loai_loi_hien_tai, list) else ["Sản phẩm hỏng"], key="select_phan_loai_loi")
+            
+        col_s1, col_s2 = st.columns([1, 2])
+        with col_s1:
+            so_luong_loi = st.number_input("Số lượng sản phẩm lỗi", min_value=1, value=1, step=1, key="num_so_luong_loi")
+        with col_s2:
+            ghi_chu_loi = st.text_input("Ghi chú nguyên nhân / Biện pháp xử lý", placeholder="Nhập nguyên nhân và hướng khắc phục...", key="txt_ghi_chu_loi")
+            
+        # Nút submit của form
+        submitted = st.form_submit_button("🚨 Ghi Nhận Lỗi Sản Xuất", use_container_width=True)
+
+    # Đặt file_uploader ngay dưới form để người dùng chọn ảnh đính kèm ổn định
     uploaded_images = st.file_uploader(
         "🖼️ Tải lên hình ảnh đính kèm sự cố (Có thể chọn nhiều ảnh)", 
         type=["png", "jpg", "jpeg"], 
         accept_multiple_files=True, 
         key="uploader_loi_images"
     )
-        
-    st.markdown("<br>", unsafe_allow_html=True)
-    submitted = st.button("🚨 Ghi Nhận Lỗi Sản Xuất", use_container_width=True, key="btn_submit_loi_moi")
 
     if submitted:
         if nhan_su_phat_hien == "--- Chọn nhân sự liên quan ---":
@@ -55,7 +56,6 @@ def render_quan_ly_loi(current_menu_name):
                 for img_file in uploaded_images:
                     try:
                         img_bytes = img_file.read()
-                        # Tự động nhận diện định dạng và chuyển thẳng sang chuỗi base64 chuẩn an toàn
                         encoded_str = base64.b64encode(img_bytes).decode("utf-8")
                         mime_type = img_file.type if img_file.type else "image/jpeg"
                         b64_data_uri = f"data:{mime_type};base64,{encoded_str}"
@@ -63,7 +63,6 @@ def render_quan_ly_loi(current_menu_name):
                     except Exception as e:
                         st.error(f"Lỗi đọc file ảnh: {e}")
             
-            # Ghép chuỗi các ảnh lại bằng dấu phân cách "|||"
             images_string = "|||".join(compressed_image_list) if compressed_image_list else ""
             
             # Ghi dữ liệu xuống Supabase
@@ -162,7 +161,6 @@ def render_quan_ly_loi(current_menu_name):
             so_luong_val = row.get('Số Lượng', 1)
             ghi_chu_val = row.get('Ghi Chú', '')
             
-            # Đọc chuỗi ảnh đính kèm từ cột dữ liệu
             img_data_str = row.get("Số Ảnh Đính Kèm", "")
 
             col_info, col_imgs = st.columns([4, 1.2])
