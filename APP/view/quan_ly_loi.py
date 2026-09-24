@@ -2,7 +2,7 @@
 import streamlit as st
 import pandas as pd
 import datetime
-from utils import compress_image_to_base64
+import base64
 import database as db
 
 def render_quan_ly_loi(current_menu_name):
@@ -35,20 +35,13 @@ def render_quan_ly_loi(current_menu_name):
     with col_s2:
         ghi_chu_loi = st.text_input("Ghi chú nguyên nhân / Biện pháp xử lý", placeholder="Nhập nguyên nhân và hướng khắc phục...", key="txt_ghi_chu_loi")
         
-    # Sử dụng on_change hoặc lưu trực tiếp file uploader vào session state để giữ buffer ổn định
+    # File uploader trực tiếp
     uploaded_images = st.file_uploader(
         "🖼️ Tải lên hình ảnh đính kèm sự cố (Có thể chọn nhiều ảnh)", 
         type=["png", "jpg", "jpeg"], 
         accept_multiple_files=True, 
         key="uploader_loi_images"
     )
-
-    # Lưu file uploader vào session state để đảm bảo không bị mất khi bấm nút submit
-    if uploaded_images:
-        st.session_state["cached_uploaded_images"] = uploaded_images
-    else:
-        if "cached_uploaded_images" not in st.session_state:
-            st.session_state["cached_uploaded_images"] = None
         
     st.markdown("<br>", unsafe_allow_html=True)
     submitted = st.button("🚨 Ghi Nhận Lỗi Sản Xuất", use_container_width=True, key="btn_submit_loi_moi")
@@ -58,23 +51,22 @@ def render_quan_ly_loi(current_menu_name):
             st.warning("⚠️ Vui lòng chọn nhân sự liên quan!")
         else:
             compressed_image_list = []
-            files_to_process = st.session_state.get("cached_uploaded_images")
-            
-            if files_to_process:
-                for img_file in files_to_process:
-                    # Đưa con trỏ file về vị trí đầu để đảm bảo đọc dữ liệu chính xác
+            if uploaded_images:
+                for img_file in uploaded_images:
                     try:
-                        img_file.seek(0)
-                    except Exception:
-                        pass
-                    
-                    compressed_b64 = compress_image_to_base64(img_file, max_size=(800, 800), quality=70)
-                    if compressed_b64:
-                        compressed_image_list.append(compressed_b64)
+                        img_bytes = img_file.read()
+                        # Tự động nhận diện định dạng và chuyển thẳng sang chuỗi base64 chuẩn an toàn
+                        encoded_str = base64.b64encode(img_bytes).decode("utf-8")
+                        mime_type = img_file.type if img_file.type else "image/jpeg"
+                        b64_data_uri = f"data:{mime_type};base64,{encoded_str}"
+                        compressed_image_list.append(b64_data_uri)
+                    except Exception as e:
+                        st.error(f"Lỗi đọc file ảnh: {e}")
             
+            # Ghép chuỗi các ảnh lại bằng dấu phân cách "|||"
             images_string = "|||".join(compressed_image_list) if compressed_image_list else ""
             
-            # Ghi xuống Database Supabase
+            # Ghi dữ liệu xuống Supabase
             response = db.add_error_log_with_images_db(
                 ngay=ngay_phat_sinh,
                 nhan_su=nhan_su_phat_hien,
@@ -85,8 +77,6 @@ def render_quan_ly_loi(current_menu_name):
             )
             
             if response is not None:
-                # Xóa cache file sau khi lưu thành công
-                st.session_state["cached_uploaded_images"] = None
                 st.cache_data.clear()
                 st.success(f"✅ Đã ghi nhận báo cáo lỗi và lưu thành công {len(compressed_image_list)} ảnh đính kèm lên Database!")
                 st.rerun()
@@ -192,7 +182,7 @@ def render_quan_ly_loi(current_menu_name):
                 )
 
             with col_imgs:
-                if img_data_str and isinstance(img_data_str, str) and len(img_data_str.strip()) > 10 and "data:image" in img_data_str:
+                if img_data_str and isinstance(img_data_str, str) and len(img_data_str.strip()) > 20 and "data:image" in img_data_str:
                     img_list = img_data_str.split("|||")
                     img_cols = st.columns(min(len(img_list), 3))
                     for i, b64_img in enumerate(img_list):
