@@ -255,7 +255,7 @@ def render_quan_ly_loi(current_menu_name, current_user_role=None, user_perms=Non
                             for i, u in enumerate(urls):
                                 with sub_cols[i]:
                                     try:
-                                        # Khối xử lý hiển thị ảnh an toàn tương tự Nhập Sản Lượng
+                                        # Đã bổ sung điều kiện nhận diện chuỗi Base64 (data:image)
                                         if u.startswith("http://") or u.startswith("https://") or u.startswith("data:image"):
                                             with st.popover("🔍", help="Xem ảnh lớn"): 
                                                 st.image(u, use_container_width=True)
