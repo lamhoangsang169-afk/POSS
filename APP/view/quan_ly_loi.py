@@ -3,7 +3,6 @@ import streamlit as st
 import pandas as pd
 import datetime
 import base64
-import os
 import database as db
 
 def render_quan_ly_loi(current_menu_name):
@@ -197,6 +196,14 @@ def render_quan_ly_loi(current_menu_name):
                         color: #333333;
                         line-height: 1.5;
                     }
+                    .error-thumb-img {
+                        width: 70px;
+                        height: 70px;
+                        object-fit: cover;
+                        border-radius: 6px;
+                        border: 1px solid #ccc;
+                        margin-bottom: 5px;
+                    }
                 </style>
                 """, 
                 unsafe_allow_html=True
@@ -247,29 +254,27 @@ def render_quan_ly_loi(current_menu_name):
                     )
 
                 with col_imgs:
-                    if img_data_str and isinstance(img_data_str, str) and img_data_str.strip():
-                        # Hỗ trợ phân tách bằng "|||" hoặc dấu phẩy
-                        separator = "|||" if "|||" in img_data_str else ","
-                        urls = [u.strip() for u in img_data_str.split(separator) if u.strip()]
-                        if urls:
-                            sub_cols = st.columns(min(len(urls), 4), gap="small")
-                            for i, u in enumerate(urls):
-                                with sub_cols[i]:
+                    if img_data_str and isinstance(img_data_str, str) and len(img_data_str.strip()) > 20 and "data:image" in img_data_str:
+                        img_list = img_data_str.split("|||")
+                        img_cols = st.columns(min(len(img_list), 3))
+                        for i, b64_img in enumerate(img_list):
+                            with img_cols[i % len(img_cols)]:
+                                # Nút biểu tượng Fullscreen (⤢) thu gọn dạng icon popover giống hình mẫu
+                                with st.popover("⤢", help="Xem ảnh lớn (Fullscreen)"):
+                                    st.markdown("##### 🔍 Chi Tiết Ảnh Lỗi")
                                     try:
-                                        if u.startswith("data:image") or u.startswith("http://") or u.startswith("https://"):
-                                            with st.popover("🔍", help="Xem ảnh lớn"): 
-                                                st.image(u, use_container_width=True)
-                                            st.image(u, width=40)
-                                        elif os.path.exists(u):
-                                            with st.popover("🔍", help="Xem ảnh lớn"): 
-                                                st.image(u, use_container_width=True)
-                                            st.image(u, width=40)
-                                        else:
-                                            st.caption("⚠️ Không tìm thấy ảnh")
+                                        header, encoded = b64_img.split(",", 1)
+                                        img_bytes = base64.b64decode(encoded)
+                                        st.image(img_bytes, use_container_width=True)
                                     except Exception:
-                                        st.caption("❌ Lỗi hiển thị")
+                                        st.error("Không thể tải ảnh phóng to.")
+                                
+                                st.markdown(
+                                    f'<img src="{b64_img}" class="error-thumb-img" title="Ảnh đính kèm lỗi">', 
+                                    unsafe_allow_html=True
+                                )
                     else:
-                        st.markdown("<small style='color: gray;'>Không ảnh</small>", unsafe_allow_html=True)
+                        st.caption("🖼️ Không có ảnh.")
                 
                 st.markdown("<div style='margin-bottom: 2px;'></div>", unsafe_allow_html=True)
 
