@@ -7,7 +7,6 @@ import os
 import database as db
 
 def render_quan_ly_loi(current_menu_name, current_user_role=None, user_perms=None):
-    # Khởi tạo các biến session state để lưu trạng thái bộ lọc tránh bị mất khi F5 hoặc thao tác
     if "loi_start_date" not in st.session_state:
         st.session_state.loi_start_date = datetime.date.today() - datetime.timedelta(days=30)
     if "loi_end_date" not in st.session_state:
@@ -29,7 +28,6 @@ def render_quan_ly_loi(current_menu_name, current_user_role=None, user_perms=Non
 
     st.markdown("### ⚠️ Khai Báo Lỗi Phát Sinh")
     
-    # Tải danh mục loại lỗi từ Database Supabase
     ds_loai_loi_hien_tai = db.get_error_categories_db()
 
     with st.form("form_khai_bao_loi", clear_on_submit=True):
@@ -132,7 +130,6 @@ def render_quan_ly_loi(current_menu_name, current_user_role=None, user_perms=Non
     st.markdown("---")
     st.subheader("📋 Danh Sách Lỗi & Bộ Lọc Nâng Cao")
     
-    # --- BỘ LỌC ĐƯỢC ĐẶT CHUNG TRÊN 1 HÀNG GỒM 5 CỘT ---
     f_col1, f_col2, f_col3, f_col4, f_col5 = st.columns(5)
     with f_col1:
         st.session_state.loi_start_date = st.date_input("Từ ngày", value=st.session_state.loi_start_date, key="widget_loi_start")
@@ -153,7 +150,6 @@ def render_quan_ly_loi(current_menu_name, current_user_role=None, user_perms=Non
         st.error("⚠️ Ngày bắt đầu không thể lớn hơn ngày kết thúc!")
         return
 
-    # Tải dữ liệu lỗi từ Database
     df_loi = db.get_error_logs_db(limit_rows=2000)
     
     if not df_loi.empty:
@@ -171,7 +167,7 @@ def render_quan_ly_loi(current_menu_name, current_user_role=None, user_perms=Non
         st.info(f"📅 Khoảng ngày có: {total_records} bản ghi lỗi")
 
         if total_records > 0:
-            page_size = 10  # Mặc định hiển thị 10 dòng mỗi trang
+            page_size = 10
             total_pages = max(1, (total_records + page_size - 1) // page_size)
             
             if st.session_state.loi_page_num > total_pages:
@@ -202,7 +198,6 @@ def render_quan_ly_loi(current_menu_name, current_user_role=None, user_perms=Non
                 unsafe_allow_html=True
             )
 
-            # --- CÁC NÚT THAO TÁC NẰM PHÍA TRÊN DANH SÁCH ---
             st.markdown("---")
             selected_db_ids = []
             
@@ -214,7 +209,6 @@ def render_quan_ly_loi(current_menu_name, current_user_role=None, user_perms=Non
                 btn_del_all = st.button("🗑️ Xóa tất cả trang này", use_container_width=True)
             st.markdown("---")
 
-            # Duyệt danh sách hiển thị
             for idx, row in page_df.iterrows():
                 db_id = row.get('db_id')
                 stt_hien_thi = start_idx + idx + 1
@@ -224,12 +218,14 @@ def render_quan_ly_loi(current_menu_name, current_user_role=None, user_perms=Non
                 so_luong_val = row.get('Số Lượng', 0)
                 ghi_chu_val = row.get('Ghi Chú', '')
                 
-                # Tự động quét tìm cột chứa dữ liệu ảnh trong DataFrame
+                # CƠ CHẾ MỚI: Tự động quét toàn bộ các cột để tìm chuỗi chứa định dạng ảnh hoặc data:image
                 img_data_str = ""
-                for col_name in ["Hình Ảnh", "Ảnh", "images", "Số Ảnh Đính Kèm", "Ảnh Đính Kèm"]:
-                    if col_name in row and pd.notna(row[col_name]):
-                        img_data_str = str(row[col_name])
-                        break
+                for col in row.index:
+                    val_str = str(row[col])
+                    if "data:image" in val_str or "|||" in val_str or val_str.startswith("http://") or val_str.startswith("https://"):
+                        if len(val_str) > 20:
+                            img_data_str = val_str
+                            break
 
                 col_chk, col_info, col_imgs = st.columns([0.4, 3.8, 1.2])
 
@@ -253,7 +249,7 @@ def render_quan_ly_loi(current_menu_name, current_user_role=None, user_perms=Non
                     )
 
                 with col_imgs:
-                    if img_data_str and isinstance(img_data_str, str) and img_data_str.strip():
+                    if img_data_str and img_data_str.strip():
                         separator = "|||" if "|||" in img_data_str else ","
                         urls = [u.strip() for u in img_data_str.split(separator) if u.strip()]
                         if urls:
@@ -280,7 +276,6 @@ def render_quan_ly_loi(current_menu_name, current_user_role=None, user_perms=Non
                 
                 st.markdown("<div style='margin-bottom: 2px;'></div>", unsafe_allow_html=True)
 
-            # Xử lý sự kiện xóa
             if btn_del_selected:
                 if selected_db_ids:
                     try:
