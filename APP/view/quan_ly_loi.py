@@ -131,8 +131,8 @@ def render_quan_ly_loi(current_menu_name):
     st.markdown("---")
     st.subheader("📋 Danh Sách Lỗi & Bộ Lọc Nâng Cao")
     
-    # --- BỘ LỌC TƯƠNG TỰ GIAO DIỆN MẪU ---
-    f_col1, f_col2, f_col3, f_col4, f_col5 = st.columns([1.2, 1.2, 1.5, 1.5, 1])
+    # --- BỘ LỌC ĐƯỢC ĐẶT CHUNG TRÊN 1 HÀNG GỒM 5 CỘT ---
+    f_col1, f_col2, f_col3, f_col4, f_col5 = st.columns(5)
     with f_col1:
         st.session_state.loi_start_date = st.date_input("Từ ngày", value=st.session_state.loi_start_date, key="widget_loi_start")
     with f_col2:
@@ -146,8 +146,8 @@ def render_quan_ly_loi(current_menu_name):
         curr_cat_idx = cat_filter_opts.index(st.session_state.loi_filter_cat) if st.session_state.loi_filter_cat in cat_filter_opts else 0
         st.session_state.loi_filter_cat = st.selectbox("Lọc theo Phân Loại Lỗi", cat_filter_opts, index=curr_cat_idx, key="widget_loi_cat")
     with f_col5:
-        page_size_options = [10, 20, 50, 100]
-        page_size = st.selectbox("Hiển thị (dòng)", page_size_options, index=0, key="widget_loi_pagesize")
+        # Lấy tổng số bản ghi dự kiến để hiển thị chữ dynamic trong nhãn nếu muốn, hoặc dùng nhãn tĩnh chuẩn giao diện mẫu
+        st.session_state.loi_page_num = st.number_input("Trang hiển thị", min_value=1, value=st.session_state.loi_page_num, step=1, key="widget_loi_pagenum")
 
     if st.session_state.loi_start_date > st.session_state.loi_end_date:
         st.error("⚠️ Ngày bắt đầu không thể lớn hơn ngày kết thúc!")
@@ -171,12 +171,12 @@ def render_quan_ly_loi(current_menu_name):
         st.info(f"📅 Khoảng ngày có: {total_records} bản ghi lỗi")
 
         if total_records > 0:
+            page_size = 10  # Mặc định hiển thị 10 dòng mỗi trang
             total_pages = max(1, (total_records + page_size - 1) // page_size)
-            p_col1, p_col2 = st.columns([2, 3])
-            with p_col1:
-                st.session_state.loi_page_num = st.number_input("Trang hiển thị", min_value=1, max_value=total_pages, value=min(st.session_state.loi_page_num, total_pages), step=1, key="widget_loi_pagenum")
-            with p_col2:
-                st.markdown(f"<br><span style='font-size: 0.9rem; color: #555;'>Trang {st.session_state.loi_page_num} / {total_pages} (Tổng {total_records} bản ghi)</span>", unsafe_allow_html=True)
+            
+            # Đảm bảo số trang không vượt quá tổng trang hiện có
+            if st.session_state.loi_page_num > total_pages:
+                st.session_state.loi_page_num = total_pages
 
             start_idx = (st.session_state.loi_page_num - 1) * page_size
             end_idx = start_idx + page_size
@@ -211,20 +211,19 @@ def render_quan_ly_loi(current_menu_name):
                 unsafe_allow_html=True
             )
 
-            # --- ĐÃ ĐƯA CÁC NÚT THAO TÁC LÊN PHÍA TRÊN DANH SÁCH ---
+            # --- CÁC NÚT THAO TÁC NẰM PHÍA TRÊN DANH SÁCH ---
             st.markdown("---")
             selected_db_ids = []
             
             col_act1, col_act2 = st.columns([2, 2])
             with col_act1:
-                # Tạo trước một vùng chứa tạm để lắng nghe trạng thái nút bấm xóa các dòng đã chọn
                 btn_del_selected = st.button("🗑️ Xóa các dòng đã chọn", use_container_width=True, type="primary")
             with col_act2:
                 confirm_del_all = st.checkbox("Xác nhận xóa tất cả bản ghi trong trang này", value=False, key="chk_confirm_del_page")
                 btn_del_all = st.button("🗑️ Xóa tất cả trang này", use_container_width=True)
             st.markdown("---")
 
-            # Duyệt danh sách hiển thị và thu thập ID các dòng được tích chọn
+            # Duyệt danh sách hiển thị
             for idx, row in page_df.iterrows():
                 db_id = row.get('db_id')
                 stt_hien_thi = start_idx + idx + 1
@@ -271,7 +270,7 @@ def render_quan_ly_loi(current_menu_name):
                 
                 st.markdown("<div style='margin-bottom: 2px;'></div>", unsafe_allow_html=True)
 
-            # Xử lý sự kiện khi bấm nút xóa phía trên
+            # Xử lý sự kiện xóa
             if btn_del_selected:
                 if selected_db_ids:
                     try:
