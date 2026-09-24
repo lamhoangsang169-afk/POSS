@@ -16,7 +16,7 @@ def render_quan_ly_loi(current_menu_name):
 
     st.markdown("### ⚠️ Khai Báo Lỗi Phát Sinh")
     
-    # Tải danh mục loại lỗi từ Database Supabase (Không bị mất khi F5/Reboot)
+    # Tải danh mục loại lỗi từ Database Supabase
     ds_loai_loi_hien_tai = db.get_error_categories_db()
 
     with st.form("form_khai_bao_loi", clear_on_submit=True):
@@ -35,45 +35,45 @@ def render_quan_ly_loi(current_menu_name):
         with col_s2:
             ghi_chu_loi = st.text_input("Ghi chú nguyên nhân / Biện pháp xử lý", placeholder="Nhập nguyên nhân và hướng khắc phục...")
             
-        uploaded_images = st.file_uploader(
-            "🖼️ Tải lên hình ảnh đính kèm sự cố (Có thể chọn nhiều ảnh)", 
-            type=["png", "jpg", "jpeg"], 
-            accept_multiple_files=True, 
-            key="uploader_loi_images"
-        )
-            
-        st.markdown("<br>", unsafe_allow_html=True)
+        # Đưa file_uploader ra ngoài form hoặc xử lý riêng bên dưới form để tránh bị mất buffer file
         submitted = st.form_submit_button("🚨 Ghi Nhận Lỗi Sản Xuất", use_container_width=True)
-        
-        if submitted:
-            if nhan_su_phat_hien == "--- Chọn nhân sự liên quan ---":
-                st.warning("⚠️ Vui lòng chọn nhân sự liên quan!")
-            else:
-                compressed_image_list = []
-                if uploaded_images:
-                    for img_file in uploaded_images:
-                        # Nén và mã hóa ảnh sang định dạng base64
-                        compressed_b64 = compress_image_to_base64(img_file, max_size=(800, 800), quality=70)
-                        if compressed_b64:
-                            compressed_image_list.append(compressed_b64)
-                
-                # Ghép các chuỗi base64 lại với nhau bằng dấu phân cách "|||"
-                images_string = "|||".join(compressed_image_list) if compressed_image_list else ""
-                
-                # Lưu trực tiếp xuống Database Supabase
-                response = db.add_error_log_with_images_db(
-                    ngay=ngay_phat_sinh,
-                    nhan_su=nhan_su_phat_hien,
-                    phan_loai_loi=phan_loai_loi,
-                    so_luong=so_luong_loi,
-                    ghi_chu=ghi_chu_loi,
-                    images_base64_str=images_string
-                )
-                
-                if response is not None:
-                    st.cache_data.clear()
-                    st.success(f"✅ Đã ghi nhận báo cáo lỗi và lưu thành công {len(compressed_image_list)} ảnh đính kèm lên Database!")
-                    st.rerun()
+
+    # Đặt file_uploader ra ngoài form để bắt file tải lên chính xác 100%
+    uploaded_images = st.file_uploader(
+        "🖼️ Tải lên hình ảnh đính kèm sự cố (Có thể chọn nhiều ảnh)", 
+        type=["png", "jpg", "jpeg"], 
+        accept_multiple_files=True, 
+        key="uploader_loi_images"
+    )
+
+    if submitted:
+        if nhan_su_phat_hien == "--- Chọn nhân sự liên quan ---":
+            st.warning("⚠️ Vui lòng chọn nhân sự liên quan!")
+        else:
+            compressed_image_list = []
+            if uploaded_images:
+                for img_file in uploaded_images:
+                    compressed_b64 = compress_image_to_base64(img_file, max_size=(800, 800), quality=70)
+                    if compressed_b64:
+                        compressed_image_list.append(compressed_b64)
+            
+            # Ghép các chuỗi base64 lại với nhau bằng dấu phân cách "|||"
+            images_string = "|||".join(compressed_image_list) if compressed_image_list else ""
+            
+            # Lưu xuống Database Supabase
+            response = db.add_error_log_with_images_db(
+                ngay=ngay_phat_sinh,
+                nhan_su=nhan_su_phat_hien,
+                phan_loai_loi=phan_loai_loi,
+                so_luong=so_luong_loi,
+                ghi_chu=ghi_chu_loi,
+                images_base64_str=images_string
+            )
+            
+            if response is not None:
+                st.cache_data.clear()
+                st.success(f"✅ Đã ghi nhận báo cáo lỗi và lưu thành công {len(compressed_image_list)} ảnh đính kèm lên Database!")
+                st.rerun()
 
     # --- PHẦN TÙY CHỈNH DANH MỤC LỖI (ĐÃ ĐỒNG BỘ DB) ---
     with st.expander("⚙️ Tùy Chỉnh Danh Mục Loại Lỗi (Thêm/Bớt)"):
