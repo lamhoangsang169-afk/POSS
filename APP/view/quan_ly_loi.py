@@ -19,36 +19,38 @@ def render_quan_ly_loi(current_menu_name):
     # Tải danh mục loại lỗi từ Database Supabase
     ds_loai_loi_hien_tai = db.get_error_categories_db()
 
-    # Sử dụng st.form để gom nhóm và chống chớp màn hình khi chọn selectbox/nhập liệu
+    # Sử dụng st.form để chống chớp màn hình khi tương tác selectbox
     with st.form("form_khai_bao_loi", clear_on_submit=True):
+        # Hàng 1: Ngày phát sinh, Nhân sự, Phân loại lỗi
         col1, col2, col3 = st.columns(3)
         with col1:
             ngay_phat_sinh = st.date_input("Ngày phát sinh", value=datetime.date.today(), key="input_ngay_loi")
         with col2:
-            staff_options = ["--- Chọn nhân sự liên quan ---"] + st.session_state.get("staff_list", [])
+            staff_options = ["--- Vui lòng chọn nhân sự ---"] + st.session_state.get("staff_list", [])
             nhan_su_phat_hien = st.selectbox("Nhân sự chịu trách nhiệm/phát hiện", staff_options, key="select_nhan_su_loi")
         with col3:
             phan_loai_loi = st.selectbox("Phân loại lỗi", ds_loai_loi_hien_tai if isinstance(ds_loai_loi_hien_tai, list) else ["Sản phẩm hỏng"], key="select_phan_loai_loi")
             
+        # Hàng 2: Tải ảnh đính kèm (đặt ngay bên trong form để người dùng thấy trực quan)
+        uploaded_images = st.file_uploader(
+            "Tải ảnh đính kèm (Tối đa nhiều ảnh)", 
+            type=["png", "jpg", "jpeg"], 
+            accept_multiple_files=True, 
+            key="uploader_loi_images"
+        )
+            
+        # Hàng 3: Số lượng sản phẩm lỗi & Ghi chú
         col_s1, col_s2 = st.columns([1, 2])
         with col_s1:
             so_luong_loi = st.number_input("Số lượng sản phẩm lỗi", min_value=1, value=1, step=1, key="num_so_luong_loi")
         with col_s2:
-            ghi_chu_loi = st.text_input("Ghi chú nguyên nhân / Biện pháp xử lý", placeholder="Nhập nguyên nhân và hướng khắc phục...", key="txt_ghi_chu_loi")
+            ghi_chu_loi = st.text_input("Ghi chú", placeholder="Nhập ghi chú nguyên nhân / hướng khắc phục...", key="txt_ghi_chu_loi")
             
-        # Nút submit của form
+        st.markdown("<br>", unsafe_allow_html=True)
         submitted = st.form_submit_button("🚨 Ghi Nhận Lỗi Sản Xuất", use_container_width=True)
 
-    # Đặt file_uploader ngay dưới form để người dùng chọn ảnh đính kèm ổn định
-    uploaded_images = st.file_uploader(
-        "🖼️ Tải lên hình ảnh đính kèm sự cố (Có thể chọn nhiều ảnh)", 
-        type=["png", "jpg", "jpeg"], 
-        accept_multiple_files=True, 
-        key="uploader_loi_images"
-    )
-
     if submitted:
-        if nhan_su_phat_hien == "--- Chọn nhân sự liên quan ---":
+        if nhan_su_phat_hien == "--- Vui lòng chọn nhân sự ---":
             st.warning("⚠️ Vui lòng chọn nhân sự liên quan!")
         else:
             compressed_image_list = []
@@ -65,7 +67,7 @@ def render_quan_ly_loi(current_menu_name):
             
             images_string = "|||".join(compressed_image_list) if compressed_image_list else ""
             
-            # Ghi dữ liệu xuống Supabase
+            # Lưu xuống Database Supabase
             response = db.add_error_log_with_images_db(
                 ngay=ngay_phat_sinh,
                 nhan_su=nhan_su_phat_hien,
