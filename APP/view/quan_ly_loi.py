@@ -31,7 +31,7 @@ upload_multiple_images_to_storage = db_module.upload_multiple_images_to_storage
 get_attendance_db = db_module.get_attendance_db
 get_rules_db = db_module.get_rules_db
 
-def render_nhap_san_luong(current_menu_name, current_user_role=None, user_perms=None):
+def render_quan_ly_loi(current_menu_name, current_user_role=None, user_perms=None):
     now_vn = datetime.datetime.now(VN_TIMEZONE)
     today_str = str(now_vn.date())
     
