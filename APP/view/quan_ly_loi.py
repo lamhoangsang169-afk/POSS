@@ -252,7 +252,7 @@ def render_quan_ly_loi(current_menu_name):
                             try:
                                 header, encoded = b64_img.split(",", 1)
                                 img_bytes = base64.b64decode(encoded)
-                                # Hiển thị ảnh nhỏ gọn 60px kèm thanh công cụ fullscreen mặc định khi rê chuột
+                                # Hiển thị ảnh nhỏ gọn 60px tích hợp sẵn nút Fullscreen chuẩn của Streamlit
                                 st.image(img_bytes, width=60)
                             except Exception:
                                 st.error("Không thể tải ảnh.")
