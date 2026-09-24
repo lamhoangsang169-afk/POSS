@@ -259,8 +259,8 @@ def render_quan_ly_loi(current_menu_name):
                         img_cols = st.columns(min(len(img_list), 3))
                         for i, b64_img in enumerate(img_list):
                             with img_cols[i % len(img_cols)]:
-                                # Tích hợp Popover để xem ảnh phóng to (Fullscreen/Zoom)
-                                with st.popover("🔍", help="Xem ảnh lớn"):
+                                # Tích hợp nút Fullscreen (⤢) bằng popover
+                                with st.popover("⤢", help="Fullscreen"):
                                     st.markdown("##### 🔍 Chi Tiết Ảnh Lỗi")
                                     try:
                                         header, encoded = b64_img.split(",", 1)
@@ -268,7 +268,7 @@ def render_quan_ly_loi(current_menu_name):
                                         st.image(img_bytes, use_container_width=True)
                                     except Exception:
                                         st.error("Không thể tải ảnh phóng to.")
-                                # Hiển thị ảnh thumbnail nhỏ bên cạnh nút popover hoặc dạng giao diện tương ứng
+                                
                                 st.markdown(
                                     f'<img src="{b64_img}" class="error-thumb-img" title="Ảnh đính kèm lỗi">', 
                                     unsafe_allow_html=True
