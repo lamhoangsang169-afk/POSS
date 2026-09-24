@@ -3,10 +3,10 @@ import streamlit as st
 import pandas as pd
 import datetime
 import base64
-import os
 import database as db
 
-def render_quan_ly_loi(current_menu_name, current_user_role=None, user_perms=None):
+def render_quan_ly_loi(current_menu_name):
+    # Khởi tạo các biến session state để lưu trạng thái bộ lọc tránh bị mất khi F5 hoặc thao tác
     if "loi_start_date" not in st.session_state:
         st.session_state.loi_start_date = datetime.date.today() - datetime.timedelta(days=30)
     if "loi_end_date" not in st.session_state:
@@ -28,6 +28,7 @@ def render_quan_ly_loi(current_menu_name, current_user_role=None, user_perms=Non
 
     st.markdown("### ⚠️ Khai Báo Lỗi Phát Sinh")
     
+    # Tải danh mục loại lỗi từ Database Supabase
     ds_loai_loi_hien_tai = db.get_error_categories_db()
 
     with st.form("form_khai_bao_loi", clear_on_submit=True):
@@ -130,6 +131,7 @@ def render_quan_ly_loi(current_menu_name, current_user_role=None, user_perms=Non
     st.markdown("---")
     st.subheader("📋 Danh Sách Lỗi & Bộ Lọc Nâng Cao")
     
+    # --- BỘ LỌC ĐƯỢC ĐẶT CHUNG TRÊN 1 HÀNG GỒM 5 CỘT ---
     f_col1, f_col2, f_col3, f_col4, f_col5 = st.columns(5)
     with f_col1:
         st.session_state.loi_start_date = st.date_input("Từ ngày", value=st.session_state.loi_start_date, key="widget_loi_start")
@@ -150,6 +152,7 @@ def render_quan_ly_loi(current_menu_name, current_user_role=None, user_perms=Non
         st.error("⚠️ Ngày bắt đầu không thể lớn hơn ngày kết thúc!")
         return
 
+    # Tải dữ liệu lỗi từ Database
     df_loi = db.get_error_logs_db(limit_rows=2000)
     
     if not df_loi.empty:
@@ -167,7 +170,7 @@ def render_quan_ly_loi(current_menu_name, current_user_role=None, user_perms=Non
         st.info(f"📅 Khoảng ngày có: {total_records} bản ghi lỗi")
 
         if total_records > 0:
-            page_size = 10
+            page_size = 10  # Mặc định hiển thị 10 dòng mỗi trang
             total_pages = max(1, (total_records + page_size - 1) // page_size)
             
             if st.session_state.loi_page_num > total_pages:
@@ -193,11 +196,20 @@ def render_quan_ly_loi(current_menu_name, current_user_role=None, user_perms=Non
                         color: #333333;
                         line-height: 1.5;
                     }
+                    .error-thumb-img {
+                        width: 70px;
+                        height: 70px;
+                        object-fit: cover;
+                        border-radius: 6px;
+                        border: 1px solid #ccc;
+                        margin-bottom: 5px;
+                    }
                 </style>
                 """, 
                 unsafe_allow_html=True
             )
 
+            # --- CÁC NÚT THAO TÁC NẰM PHÍA TRÊN DANH SÁCH ---
             st.markdown("---")
             selected_db_ids = []
             
@@ -209,6 +221,7 @@ def render_quan_ly_loi(current_menu_name, current_user_role=None, user_perms=Non
                 btn_del_all = st.button("🗑️ Xóa tất cả trang này", use_container_width=True)
             st.markdown("---")
 
+            # Duyệt danh sách hiển thị
             for idx, row in page_df.iterrows():
                 db_id = row.get('db_id')
                 stt_hien_thi = start_idx + idx + 1
@@ -217,15 +230,7 @@ def render_quan_ly_loi(current_menu_name, current_user_role=None, user_perms=Non
                 phan_loai_val = row.get('Phân Loại Lỗi', '')
                 so_luong_val = row.get('Số Lượng', 0)
                 ghi_chu_val = row.get('Ghi Chú', '')
-                
-                # CƠ CHẾ MỚI: Tự động quét toàn bộ các cột để tìm chuỗi chứa định dạng ảnh hoặc data:image
-                img_data_str = ""
-                for col in row.index:
-                    val_str = str(row[col])
-                    if "data:image" in val_str or "|||" in val_str or val_str.startswith("http://") or val_str.startswith("https://"):
-                        if len(val_str) > 20:
-                            img_data_str = val_str
-                            break
+                img_data_str = row.get("Số Ảnh Đính Kèm", "")
 
                 col_chk, col_info, col_imgs = st.columns([0.4, 3.8, 1.2])
 
@@ -249,33 +254,31 @@ def render_quan_ly_loi(current_menu_name, current_user_role=None, user_perms=Non
                     )
 
                 with col_imgs:
-                    if img_data_str and img_data_str.strip():
-                        separator = "|||" if "|||" in img_data_str else ","
-                        urls = [u.strip() for u in img_data_str.split(separator) if u.strip()]
-                        if urls:
-                            sub_cols = st.columns(min(len(urls), 4), gap="small")
-                            for i, u in enumerate(urls):
-                                with sub_cols[i]:
+                    if img_data_str and isinstance(img_data_str, str) and len(img_data_str.strip()) > 20 and "data:image" in img_data_str:
+                        img_list = img_data_str.split("|||")
+                        img_cols = st.columns(min(len(img_list), 3))
+                        for i, b64_img in enumerate(img_list):
+                            with img_cols[i % len(img_cols)]:
+                                # Sử dụng icon ký tự Unicode thu phóng/khung mở rộng (⛶) giống hình mẫu
+                                with st.popover("⛶", help="Fullscreen"):
+                                    st.markdown("##### 🔍 Chi Tiết Ảnh Lỗi")
                                     try:
-                                        if u.startswith("http://") or u.startswith("https://") or u.startswith("data:image"):
-                                            with st.popover("🔍", help="Xem ảnh lớn"): 
-                                                st.image(u, use_container_width=True)
-                                            st.image(u, width=40)
-                                        elif os.path.exists(u):
-                                            with st.popover("🔍", help="Xem ảnh lớn"): 
-                                                st.image(u, use_container_width=True)
-                                            st.image(u, width=40)
-                                        else:
-                                            st.caption("⚠️ Không tìm thấy ảnh")
+                                        header, encoded = b64_img.split(",", 1)
+                                        img_bytes = base64.b64decode(encoded)
+                                        st.image(img_bytes, use_container_width=True)
                                     except Exception:
-                                        st.caption("❌ Lỗi hiển thị")
-                        else:
-                            st.markdown("<small style='color: gray;'>Không ảnh</small>", unsafe_allow_html=True)
+                                        st.error("Không thể tải ảnh phóng to.")
+                                
+                                st.markdown(
+                                    f'<img src="{b64_img}" class="error-thumb-img" title="Ảnh đính kèm lỗi">', 
+                                    unsafe_allow_html=True
+                                )
                     else:
-                        st.markdown("<small style='color: gray;'>Không ảnh</small>", unsafe_allow_html=True)
+                        st.caption("🖼️ Không có ảnh.")
                 
                 st.markdown("<div style='margin-bottom: 2px;'></div>", unsafe_allow_html=True)
 
+            # Xử lý sự kiện xóa
             if btn_del_selected:
                 if selected_db_ids:
                     try:
