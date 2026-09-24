@@ -16,7 +16,7 @@ def render_quan_ly_loi(current_menu_name):
 
     st.markdown("### ⚠️ Khai Báo Lỗi Phát Sinh")
     
-    # Tải danh mục loại lỗi từ Database
+    # Tải danh mục loại lỗi từ Database Supabase (Không bị mất khi F5/Reboot)
     ds_loai_loi_hien_tai = db.get_error_categories_db()
 
     with st.form("form_khai_bao_loi", clear_on_submit=True):
@@ -52,12 +52,15 @@ def render_quan_ly_loi(current_menu_name):
                 compressed_image_list = []
                 if uploaded_images:
                     for img_file in uploaded_images:
+                        # Nén và mã hóa ảnh sang định dạng base64
                         compressed_b64 = compress_image_to_base64(img_file, max_size=(800, 800), quality=70)
                         if compressed_b64:
                             compressed_image_list.append(compressed_b64)
                 
+                # Ghép các chuỗi base64 lại với nhau bằng dấu phân cách "|||"
                 images_string = "|||".join(compressed_image_list) if compressed_image_list else ""
                 
+                # Lưu trực tiếp xuống Database Supabase
                 response = db.add_error_log_with_images_db(
                     ngay=ngay_phat_sinh,
                     nhan_su=nhan_su_phat_hien,
@@ -69,7 +72,7 @@ def render_quan_ly_loi(current_menu_name):
                 
                 if response is not None:
                     st.cache_data.clear()
-                    st.success(f"✅ Đã ghi nhận báo cáo lỗi và lưu {len(compressed_image_list)} ảnh lên Database thành công!")
+                    st.success(f"✅ Đã ghi nhận báo cáo lỗi và lưu thành công {len(compressed_image_list)} ảnh đính kèm lên Database!")
                     st.rerun()
 
     # --- PHẦN TÙY CHỈNH DANH MỤC LỖI (ĐÃ ĐỒNG BỘ DB) ---
@@ -86,7 +89,7 @@ def render_quan_ly_loi(current_menu_name):
                     if new_loai_loi.strip() not in current_cats:
                         current_cats.append(new_loai_loi.strip())
                         db.save_error_categories_db(current_cats)
-                        st.cache_data.clear() # Xóa cache ngay lập tức để cập nhật dữ liệu mới
+                        st.cache_data.clear()
                         st.success(f"✅ Đã thêm loại lỗi: '{new_loai_loi.strip()}' vào Database!")
                         st.rerun()
                     else:
@@ -103,7 +106,7 @@ def render_quan_ly_loi(current_menu_name):
                 if len(current_cats) > 1:
                     current_cats.remove(loai_loi_can_xoa)
                     db.save_error_categories_db(current_cats)
-                    st.cache_data.clear() # Xóa cache ngay lập tức
+                    st.cache_data.clear()
                     st.success(f"✅ Đã xóa loại lỗi: '{loai_loi_can_xoa}' khỏi Database!")
                     st.rerun()
                 else:
@@ -112,6 +115,7 @@ def render_quan_ly_loi(current_menu_name):
     st.markdown("---")
     st.subheader("📋 Danh Sách Lỗi Đã Khai Báo")
     
+    # Tải dữ liệu từ Database
     df_loi = db.get_error_logs_db()
     
     if not df_loi.empty:
@@ -119,12 +123,12 @@ def render_quan_ly_loi(current_menu_name):
             """
             <style>
                 .error-img-thumb {
-                    width: 50px;
-                    height: 50px;
+                    width: 60px;
+                    height: 60px;
                     object-fit: cover;
-                    border-radius: 4px;
-                    margin-right: 4px;
-                    border: 1px solid #ddd;
+                    border-radius: 6px;
+                    margin-right: 6px;
+                    border: 1px solid #ccc;
                 }
             </style>
             """, 
@@ -135,6 +139,7 @@ def render_quan_ly_loi(current_menu_name):
             st.markdown(f"**STT: {row.get('db_id', idx+1)}** | **Ngày:** {row.get('Ngày')} | **Nhân sự:** {row.get('Nhân Sự')} | **Loại lỗi:** {row.get('Phân Loại Lỗi')} | **Số lượng:** {row.get('Số Lượng')}")
             st.markdown(f"*Ghi chú:* {row.get('Ghi Chú', '')}")
             
+            # Đọc và hiển thị ảnh đính kèm từ cột chuỗi base64
             img_data_str = row.get("Số Ảnh Đính Kèm", "")
             if img_data_str and isinstance(img_data_str, str) and "data:image" in img_data_str:
                 img_list = img_data_str.split("|||")
