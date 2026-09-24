@@ -19,32 +19,32 @@ def render_quan_ly_loi(current_menu_name):
     # Tải danh mục loại lỗi từ Database Supabase
     ds_loai_loi_hien_tai = db.get_error_categories_db()
 
-    with st.form("form_khai_bao_loi", clear_on_submit=True):
-        col1, col2, col3 = st.columns(3)
-        with col1:
-            ngay_phat_sinh = st.date_input("Ngày phát sinh", value=datetime.date.today())
-        with col2:
-            staff_options = ["--- Chọn nhân sự liên quan ---"] + st.session_state.get("staff_list", [])
-            nhan_su_phat_hien = st.selectbox("Nhân sự chịu trách nhiệm/phát hiện", staff_options)
-        with col3:
-            phan_loai_loi = st.selectbox("Phân loại lỗi", ds_loai_loi_hien_tai if isinstance(ds_loai_loi_hien_tai, list) else ["Sản phẩm hỏng"])
-            
-        col_s1, col_s2 = st.columns([1, 2])
-        with col_s1:
-            so_luong_loi = st.number_input("Số lượng sản phẩm lỗi", min_value=1, value=1, step=1)
-        with col_s2:
-            ghi_chu_loi = st.text_input("Ghi chú nguyên nhân / Biện pháp xử lý", placeholder="Nhập nguyên nhân và hướng khắc phục...")
-            
-        # Đưa file_uploader ra ngoài form hoặc xử lý riêng bên dưới form để tránh bị mất buffer file
-        submitted = st.form_submit_button("🚨 Ghi Nhận Lỗi Sản Xuất", use_container_width=True)
-
-    # Đặt file_uploader ra ngoài form để bắt file tải lên chính xác 100%
+    # Khai báo các trường nhập liệu trực tiếp (không dùng st.form để bắt trọn vẹn file ảnh uploader)
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        ngay_phat_sinh = st.date_input("Ngày phát sinh", value=datetime.date.today(), key="input_ngay_loi")
+    with col2:
+        staff_options = ["--- Chọn nhân sự liên quan ---"] + st.session_state.get("staff_list", [])
+        nhan_su_phat_hien = st.selectbox("Nhân sự chịu trách nhiệm/phát hiện", staff_options, key="select_nhan_su_loi")
+    with col3:
+        phan_loai_loi = st.selectbox("Phân loại lỗi", ds_loai_loi_hien_tai if isinstance(ds_loai_loi_hien_tai, list) else ["Sản phẩm hỏng"], key="select_phan_loai_loi")
+        
+    col_s1, col_s2 = st.columns([1, 2])
+    with col_s1:
+        so_luong_loi = st.number_input("Số lượng sản phẩm lỗi", min_value=1, value=1, step=1, key="num_so_luong_loi")
+    with col_s2:
+        ghi_chu_loi = st.text_input("Ghi chú nguyên nhân / Biện pháp xử lý", placeholder="Nhập nguyên nhân và hướng khắc phục...", key="txt_ghi_chu_loi")
+        
+    # File uploader nằm ngay bên ngoài form để nhận diện chính xác file ảnh tải lên
     uploaded_images = st.file_uploader(
         "🖼️ Tải lên hình ảnh đính kèm sự cố (Có thể chọn nhiều ảnh)", 
         type=["png", "jpg", "jpeg"], 
         accept_multiple_files=True, 
         key="uploader_loi_images"
     )
+        
+    st.markdown("<br>", unsafe_allow_html=True)
+    submitted = st.button("🚨 Ghi Nhận Lỗi Sản Xuất", use_container_width=True, key="btn_submit_loi_moi")
 
     if submitted:
         if nhan_su_phat_hien == "--- Chọn nhân sự liên quan ---":
