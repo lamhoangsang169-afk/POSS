@@ -5,18 +5,6 @@ import datetime
 import base64
 import database as db
 
-# Định nghĩa modal dialog hiển thị ảnh kích thước đầy đủ khi bấm nút xem lớn
-@st.dialog("Chi Tiết Hình Ảnh Lỗi")
-def show_image_dialog(b64_img):
-    try:
-        header, encoded = b64_img.split(",", 1)
-        img_bytes = base64.b64decode(encoded)
-        st.image(img_bytes, use_container_width=True)
-    except Exception:
-        st.error("Không thể tải ảnh phóng to.")
-    if st.button("Đóng", use_container_width=True):
-        st.rerun()
-
 def render_quan_ly_loi(current_menu_name):
     # Khởi tạo các biến session state để lưu trạng thái bộ lọc tránh bị mất khi F5 hoặc thao tác
     if "loi_start_date" not in st.session_state:
@@ -208,15 +196,6 @@ def render_quan_ly_loi(current_menu_name):
                         color: #333333;
                         line-height: 1.5;
                     }
-                    .error-thumb-img-fixed {
-                        width: 50px !important;
-                        height: 50px !important;
-                        object-fit: cover;
-                        border-radius: 6px;
-                        border: 1px solid #ccc;
-                        display: block;
-                        margin-bottom: 4px;
-                    }
                 </style>
                 """, 
                 unsafe_allow_html=True
@@ -269,16 +248,12 @@ def render_quan_ly_loi(current_menu_name):
                 with col_imgs:
                     if img_data_str and isinstance(img_data_str, str) and len(img_data_str.strip()) > 20 and "data:image" in img_data_str:
                         img_list = img_data_str.split("|||")
-                        for i, b64_img in enumerate(img_list):
+                        for b64_img in img_list:
                             try:
-                                # Hiển thị ảnh thumbnail cố định 50x50px
-                                st.markdown(
-                                    f'<img src="{b64_img}" class="error-thumb-img-fixed" title="Ảnh đính kèm lỗi">', 
-                                    unsafe_allow_html=True
-                                )
-                                # Nút bấm icon phóng to toàn màn hình (Modal Dialog)
-                                if st.button("⛶ Xem lớn", key=f"btn_zoom_{db_id}_{i}", use_container_width=True):
-                                    show_image_dialog(b64_img)
+                                header, encoded = b64_img.split(",", 1)
+                                img_bytes = base64.b64decode(encoded)
+                                # Dùng st.image với width=50 để hiển thị thumbnail gọn gàng và tự động kích hoạt nút Fullscreen chuẩn của Streamlit khi rê chuột
+                                st.image(img_bytes, width=50)
                             except Exception:
                                 st.error("Không thể tải ảnh.")
                     else:
