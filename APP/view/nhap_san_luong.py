@@ -3,10 +3,9 @@ import streamlit as st
 import pandas as pd
 import datetime
 import base64
-import os
 import database as db
 
-def render_quan_ly_loi(current_menu_name, current_user_role=None, user_perms=None):
+def render_quan_ly_loi(current_menu_name):
     # Khởi tạo các biến session state để lưu trạng thái bộ lọc tránh bị mất khi F5 hoặc thao tác
     if "loi_start_date" not in st.session_state:
         st.session_state.loi_start_date = datetime.date.today() - datetime.timedelta(days=30)
@@ -247,28 +246,18 @@ def render_quan_ly_loi(current_menu_name, current_user_role=None, user_perms=Non
                     )
 
                 with col_imgs:
-                    if img_data_str and isinstance(img_data_str, str) and img_data_str.strip():
-                        separator = "|||" if "|||" in img_data_str else ","
-                        urls = [u.strip() for u in img_data_str.split(separator) if u.strip()]
-                        if urls:
-                            sub_cols = st.columns(min(len(urls), 4), gap="small")
-                            for i, u in enumerate(urls):
-                                with sub_cols[i]:
-                                    try:
-                                        if u.startswith("data:image") or u.startswith("http://") or u.startswith("https://"):
-                                            with st.popover("🔍", help="Xem ảnh lớn"): 
-                                                st.image(u, use_container_width=True)
-                                            st.image(u, width=40)
-                                        elif os.path.exists(u):
-                                            with st.popover("🔍", help="Xem ảnh lớn"): 
-                                                st.image(u, use_container_width=True)
-                                            st.image(u, width=40)
-                                        else:
-                                            st.caption("⚠️ Không tìm thấy ảnh")
-                                    except Exception:
-                                        st.caption("❌ Lỗi hiển thị")
+                    if img_data_str and isinstance(img_data_str, str) and len(img_data_str.strip()) > 20 and "data:image" in img_data_str:
+                        img_list = img_data_str.split("|||")
+                        for b64_img in img_list:
+                            try:
+                                header, encoded = b64_img.split(",", 1)
+                                img_bytes = base64.b64decode(encoded)
+                                # Hiển thị ảnh thu nhỏ với chiều rộng 50px cố định, tự động tích hợp nút Fullscreen khi rê chuột
+                                st.image(img_bytes, width=50)
+                            except Exception:
+                                st.error("Không thể tải ảnh.")
                     else:
-                        st.markdown("<small style='color: gray;'>Không ảnh</small>", unsafe_allow_html=True)
+                        st.caption("🖼️ Không có ảnh.")
                 
                 st.markdown("<div style='margin-bottom: 2px;'></div>", unsafe_allow_html=True)
 
