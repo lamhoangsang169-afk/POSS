@@ -19,7 +19,7 @@ def render_quan_ly_loi(current_menu_name):
     # Tải danh mục loại lỗi từ Database Supabase
     ds_loai_loi_hien_tai = db.get_error_categories_db()
 
-    # Sử dụng st.form với clear_on_submit=True để tự động reset toàn bộ form về mặc định sau khi submit thành công
+    # Sử dụng st.form với clear_on_submit=True để tự động reset form sau khi submit thành công
     with st.form("form_khai_bao_loi", clear_on_submit=True):
         # Hàng 1: Ngày phát sinh, Nhân sự, Phân loại lỗi
         col1, col2, col3 = st.columns(3)
@@ -39,10 +39,10 @@ def render_quan_ly_loi(current_menu_name):
             key="uploader_loi_images"
         )
             
-        # Hàng 3: Số lượng sản phẩm lỗi & Ghi chú
+        # Hàng 3: Số lượng (đổi nhãn thành "Số lượng", cho phép để trống/giá trị 0) & Ghi chú
         col_s1, col_s2 = st.columns([1, 2])
         with col_s1:
-            so_luong_loi = st.number_input("Số lượng sản phẩm lỗi", min_value=1, value=1, step=1, key="num_so_luong_loi")
+            so_luong_loi = st.number_input("Số lượng", min_value=0, value=0, step=1, key="num_so_luong_loi")
         with col_s2:
             ghi_chu_loi = st.text_input("Ghi chú", placeholder="Nhập ghi chú nguyên nhân / hướng khắc phục...", key="txt_ghi_chu_loi")
             
@@ -52,6 +52,8 @@ def render_quan_ly_loi(current_menu_name):
     if submitted:
         if nhan_su_phat_hien == "--- Vui lòng chọn nhân sự ---":
             st.warning("⚠️ Vui lòng chọn nhân sự liên quan!")
+        elif so_luong_loi <= 0:
+            st.warning("⚠️ Vui lòng nhập số lượng sản phẩm lỗi lớn hơn 0!")
         else:
             compressed_image_list = []
             if uploaded_images:
@@ -160,7 +162,7 @@ def render_quan_ly_loi(current_menu_name):
             ngay_val = row.get('Ngày', '')
             nhan_su_val = row.get('Nhân Sự', '')
             phan_loai_val = row.get('Phân Loại Lỗi', '')
-            so_luong_val = row.get('Số Lượng', 1)
+            so_luong_val = row.get('Số Lượng', 0)
             ghi_chu_val = row.get('Ghi Chú', '')
             
             img_data_str = row.get("Số Ảnh Đính Kèm", "")
@@ -172,7 +174,7 @@ def render_quan_ly_loi(current_menu_name):
                     f"""
                     <div class="log-card">
                         <div class="log-card-text">
-                            <b>STT: {stt_hintent_hien_thi := stt_hien_thi}</b> | 📅 <b>Ngày:</b> {ngay_val} | 👤 <b>Nhân sự:</b> {nhan_su_val}<br>
+                            <b>STT: {stt_hien_thi}</b> | 📅 <b>Ngày:</b> {ngay_val} | 👤 <b>Nhân sự:</b> {nhan_su_val}<br>
                             📌 <b>Loại lỗi:</b> <span style="color: #d9534f; font-weight: bold;">{phan_loai_val}</span> | 📦 <b>Số lượng:</b> {so_luong_val} Cái<br>
                             💬 <i>Ghi chú:</i> {ghi_chu_val if ghi_chu_val else "Không có ghi chú"}
                         </div>
