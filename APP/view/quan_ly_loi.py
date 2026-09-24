@@ -19,7 +19,7 @@ def render_quan_ly_loi(current_menu_name):
     # Tải danh mục loại lỗi từ Database Supabase
     ds_loai_loi_hien_tai = db.get_error_categories_db()
 
-    # Khai báo các trường nhập liệu trực tiếp (không dùng st.form để bắt trọn vẹn file ảnh uploader)
+    # Các trường nhập liệu (ngoài form để bắt trọn file ảnh uploader)
     col1, col2, col3 = st.columns(3)
     with col1:
         ngay_phat_sinh = st.date_input("Ngày phát sinh", value=datetime.date.today(), key="input_ngay_loi")
@@ -35,7 +35,6 @@ def render_quan_ly_loi(current_menu_name):
     with col_s2:
         ghi_chu_loi = st.text_input("Ghi chú nguyên nhân / Biện pháp xử lý", placeholder="Nhập nguyên nhân và hướng khắc phục...", key="txt_ghi_chu_loi")
         
-    # File uploader nằm ngay bên ngoài form để nhận diện chính xác file ảnh tải lên
     uploaded_images = st.file_uploader(
         "🖼️ Tải lên hình ảnh đính kèm sự cố (Có thể chọn nhiều ảnh)", 
         type=["png", "jpg", "jpeg"], 
@@ -57,10 +56,8 @@ def render_quan_ly_loi(current_menu_name):
                     if compressed_b64:
                         compressed_image_list.append(compressed_b64)
             
-            # Ghép các chuỗi base64 lại với nhau bằng dấu phân cách "|||"
             images_string = "|||".join(compressed_image_list) if compressed_image_list else ""
             
-            # Lưu xuống Database Supabase
             response = db.add_error_log_with_images_db(
                 ngay=ngay_phat_sinh,
                 nhan_su=nhan_su_phat_hien,
@@ -75,7 +72,7 @@ def render_quan_ly_loi(current_menu_name):
                 st.success(f"✅ Đã ghi nhận báo cáo lỗi và lưu thành công {len(compressed_image_list)} ảnh đính kèm lên Database!")
                 st.rerun()
 
-    # --- PHẦN TÙY CHỈNH DANH MỤC LỖI (ĐÃ ĐỒNG BỘ DB) ---
+    # --- PHẦN TÙY CHỈNH DANH MỤC LỖI (THÊM/BỚT) ---
     with st.expander("⚙️ Tùy Chỉnh Danh Mục Loại Lỗi (Thêm/Bớt)"):
         current_cats = list(db.get_error_categories_db())
         
@@ -119,16 +116,30 @@ def render_quan_ly_loi(current_menu_name):
     df_loi = db.get_error_logs_db()
     
     if not df_loi.empty:
+        # Custom CSS tạo style khung hiển thị giống mẫu chuẩn
         st.markdown(
             """
             <style>
-                .error-img-thumb {
-                    width: 60px;
-                    height: 60px;
+                .log-card {
+                    background-color: #ffffff;
+                    border: 1px solid #e0e0e0;
+                    border-radius: 8px;
+                    padding: 12px 16px;
+                    margin-bottom: 10px;
+                    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+                }
+                .log-card-text {
+                    font-size: 14px;
+                    color: #333333;
+                    line-height: 1.5;
+                }
+                .error-thumb-img {
+                    width: 70px;
+                    height: 70px;
                     object-fit: cover;
                     border-radius: 6px;
-                    margin-right: 6px;
                     border: 1px solid #ccc;
+                    margin-bottom: 5px;
                 }
             </style>
             """, 
@@ -136,22 +147,45 @@ def render_quan_ly_loi(current_menu_name):
         )
 
         for idx, row in df_loi.iterrows():
-            st.markdown(f"**STT: {row.get('db_id', idx+1)}** | **Ngày:** {row.get('Ngày')} | **Nhân sự:** {row.get('Nhân Sự')} | **Loại lỗi:** {row.get('Phân Loại Lỗi')} | **Số lượng:** {row.get('Số Lượng')}")
-            st.markdown(f"*Ghi chú:* {row.get('Ghi Chú', '')}")
-            
-            # Đọc và hiển thị ảnh đính kèm từ cột chuỗi base64
+            stt_hien_thi = row.get('db_id', idx+1)
+            ngay_val = row.get('Ngày', '')
+            nhan_su_val = row.get('Nhân Sự', '')
+            phan_loai_val = row.get('Phân Loại Lỗi', '')
+            so_luong_val = row.get('Số Lượng', 1)
+            ghi_chu_val = row.get('Ghi Chú', '')
             img_data_str = row.get("Số Ảnh Đính Kèm", "")
-            if img_data_str and isinstance(img_data_str, str) and "data:image" in img_data_str:
-                img_list = img_data_str.split("|||")
-                cols_img = st.columns(min(len(img_list), 6))
-                for i, b64_img in enumerate(img_list):
-                    with cols_img[i % len(cols_img)]:
-                        st.markdown(
-                            f'<img src="{b64_img}" class="error-img-thumb" title="Ảnh đính kèm lỗi">', 
-                            unsafe_allow_html=True
-                        )
-            else:
-                st.caption("🖼️ Không có hình ảnh đính kèm.")
-            st.markdown("---")
+
+            # Chia layout thành 2 cột: Cột trái chứa thông tin chi tiết, Cột phải chứa hình ảnh đính kèm
+            col_info, col_imgs = st.columns([4, 1.2])
+
+            with col_info:
+                st.markdown(
+                    f"""
+                    <div class="log-card">
+                        <div class="log-card-text">
+                            <b>STT: {stt_hien_thi}</b> | 📅 <b>Ngày:</b> {ngay_val} | 👤 <b>Nhân sự:</b> {nhan_su_val}<br>
+                            📌 <b>Loại lỗi:</b> <span style="color: #d9534f; font-weight: bold;">{phan_loai_val}</span> | 📦 <b>Số lượng:</b> {so_luong_val} Cái<br>
+                            💬 <i>Ghi chú:</i> {ghi_chu_val if ghi_chu_val else "Không có ghi chú"}
+                        </div>
+                    </div>
+                    """, 
+                    unsafe_allow_html=True
+                )
+
+            with col_imgs:
+                if img_data_str and isinstance(img_data_str, str) and "data:image" in img_data_str:
+                    img_list = img_data_str.split("|||")
+                    # Hiển thị tối đa các ảnh đính kèm theo hàng ngang gọn gàng
+                    img_cols = st.columns(min(len(img_list), 3))
+                    for i, b64_img in enumerate(img_list):
+                        with img_cols[i % len(img_cols)]:
+                            st.markdown(
+                                f'<img src="{b64_img}" class="error-thumb-img" title="Ảnh đính kèm lỗi">', 
+                                unsafe_allow_html=True
+                            )
+                else:
+                    st.caption("🖼️ Không có ảnh.")
+            
+            st.markdown("<div style='margin-bottom: 5px;'></div>", unsafe_allow_html=True)
     else:
         st.info("Chưa có bản ghi lỗi nào trong hệ thống.")
