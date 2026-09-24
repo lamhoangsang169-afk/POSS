@@ -19,7 +19,7 @@ def render_quan_ly_loi(current_menu_name):
     # Tải danh mục loại lỗi từ Database Supabase
     ds_loai_loi_hien_tai = db.get_error_categories_db()
 
-    # Sử dụng st.form để chống chớp màn hình khi tương tác selectbox
+    # Sử dụng st.form với clear_on_submit=True để tự động reset toàn bộ form về mặc định sau khi submit thành công
     with st.form("form_khai_bao_loi", clear_on_submit=True):
         # Hàng 1: Ngày phát sinh, Nhân sự, Phân loại lỗi
         col1, col2, col3 = st.columns(3)
@@ -31,7 +31,7 @@ def render_quan_ly_loi(current_menu_name):
         with col3:
             phan_loai_loi = st.selectbox("Phân loại lỗi", ds_loai_loi_hien_tai if isinstance(ds_loai_loi_hien_tai, list) else ["Sản phẩm hỏng"], key="select_phan_loai_loi")
             
-        # Hàng 2: Tải ảnh đính kèm (đặt ngay bên trong form để người dùng thấy trực quan)
+        # Hàng 2: Tải ảnh đính kèm
         uploaded_images = st.file_uploader(
             "Tải ảnh đính kèm (Tối đa nhiều ảnh)", 
             type=["png", "jpg", "jpeg"], 
@@ -172,7 +172,7 @@ def render_quan_ly_loi(current_menu_name):
                     f"""
                     <div class="log-card">
                         <div class="log-card-text">
-                            <b>STT: {stt_hien_thi}</b> | 📅 <b>Ngày:</b> {ngay_val} | 👤 <b>Nhân sự:</b> {nhan_su_val}<br>
+                            <b>STT: {stt_hintent_hien_thi := stt_hien_thi}</b> | 📅 <b>Ngày:</b> {ngay_val} | 👤 <b>Nhân sự:</b> {nhan_su_val}<br>
                             📌 <b>Loại lỗi:</b> <span style="color: #d9534f; font-weight: bold;">{phan_loai_val}</span> | 📦 <b>Số lượng:</b> {so_luong_val} Cái<br>
                             💬 <i>Ghi chú:</i> {ghi_chu_val if ghi_chu_val else "Không có ghi chú"}
                         </div>
