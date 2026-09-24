@@ -157,17 +157,13 @@ def render_quan_ly_loi(current_menu_name):
     df_loi = db.get_error_logs_db(limit_rows=2000)
     
     if not df_loi.empty:
-        # Chuẩn hóa cột Ngày để lọc
         df_loi["Ngày_DT"] = pd.to_datetime(df_loi["Ngày"], errors="coerce").dt.date
         
-        # Áp dụng bộ lọc thời gian
         filtered_df = df_loi[(df_loi["Ngày_DT"] >= st.session_state.loi_start_date) & (df_loi["Ngày_DT"] <= st.session_state.loi_end_date)]
         
-        # Áp dụng bộ lọc Nhân sự
         if st.session_state.loi_filter_ns != "Tất cả":
             filtered_df = filtered_df[filtered_df["Nhân Sự"] == st.session_state.loi_filter_ns]
             
-        # Áp dụng bộ lọc Phân loại lỗi
         if st.session_state.loi_filter_cat != "Tất cả":
             filtered_df = filtered_df[filtered_df["Phân Loại Lỗi"] == st.session_state.loi_filter_cat]
 
@@ -175,7 +171,6 @@ def render_quan_ly_loi(current_menu_name):
         st.info(f"📅 Khoảng ngày có: {total_records} bản ghi lỗi")
 
         if total_records > 0:
-            # Phân trang
             total_pages = max(1, (total_records + page_size - 1) // page_size)
             p_col1, p_col2 = st.columns([2, 3])
             with p_col1:
@@ -216,10 +211,20 @@ def render_quan_ly_loi(current_menu_name):
                 unsafe_allow_html=True
             )
 
-            # Chọn xóa hàng loạt
+            # --- ĐÃ ĐƯA CÁC NÚT THAO TÁC LÊN PHÍA TRÊN DANH SÁCH ---
+            st.markdown("---")
             selected_db_ids = []
             
-            # Form hoặc checkbox chọn dòng
+            col_act1, col_act2 = st.columns([2, 2])
+            with col_act1:
+                # Tạo trước một vùng chứa tạm để lắng nghe trạng thái nút bấm xóa các dòng đã chọn
+                btn_del_selected = st.button("🗑️ Xóa các dòng đã chọn", use_container_width=True, type="primary")
+            with col_act2:
+                confirm_del_all = st.checkbox("Xác nhận xóa tất cả bản ghi trong trang này", value=False, key="chk_confirm_del_page")
+                btn_del_all = st.button("🗑️ Xóa tất cả trang này", use_container_width=True)
+            st.markdown("---")
+
+            # Duyệt danh sách hiển thị và thu thập ID các dòng được tích chọn
             for idx, row in page_df.iterrows():
                 db_id = row.get('db_id')
                 stt_hien_thi = start_idx + idx + 1
@@ -266,40 +271,34 @@ def render_quan_ly_loi(current_menu_name):
                 
                 st.markdown("<div style='margin-bottom: 2px;'></div>", unsafe_allow_html=True)
 
-            st.markdown("---")
-            
-            # Thao tác xóa các dòng đã chọn / Xóa tất cả trang
-            col_act1, col_act2 = st.columns([2, 2])
-            with col_act1:
-                if st.button("🗑️ Xóa các dòng đã chọn", use_container_width=True, type="primary"):
-                    if selected_db_ids:
+            # Xử lý sự kiện khi bấm nút xóa phía trên
+            if btn_del_selected:
+                if selected_db_ids:
+                    try:
+                        for del_id in selected_db_ids:
+                            db.supabase.table("error_logs").delete().eq("id", del_id).execute()
+                        st.cache_data.clear()
+                        st.success(f"✅ Đã xóa thành công {len(selected_db_ids)} bản ghi lỗi đã chọn!")
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"Lỗi khi xóa bản ghi: {e}")
+                else:
+                    st.warning("⚠️ Vui lòng tích chọn ít nhất một dòng ở danh sách bên dưới để xóa!")
+
+            if btn_del_all:
+                if confirm_del_all:
+                    page_ids = page_df["db_id"].tolist()
+                    if page_ids:
                         try:
-                            for del_id in selected_db_ids:
+                            for del_id in page_ids:
                                 db.supabase.table("error_logs").delete().eq("id", del_id).execute()
                             st.cache_data.clear()
-                            st.success(f"✅ Đã xóa thành công {len(selected_db_ids)} bản ghi lỗi đã chọn!")
+                            st.success(f"✅ Đã xóa toàn bộ {len(page_ids)} bản ghi trong trang này!")
                             st.rerun()
                         except Exception as e:
-                            st.error(f"Lỗi khi xóa bản ghi: {e}")
-                    else:
-                        st.warning("⚠️ Vui lòng tích chọn ít nhất một dòng để xóa!")
-                        
-            with col_act2:
-                confirm_del_all = st.checkbox("Xác nhận xóa tất cả bản ghi trong trang này", value=False, key="chk_confirm_del_page")
-                if st.button("🗑️ Xóa tất cả trang này", use_container_width=True):
-                    if confirm_del_all:
-                        page_ids = page_df["db_id"].tolist()
-                        if page_ids:
-                            try:
-                                for del_id in page_ids:
-                                    db.supabase.table("error_logs").delete().eq("id", del_id).execute()
-                                st.cache_data.clear()
-                                st.success(f"✅ Đã xóa toàn bộ {len(page_ids)} bản ghi trong trang này!")
-                                st.rerun()
-                            except Exception as e:
-                                st.error(f"Lỗi khi xóa: {e}")
-                    else:
-                        st.warning("⚠️ Vui lòng tích vào ô 'Xác nhận xóa tất cả bản ghi trong trang này'!")
+                            st.error(f"Lỗi khi xóa: {e}")
+                else:
+                    st.warning("⚠️ Vui lòng tích vào ô 'Xác nhận xóa tất cả bản ghi trong trang này'!")
         else:
             st.info("Không có bản ghi lỗi nào trong khoảng thời gian và bộ lọc đã chọn.")
     else:
