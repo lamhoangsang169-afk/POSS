@@ -196,14 +196,6 @@ def render_quan_ly_loi(current_menu_name):
                         color: #333333;
                         line-height: 1.5;
                     }
-                    .custom-thumb {
-                        width: 50px !important;
-                        height: 50px !important;
-                        object-fit: cover;
-                        border-radius: 6px;
-                        border: 1px solid #ccc;
-                        margin-bottom: 5px;
-                    }
                 </style>
                 """, 
                 unsafe_allow_html=True
@@ -256,16 +248,12 @@ def render_quan_ly_loi(current_menu_name):
                 with col_imgs:
                     if img_data_str and isinstance(img_data_str, str) and len(img_data_str.strip()) > 20 and "data:image" in img_data_str:
                         img_list = img_data_str.split("|||")
-                        for i, b64_img in enumerate(img_list):
+                        for b64_img in img_list:
                             try:
-                                # Hiển thị ảnh thumbnail kích thước cố định 50x50px
-                                st.markdown(f'<img src="{b64_img}" class="custom-thumb">', unsafe_allow_html=True)
-                                
-                                # Tạo popover với nút icon rõ ràng để xem ảnh lớn kích thước chuẩn gốc
-                                with st.popover("🔍 Xem ảnh lớn", help="Bấm để xem ảnh phóng to"):
-                                    header, encoded = b64_img.split(",", 1)
-                                    img_bytes = base64.b64decode(encoded)
-                                    st.image(img_bytes, use_container_width=True)
+                                header, encoded = b64_img.split(",", 1)
+                                img_bytes = base64.b64decode(encoded)
+                                # Dùng st.image với chiều rộng cố định 60px để hiển thị đúng chuẩn hình mẫu
+                                st.image(img_bytes, width=60)
                             except Exception:
                                 st.error("Không thể tải ảnh.")
                     else:
