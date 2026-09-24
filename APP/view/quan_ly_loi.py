@@ -223,7 +223,13 @@ def render_quan_ly_loi(current_menu_name, current_user_role=None, user_perms=Non
                 phan_loai_val = row.get('Phân Loại Lỗi', '')
                 so_luong_val = row.get('Số Lượng', 0)
                 ghi_chu_val = row.get('Ghi Chú', '')
-                img_data_str = row.get("Số Ảnh Đính Kèm", "")
+                
+                # Tự động quét tìm cột chứa dữ liệu ảnh trong DataFrame
+                img_data_str = ""
+                for col_name in ["Hình Ảnh", "Ảnh", "images", "Số Ảnh Đính Kèm", "Ảnh Đính Kèm"]:
+                    if col_name in row and pd.notna(row[col_name]):
+                        img_data_str = str(row[col_name])
+                        break
 
                 col_chk, col_info, col_imgs = st.columns([0.4, 3.8, 1.2])
 
@@ -255,7 +261,6 @@ def render_quan_ly_loi(current_menu_name, current_user_role=None, user_perms=Non
                             for i, u in enumerate(urls):
                                 with sub_cols[i]:
                                     try:
-                                        # Đã bổ sung điều kiện nhận diện chuỗi Base64 (data:image)
                                         if u.startswith("http://") or u.startswith("https://") or u.startswith("data:image"):
                                             with st.popover("🔍", help="Xem ảnh lớn"): 
                                                 st.image(u, use_container_width=True)
@@ -268,6 +273,8 @@ def render_quan_ly_loi(current_menu_name, current_user_role=None, user_perms=Non
                                             st.caption("⚠️ Không tìm thấy ảnh")
                                     except Exception:
                                         st.caption("❌ Lỗi hiển thị")
+                        else:
+                            st.markdown("<small style='color: gray;'>Không ảnh</small>", unsafe_allow_html=True)
                     else:
                         st.markdown("<small style='color: gray;'>Không ảnh</small>", unsafe_allow_html=True)
                 
