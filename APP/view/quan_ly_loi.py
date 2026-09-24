@@ -196,6 +196,14 @@ def render_quan_ly_loi(current_menu_name):
                         color: #333333;
                         line-height: 1.5;
                     }
+                    .error-thumb-img-fixed {
+                        width: 50px !important;
+                        height: 50px !important;
+                        object-fit: cover;
+                        border-radius: 6px;
+                        border: 1px solid #ccc;
+                        display: block;
+                    }
                 </style>
                 """, 
                 unsafe_allow_html=True
@@ -252,8 +260,17 @@ def render_quan_ly_loi(current_menu_name):
                             try:
                                 header, encoded = b64_img.split(",", 1)
                                 img_bytes = base64.b64decode(encoded)
-                                # Hiển thị ảnh thu nhỏ với chiều rộng 50px cố định, tự động tích hợp nút Fullscreen khi rê chuột
-                                st.image(img_bytes, width=50)
+                                
+                                # Nút icon Fullscreen (⛶) để mở xem ảnh lớn với kích thước gốc đầy đủ
+                                with st.popover("⛶", help="Fullscreen"):
+                                    st.markdown("##### 🔍 Chi Tiết Ảnh Lỗi")
+                                    st.image(img_bytes, use_container_width=True)
+                                
+                                # Hiển thị hình ảnh thu nhỏ cố định 50x50px bằng CSS
+                                st.markdown(
+                                    f'<img src="{b64_img}" class="error-thumb-img-fixed" title="Ảnh đính kèm lỗi">', 
+                                    unsafe_allow_html=True
+                                )
                             except Exception:
                                 st.error("Không thể tải ảnh.")
                     else:
