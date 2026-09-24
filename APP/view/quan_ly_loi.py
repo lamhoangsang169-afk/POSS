@@ -19,7 +19,7 @@ def render_quan_ly_loi(current_menu_name):
     # Tải danh mục loại lỗi từ Database Supabase
     ds_loai_loi_hien_tai = db.get_error_categories_db()
 
-    # Các trường nhập liệu (ngoài form để bắt trọn file ảnh uploader)
+    # Các trường nhập liệu
     col1, col2, col3 = st.columns(3)
     with col1:
         ngay_phat_sinh = st.date_input("Ngày phát sinh", value=datetime.date.today(), key="input_ngay_loi")
@@ -35,12 +35,20 @@ def render_quan_ly_loi(current_menu_name):
     with col_s2:
         ghi_chu_loi = st.text_input("Ghi chú nguyên nhân / Biện pháp xử lý", placeholder="Nhập nguyên nhân và hướng khắc phục...", key="txt_ghi_chu_loi")
         
+    # Sử dụng on_change hoặc lưu trực tiếp file uploader vào session state để giữ buffer ổn định
     uploaded_images = st.file_uploader(
         "🖼️ Tải lên hình ảnh đính kèm sự cố (Có thể chọn nhiều ảnh)", 
         type=["png", "jpg", "jpeg"], 
         accept_multiple_files=True, 
         key="uploader_loi_images"
     )
+
+    # Lưu file uploader vào session state để đảm bảo không bị mất khi bấm nút submit
+    if uploaded_images:
+        st.session_state["cached_uploaded_images"] = uploaded_images
+    else:
+        if "cached_uploaded_images" not in st.session_state:
+            st.session_state["cached_uploaded_images"] = None
         
     st.markdown("<br>", unsafe_allow_html=True)
     submitted = st.button("🚨 Ghi Nhận Lỗi Sản Xuất", use_container_width=True, key="btn_submit_loi_moi")
@@ -50,14 +58,23 @@ def render_quan_ly_loi(current_menu_name):
             st.warning("⚠️ Vui lòng chọn nhân sự liên quan!")
         else:
             compressed_image_list = []
-            if uploaded_images:
-                for img_file in uploaded_images:
+            files_to_process = st.session_state.get("cached_uploaded_images")
+            
+            if files_to_process:
+                for img_file in files_to_process:
+                    # Đưa con trỏ file về vị trí đầu để đảm bảo đọc dữ liệu chính xác
+                    try:
+                        img_file.seek(0)
+                    except Exception:
+                        pass
+                    
                     compressed_b64 = compress_image_to_base64(img_file, max_size=(800, 800), quality=70)
                     if compressed_b64:
                         compressed_image_list.append(compressed_b64)
             
             images_string = "|||".join(compressed_image_list) if compressed_image_list else ""
             
+            # Ghi xuống Database Supabase
             response = db.add_error_log_with_images_db(
                 ngay=ngay_phat_sinh,
                 nhan_su=nhan_su_phat_hien,
@@ -68,6 +85,8 @@ def render_quan_ly_loi(current_menu_name):
             )
             
             if response is not None:
+                # Xóa cache file sau khi lưu thành công
+                st.session_state["cached_uploaded_images"] = None
                 st.cache_data.clear()
                 st.success(f"✅ Đã ghi nhận báo cáo lỗi và lưu thành công {len(compressed_image_list)} ảnh đính kèm lên Database!")
                 st.rerun()
@@ -116,7 +135,6 @@ def render_quan_ly_loi(current_menu_name):
     df_loi = db.get_error_logs_db()
     
     if not df_loi.empty:
-        # Custom CSS tạo style khung hiển thị giống mẫu chuẩn
         st.markdown(
             """
             <style>
@@ -153,9 +171,10 @@ def render_quan_ly_loi(current_menu_name):
             phan_loai_val = row.get('Phân Loại Lỗi', '')
             so_luong_val = row.get('Số Lượng', 1)
             ghi_chu_val = row.get('Ghi Chú', '')
+            
+            # Đọc chuỗi ảnh đính kèm từ cột dữ liệu
             img_data_str = row.get("Số Ảnh Đính Kèm", "")
 
-            # Chia layout thành 2 cột: Cột trái chứa thông tin chi tiết, Cột phải chứa hình ảnh đính kèm
             col_info, col_imgs = st.columns([4, 1.2])
 
             with col_info:
@@ -173,9 +192,8 @@ def render_quan_ly_loi(current_menu_name):
                 )
 
             with col_imgs:
-                if img_data_str and isinstance(img_data_str, str) and "data:image" in img_data_str:
+                if img_data_str and isinstance(img_data_str, str) and len(img_data_str.strip()) > 10 and "data:image" in img_data_str:
                     img_list = img_data_str.split("|||")
-                    # Hiển thị tối đa các ảnh đính kèm theo hàng ngang gọn gàng
                     img_cols = st.columns(min(len(img_list), 3))
                     for i, b64_img in enumerate(img_list):
                         with img_cols[i % len(img_cols)]:
