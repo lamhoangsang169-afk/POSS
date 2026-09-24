@@ -64,7 +64,6 @@ def add_production_log_db(ngay, gio, nhan_su, hang_muc, anh, don_vi, so_luong, h
         return None
 
 def get_production_logs_db(is_deleted=False, limit_rows=1000):
-    """Tăng limit_rows lên 1000 để tải đầy đủ toàn bộ bản ghi từ Supabase"""
     if supabase is None:
         return pd.DataFrame()
     try:
