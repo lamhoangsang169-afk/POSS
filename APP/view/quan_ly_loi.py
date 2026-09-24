@@ -259,8 +259,8 @@ def render_quan_ly_loi(current_menu_name):
                         img_cols = st.columns(min(len(img_list), 3))
                         for i, b64_img in enumerate(img_list):
                             with img_cols[i % len(img_cols)]:
-                                # Nút biểu tượng Fullscreen (⤢) thu gọn dạng icon popover giống hình mẫu
-                                with st.popover("⤢", help="Xem ảnh lớn (Fullscreen)"):
+                                # Sử dụng icon ký tự Unicode thu phóng/khung mở rộng (⛶) giống hình mẫu
+                                with st.popover("⛶", help="Fullscreen"):
                                     st.markdown("##### 🔍 Chi Tiết Ảnh Lỗi")
                                     try:
                                         header, encoded = b64_img.split(",", 1)
