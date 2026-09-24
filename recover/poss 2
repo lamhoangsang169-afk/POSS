@@ -42,7 +42,7 @@ from database import (
 import nhap_san_luong
 import cham_cong
 import bao_cao
-import thu_muc_bao_cao
+import thu_muc_bao_cao  # Đảm bảo đã import đầy đủ view này
 import dinh_muc_cong_viec
 import quan_ly_loi
 import thung_rac
@@ -279,7 +279,6 @@ if "rules_df" not in st.session_state:
         st.session_state.rules_df = pd.DataFrame()
 
 st.session_state.folders = load_folders_db()
-
 db_settings = load_app_settings_db()
 
 st.session_state.primary_color = db_settings.get("primary_color", st.session_state.get("primary_color", "#ff4b4b"))
@@ -317,153 +316,7 @@ st.markdown(f"""
 </style>
 """, unsafe_allow_html=True)
 
-# ==================== THANH ĐIỀU HƯỚNG BÊN TRÁI (SIDEBAR) ====================
-with st.sidebar:
-    st.markdown('<div class="fixed-avatar-container">', unsafe_allow_html=True)
-    
-    has_custom_avatar = False
-    avatar_bytes_obj = None
-    if st.session_state.get("avatar_base64"):
-        try:
-            pure_b64 = st.session_state.avatar_base64.split(",")[1] if "," in st.session_state.avatar_base64 else st.session_state.avatar_base64
-            pure_b64 += "=" * (-len(pure_b64) % 4)
-            avatar_bytes_obj = base64.b64decode(pure_b64)
-            has_custom_avatar = True
-        except Exception:
-            pass
-
-    st.markdown('<div class="avatar-wrapper">', unsafe_allow_html=True)
-    if has_custom_avatar:
-        with st.popover(" ", use_container_width=False):
-            st.markdown("##### 🔍 Xem Ảnh Đại Diện Lớn")
-            st.image(avatar_bytes_obj, use_container_width=True)
-        encoded_img = base64.b64encode(avatar_bytes_obj).decode("utf-8")
-        st.markdown(f'<div style="cursor: pointer; text-align: center;"><img src="data:image/jpeg;base64,{encoded_img}" style="width:140px; height:140px; border-radius:50%; object-fit:cover; border:3px solid {st.session_state.primary_color}; box-shadow:0 4px 10px rgba(0,0,0,0.3);"></div>', unsafe_allow_html=True)
-    else:
-        st.markdown(f'<div style="width:140px; height:140px; border-radius:50%; background:#cbd5e1; display:flex; align-items:center; justify-content:center; font-size:50px; border:3px solid {st.session_state.primary_color}; box-shadow:0 4px 10px rgba(0,0,0,0.3); margin: 0 auto;">👤</div>', unsafe_allow_html=True)
-
-    st.markdown('<div style="position: absolute; bottom: 2px; right: 10px; z-index: 9999999;">', unsafe_allow_html=True)
-    with st.popover("⚙️"):
-        st.markdown("##### ⚙️ Cài Đặt Ảnh Đại Diện")
-        avatar_file = st.file_uploader("Tải ảnh mới", type=["png", "jpg", "jpeg"], key="avatar_uploader_popover_unique", label_visibility="collapsed")
-        if avatar_file is not None:
-            current_file_sig = f"{avatar_file.name}_{avatar_file.size}"
-            if st.session_state.get("last_processed_avatar") != current_file_sig:
-                compressed_avatar = compress_image_to_base64(avatar_file, max_size=(300, 300), quality=60)
-                if compressed_avatar:
-                    st.session_state.avatar_base64 = compressed_avatar
-                    st.session_state["last_processed_avatar"] = current_file_sig
-                    save_app_settings_db({
-                        "primary_color": st.session_state.primary_color, 
-                        "bg_color": st.session_state.bg_color,
-                        "sidebar_bg": st.session_state.sidebar_bg, 
-                        "sidebar_opacity": st.session_state.sidebar_opacity,
-                        "text_color": st.session_state.text_color, 
-                        "bg_image_base64": st.session_state.get("bg_image_base64"),
-                        "avatar_base64": st.session_state.avatar_base64
-                    })
-                    st.success("✅ Đã cập nhật ảnh đại diện thành công!")
-                    st.rerun()
-        if st.session_state.get("avatar_base64"):
-            st.markdown("---")
-            if st.button("🗑️ Xóa Ảnh Đại Diện", use_container_width=True, key="btn_remove_avatar_unique"):
-                st.session_state.avatar_base64 = None
-                st.session_state["last_processed_avatar"] = None
-                save_app_settings_db({
-                    "primary_color": st.session_state.primary_color, 
-                    "bg_color": st.session_state.bg_color,
-                    "sidebar_bg": st.session_state.sidebar_bg, 
-                    "sidebar_opacity": st.session_state.sidebar_opacity,
-                    "text_color": st.session_state.text_color, 
-                    "bg_image_base64": st.session_state.get("bg_image_base64"),
-                    "avatar_base64": None
-                })
-                st.success("✅ Đã xóa ảnh đại diện!")
-                st.rerun()
-    st.markdown('</div></div>', unsafe_allow_html=True)
-
-    role_badge = "👑 Quản Trị Viên (Admin)" if current_user_role == "Admin" else "👤 Nhân Viên"
-    st.markdown(f"""
-        <div style="text-align: center; margin-top: 10px;">
-            <a href="mailto:{st.session_state.user_identifier}" style="color: #2563eb; text-decoration: none; font-weight: 500; font-size: 0.9rem;">
-                📍 {st.session_state.user_identifier}
-            </a>
-            <div style="font-size: 0.85rem; color: #475569; margin-top: 4px;">
-                🛡️ Phân quyền: <span style='color: {'#ff4b4b' if current_user_role=='Admin' else '#3b82f6'}; font-weight:bold;'>{role_badge}</span>
-            </div>
-        </div>
-    """, unsafe_allow_html=True)
-
-    st.markdown("<br>", unsafe_allow_html=True)
-    if st.button("🚪 Đăng Xuất", use_container_width=True):
-        st.session_state.logged_in = False
-        st.session_state.user_identifier = ""
-        if "auth_user" in st.query_params: del st.query_params["auth_user"]
-        st.rerun()
-    st.markdown('</div>', unsafe_allow_html=True)
-
-    st.markdown('<div class="sidebar-scrollable-content">', unsafe_allow_html=True)
-    
-    if st.button("🔄 Cập Nhập", use_container_width=True):
-        st.cache_data.clear()
-        st.rerun()
-        
-    if st.button("⏱️ Chấm Công Ca Làm Việc", use_container_width=True):
-        st.session_state.current_menu = "⏱️ Chấm Công Ca Làm Việc"
-        st.rerun()
-
-    st.markdown("---")
-    st.markdown("### 📂 CHỨC NĂNG HỆ THỐNG")
-    
-    dynamic_menu_items = []
-    if st.session_state.get("folders") and len(st.session_state.folders) > 0:
-        for item in st.session_state.folders[0].get("items", []):
-            if item.get("name"):
-                dynamic_menu_items.append(item.get("name"))
-                
-    if not dynamic_menu_items:
-        dynamic_menu_items = [
-            "1. Nhập Sản Lượng",
-            "📊 Báo Cáo & Biểu Đồ",
-            "📂 Thư Mục Báo Cáo",
-            "📋 Định Mức Công Việc",
-            "🛠️ Quản Lý Lỗi",
-            "🗑️ Thùng Rác"
-        ]
-    
-    chosen_menu = st.radio("📌 Danh Mục Nghiệp Vụ", dynamic_menu_items, label_visibility="collapsed")
-    if chosen_menu:
-        st.session_state.current_menu = chosen_menu
-
-    if current_user_role == "Admin":
-        st.markdown("---")
-        st.markdown("### ⚙️ Cấu Hình Hệ Thống\n(Admin)")
-        if st.button("📁 Quản Lý Thư Mục & Menu", use_container_width=True):
-            st.session_state.current_menu = "📁 Quản Lý Thư Mục & Menu"
-        if st.button("🎨 Cài Đặt Giao Diện", use_container_width=True):
-            st.session_state.current_menu = "🎨 Cài Đặt Giao Diện"
-        if st.button("🛡️ Quản Lý Tài Khoản & Phân Quyền", use_container_width=True):
-            st.session_state.current_menu = "🛡️ Quản Lý Tài Khoản & Phân Quyền"
-        if st.button("🧹 Làm Sạch & Tối Ưu Dữ Liệu", use_container_width=True):
-            st.session_state.current_menu = "🧹 Làm Sạch Dữ Liệu"
-
-    st.markdown("---")
-    if is_supabase_connected:
-        st.markdown('<div style="background-color: #d4edda; border: 1px solid #c3e6cb; padding: 10px; border-radius: 8px; text-align: center; font-size: 0.9rem; font-weight: bold; color: #155724; margin-bottom: 8px;">🟢 Đã kết nối Supabase</div>', unsafe_allow_html=True)
-    else:
-        st.markdown('<div style="background-color: #f8d7da; border: 1px solid #f5c6cb; padding: 10px; border-radius: 8px; text-align: center; font-size: 0.9rem; font-weight: bold; color: #721c24; margin-bottom: 8px;">🔴 Chưa kết nối Supabase</div>', unsafe_allow_html=True)
-
-    ram_usage_str = get_app_memory_usage()
-    db_usage_str, storage_usage_str = get_detailed_storage_usage()
-    total_db_count = get_total_production_count_db()
-
-    st.markdown(f'<div style="background-color: #f8d7da; border: 1px solid #f5c6cb; padding: 8px; border-radius: 8px; text-align: center; font-size: 0.85rem; font-weight: bold; color: #721c24; margin-bottom: 6px;">🧠 RAM App: {ram_usage_str}</div>', unsafe_allow_html=True)
-    st.markdown(f'<div style="background-color: #fff3cd; border: 1px solid #ffeeba; padding: 8px; border-radius: 8px; text-align: center; font-size: 0.85rem; font-weight: bold; color: #856404; margin-bottom: 6px;">💾 Database: {db_usage_str}</div>', unsafe_allow_html=True)
-    st.markdown(f'<div style="background-color: #d1ecf1; border: 1px solid #bee5eb; padding: 8px; border-radius: 8px; text-align: center; font-size: 0.85rem; font-weight: bold; color: #0c5460; margin-bottom: 6px;">🗂️ File Storage: {storage_usage_str}</div>', unsafe_allow_html=True)
-    st.markdown(f'<div style="background-color: #cce5ff; border: 1px solid #b8daff; padding: 8px; border-radius: 8px; text-align: center; font-size: 0.85rem; font-weight: bold; color: #004085; margin-bottom: 6px;">📊 Tổng bản ghi: {total_db_count}</div>', unsafe_allow_html=True)
-    st.markdown('</div>', unsafe_allow_html=True)
-
-# ==================== ĐIỀU HƯỚNG NỘI DUNG CHÍNH (MAIN CONTENT) ====================
+# ==================== ĐỊNH NGHĨA HÀM ĐIỀU HƯỚNG NỘI DUNG CHÍNH ====================
 def render_main_content(current_menu_name):
     menu_lower = current_menu_name.lower()
     
@@ -471,10 +324,10 @@ def render_main_content(current_menu_name):
         nhap_san_luong.render_nhap_san_luong(current_menu_name, current_user_role, user_perms)
     elif "chấm công" in menu_lower:
         cham_cong.render_cham_cong(current_menu_name, current_user_role)
-    elif "báo cáo" in menu_lower or "thống kê" in menu_lower:
-        bao_cao.render_bao_cao(current_menu_name)
     elif "thư mục báo cáo" in menu_lower:
         thu_muc_bao_cao.render_thu_muc_bao_cao(current_menu_name)
+    elif "báo cáo" in menu_lower or "thống kê" in menu_lower:
+        bao_cao.render_bao_cao(current_menu_name)
     elif "định mức" in menu_lower or "tham chiếu" in menu_lower:
         dinh_muc_cong_viec.render_dinh_muc_cong_viec(current_menu_name, current_user_role, user_perms)
     elif "quản lý lỗi" in menu_lower or "quan ly loi" in menu_lower or "lỗi" in menu_lower:
@@ -716,4 +569,151 @@ def render_main_content(current_menu_name):
         st.subheader(current_menu_name)
         st.info(f"Đang hiển thị nội dung cho mục: {current_menu_name}")
 
+# ==================== THANH ĐIỀU HƯỚNG BÊN TRÁI (SIDEBAR) ====================
+with st.sidebar:
+    st.markdown('<div class="fixed-avatar-container">', unsafe_allow_html=True)
+    
+    has_custom_avatar = False
+    avatar_bytes_obj = None
+    if st.session_state.get("avatar_base64"):
+        try:
+            pure_b64 = st.session_state.avatar_base64.split(",")[1] if "," in st.session_state.avatar_base64 else st.session_state.avatar_base64
+            pure_b64 += "=" * (-len(pure_b64) % 4)
+            avatar_bytes_obj = base64.b64decode(pure_b64)
+            has_custom_avatar = True
+        except Exception:
+            pass
+
+    st.markdown('<div class="avatar-wrapper">', unsafe_allow_html=True)
+    if has_custom_avatar:
+        with st.popover(" ", use_container_width=False):
+            st.markdown("##### 🔍 Xem Ảnh Đại Diện Lớn")
+            st.image(avatar_bytes_obj, use_container_width=True)
+        encoded_img = base64.b64encode(avatar_bytes_obj).decode("utf-8")
+        st.markdown(f'<div style="cursor: pointer; text-align: center;"><img src="data:image/jpeg;base64,{encoded_img}" style="width:140px; height:140px; border-radius:50%; object-fit:cover; border:3px solid {st.session_state.primary_color}; box-shadow:0 4px 10px rgba(0,0,0,0.3);"></div>', unsafe_allow_html=True)
+    else:
+        st.markdown(f'<div style="width:140px; height:140px; border-radius:50%; background:#cbd5e1; display:flex; align-items:center; justify-content:center; font-size:50px; border:3px solid {st.session_state.primary_color}; box-shadow:0 4px 10px rgba(0,0,0,0.3); margin: 0 auto;">👤</div>', unsafe_allow_html=True)
+
+    st.markdown('<div style="position: absolute; bottom: 2px; right: 10px; z-index: 9999999;">', unsafe_allow_html=True)
+    with st.popover("⚙️"):
+        st.markdown("##### ⚙️ Cài Đặt Ảnh Đại Diện")
+        avatar_file = st.file_uploader("Tải ảnh mới", type=["png", "jpg", "jpeg"], key="avatar_uploader_popover_unique", label_visibility="collapsed")
+        if avatar_file is not None:
+            current_file_sig = f"{avatar_file.name}_{avatar_file.size}"
+            if st.session_state.get("last_processed_avatar") != current_file_sig:
+                compressed_avatar = compress_image_to_base64(avatar_file, max_size=(300, 300), quality=60)
+                if compressed_avatar:
+                    st.session_state.avatar_base64 = compressed_avatar
+                    st.session_state["last_processed_avatar"] = current_file_sig
+                    save_app_settings_db({
+                        "primary_color": st.session_state.primary_color, 
+                        "bg_color": st.session_state.bg_color,
+                        "sidebar_bg": st.session_state.sidebar_bg, 
+                        "sidebar_opacity": st.session_state.sidebar_opacity,
+                        "text_color": st.session_state.text_color, 
+                        "bg_image_base64": st.session_state.get("bg_image_base64"),
+                        "avatar_base64": st.session_state.avatar_base64
+                    })
+                    st.success("✅ Đã cập nhật ảnh đại diện thành công!")
+                    st.rerun()
+        if st.session_state.get("avatar_base64"):
+            st.markdown("---")
+            if st.button("🗑️ Xóa Ảnh Đại Diện", use_container_width=True, key="btn_remove_avatar_unique"):
+                st.session_state.avatar_base64 = None
+                st.session_state["last_processed_avatar"] = None
+                save_app_settings_db({
+                    "primary_color": st.session_state.primary_color, 
+                    "bg_color": st.session_state.bg_color,
+                    "sidebar_bg": st.session_state.sidebar_bg, 
+                    "sidebar_opacity": st.session_state.sidebar_opacity,
+                    "text_color": st.session_state.text_color, 
+                    "bg_image_base64": st.session_state.get("bg_image_base64"),
+                    "avatar_base64": None
+                })
+                st.success("✅ Đã xóa ảnh đại diện!")
+                st.rerun()
+    st.markdown('</div></div>', unsafe_allow_html=True)
+
+    role_badge = "👑 Quản Trị Viên (Admin)" if current_user_role == "Admin" else "👤 Nhân Viên"
+    st.markdown(f"""
+        <div style="text-align: center; margin-top: 10px;">
+            <a href="mailto:{st.session_state.user_identifier}" style="color: #2563eb; text-decoration: none; font-weight: 500; font-size: 0.9rem;">
+                📍 {st.session_state.user_identifier}
+            </a>
+            <div style="font-size: 0.85rem; color: #475569; margin-top: 4px;">
+                🛡️ Phân quyền: <span style='color: {'#ff4b4b' if current_user_role=='Admin' else '#3b82f6'}; font-weight:bold;'>{role_badge}</span>
+            </div>
+        </div>
+    """, unsafe_allow_html=True)
+
+    st.markdown("<br>", unsafe_allow_html=True)
+    if st.button("🚪 Đăng Xuất", use_container_width=True):
+        st.session_state.logged_in = False
+        st.session_state.user_identifier = ""
+        if "auth_user" in st.query_params: del st.query_params["auth_user"]
+        st.rerun()
+    st.markdown('</div>', unsafe_allow_html=True)
+
+    st.markdown('<div class="sidebar-scrollable-content">', unsafe_allow_html=True)
+    
+    if st.button("🔄 Cập Nhập", use_container_width=True):
+        st.cache_data.clear()
+        st.rerun()
+        
+    if st.button("⏱️ Chấm Công Ca Làm Việc", use_container_width=True):
+        st.session_state.current_menu = "⏱️ Chấm Công Ca Làm Việc"
+        st.rerun()
+
+    st.markdown("---")
+    st.markdown("### 📂 CHỨC NĂNG HỆ THỐNG")
+    
+    dynamic_menu_items = []
+    if st.session_state.get("folders") and len(st.session_state.folders) > 0:
+        for item in st.session_state.folders[0].get("items", []):
+            if item.get("name"):
+                dynamic_menu_items.append(item.get("name"))
+                
+    if not dynamic_menu_items:
+        dynamic_menu_items = [
+            "1. Nhập Sản Lượng",
+            "📊 Báo Cáo & Biểu Đồ",
+            "📂 Thư Mục Báo Cáo",
+            "📋 Định Mức Công Việc",
+            "🛠️ Quản Lý Lỗi",
+            "🗑️ Thùng Rác"
+        ]
+    
+    chosen_menu = st.radio("📌 Danh Mục Nghiệp Vụ", dynamic_menu_items, label_visibility="collapsed")
+    if chosen_menu:
+        st.session_state.current_menu = chosen_menu
+
+    if current_user_role == "Admin":
+        st.markdown("---")
+        st.markdown("### ⚙️ Cấu Hình Hệ Thống\n(Admin)")
+        if st.button("📁 Quản Lý Thư Mục & Menu", use_container_width=True):
+            st.session_state.current_menu = "📁 Quản Lý Thư Mục & Menu"
+        if st.button("🎨 Cài Đặt Giao Diện", use_container_width=True):
+            st.session_state.current_menu = "🎨 Cài Đặt Giao Diện"
+        if st.button("🛡️ Quản Lý Tài Khoản & Phân Quyền", use_container_width=True):
+            st.session_state.current_menu = "🛡️ Quản Lý Tài Khoản & Phân Quyền"
+        if st.button("🧹 Làm Sạch & Tối Ưu Dữ Liệu", use_container_width=True):
+            st.session_state.current_menu = "🧹 Làm Sạch Dữ Liệu"
+
+    st.markdown("---")
+    if is_supabase_connected:
+        st.markdown('<div style="background-color: #d4edda; border: 1px solid #c3e6cb; padding: 10px; border-radius: 8px; text-align: center; font-size: 0.9rem; font-weight: bold; color: #155724; margin-bottom: 8px;">🟢 Đã kết nối Supabase</div>', unsafe_allow_html=True)
+    else:
+        st.markdown('<div style="background-color: #f8d7da; border: 1px solid #f5c6cb; padding: 10px; border-radius: 8px; text-align: center; font-size: 0.9rem; font-weight: bold; color: #721c24; margin-bottom: 8px;">🔴 Chưa kết nối Supabase</div>', unsafe_allow_html=True)
+
+    ram_usage_str = get_app_memory_usage()
+    db_usage_str, storage_usage_str = get_detailed_storage_usage()
+    total_db_count = get_total_production_count_db()
+
+    st.markdown(f'<div style="background-color: #f8d7da; border: 1px solid #f5c6cb; padding: 8px; border-radius: 8px; text-align: center; font-size: 0.85rem; font-weight: bold; color: #721c24; margin-bottom: 6px;">🧠 RAM App: {ram_usage_str}</div>', unsafe_allow_html=True)
+    st.markdown(f'<div style="background-color: #fff3cd; border: 1px solid #ffeeba; padding: 8px; border-radius: 8px; text-align: center; font-size: 0.85rem; font-weight: bold; color: #856404; margin-bottom: 6px;">💾 Database: {db_usage_str}</div>', unsafe_allow_html=True)
+    st.markdown(f'<div style="background-color: #d1ecf1; border: 1px solid #bee5eb; padding: 8px; border-radius: 8px; text-align: center; font-size: 0.85rem; font-weight: bold; color: #0c5460; margin-bottom: 6px;">🗂️ File Storage: {storage_usage_str}</div>', unsafe_allow_html=True)
+    st.markdown(f'<div style="background-color: #cce5ff; border: 1px solid #b8daff; padding: 8px; border-radius: 8px; text-align: center; font-size: 0.85rem; font-weight: bold; color: #004085; margin-bottom: 6px;">📊 Tổng bản ghi: {total_db_count}</div>', unsafe_allow_html=True)
+    st.markdown('</div>', unsafe_allow_html=True)
+
+# ==================== GỌI THỰC THI HIỂN THỊ NỘI DUNG ====================
 render_main_content(st.session_state.current_menu)
