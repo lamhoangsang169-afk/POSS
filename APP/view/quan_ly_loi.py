@@ -146,7 +146,6 @@ def render_quan_ly_loi(current_menu_name):
         curr_cat_idx = cat_filter_opts.index(st.session_state.loi_filter_cat) if st.session_state.loi_filter_cat in cat_filter_opts else 0
         st.session_state.loi_filter_cat = st.selectbox("Lọc theo Phân Loại Lỗi", cat_filter_opts, index=curr_cat_idx, key="widget_loi_cat")
     with f_col5:
-        # Lấy tổng số bản ghi dự kiến để hiển thị chữ dynamic trong nhãn nếu muốn, hoặc dùng nhãn tĩnh chuẩn giao diện mẫu
         st.session_state.loi_page_num = st.number_input("Trang hiển thị", min_value=1, value=st.session_state.loi_page_num, step=1, key="widget_loi_pagenum")
 
     if st.session_state.loi_start_date > st.session_state.loi_end_date:
@@ -174,7 +173,6 @@ def render_quan_ly_loi(current_menu_name):
             page_size = 10  # Mặc định hiển thị 10 dòng mỗi trang
             total_pages = max(1, (total_records + page_size - 1) // page_size)
             
-            # Đảm bảo số trang không vượt quá tổng trang hiện có
             if st.session_state.loi_page_num > total_pages:
                 st.session_state.loi_page_num = total_pages
 
@@ -261,6 +259,16 @@ def render_quan_ly_loi(current_menu_name):
                         img_cols = st.columns(min(len(img_list), 3))
                         for i, b64_img in enumerate(img_list):
                             with img_cols[i % len(img_cols)]:
+                                # Tích hợp Popover để xem ảnh phóng to (Fullscreen/Zoom)
+                                with st.popover("🔍", help="Xem ảnh lớn"):
+                                    st.markdown("##### 🔍 Chi Tiết Ảnh Lỗi")
+                                    try:
+                                        header, encoded = b64_img.split(",", 1)
+                                        img_bytes = base64.b64decode(encoded)
+                                        st.image(img_bytes, use_container_width=True)
+                                    except Exception:
+                                        st.error("Không thể tải ảnh phóng to.")
+                                # Hiển thị ảnh thumbnail nhỏ bên cạnh nút popover hoặc dạng giao diện tương ứng
                                 st.markdown(
                                     f'<img src="{b64_img}" class="error-thumb-img" title="Ảnh đính kèm lỗi">', 
                                     unsafe_allow_html=True
