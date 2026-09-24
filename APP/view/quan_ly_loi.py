@@ -5,7 +5,7 @@ import datetime
 import base64
 import database as db
 
-def render_quan_ly_loi(current_menu_name):
+def render_quan_ly_loi(current_menu_name, current_user_role=None, user_perms=None):
     # Khởi tạo các biến session state để lưu trạng thái bộ lọc tránh bị mất khi F5 hoặc thao tác
     if "loi_start_date" not in st.session_state:
         st.session_state.loi_start_date = datetime.date.today() - datetime.timedelta(days=30)
@@ -252,8 +252,8 @@ def render_quan_ly_loi(current_menu_name):
                             try:
                                 header, encoded = b64_img.split(",", 1)
                                 img_bytes = base64.b64decode(encoded)
-                                # Hiển thị trực tiếp bằng st.image để tự động có nút Fullscreen khi rê chuột vào ảnh
-                                st.image(img_bytes, use_container_width=True)
+                                # Thu nhỏ kích thước ảnh xuống width=40 để hiển thị gọn gàng hơn
+                                st.image(img_bytes, width=40)
                             except Exception:
                                 st.error("Không thể tải ảnh.")
                     else:
