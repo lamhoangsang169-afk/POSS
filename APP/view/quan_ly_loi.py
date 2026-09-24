@@ -252,8 +252,8 @@ def render_quan_ly_loi(current_menu_name):
                             try:
                                 header, encoded = b64_img.split(",", 1)
                                 img_bytes = base64.b64decode(encoded)
-                                # Hiển thị trực tiếp bằng st.image để tự động có nút Fullscreen khi rê chuột vào ảnh
-                                st.image(img_bytes, use_container_width=True)
+                                # Giới hạn chiều rộng ảnh hiển thị thumbnail cố định 50px, tự động có nút Fullscreen khi rê chuột
+                                st.image(img_bytes, width=50)
                             except Exception:
                                 st.error("Không thể tải ảnh.")
                     else:
