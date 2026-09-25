@@ -144,7 +144,6 @@ def save_app_settings_db(settings_dict):
     except Exception as e:
         st.error(f"Lỗi lưu cấu hình: {e}")
 
-# Hàm save_folders_db được cập nhật chính xác theo yêu cầu
 def save_folders_db(folders_list):
     if supabase is None:
         return
@@ -367,7 +366,10 @@ def render_main_content(current_menu_name):
                     
                 submitted_mf = st.form_submit_button("💾 Lưu Thay Đổi", use_container_width=True)
                 if submitted_mf:
-                    new_folders_structure = [{"folder_name": new_folder_name.strip(), "items": updated_items}]
+                    new_folders_structure = [{
+                        "folder_name": new_folder_name.strip() if new_folder_name else "📌 Quản Lý Nghiệp Vụ", 
+                        "items": updated_items
+                    }]
                     st.session_state.folders = new_folders_structure
                     save_folders_db(new_folders_structure)
                     if updated_items:
