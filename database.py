@@ -140,6 +140,7 @@ def load_app_settings_db():
         pass
     return {}
 
+# Cập nhật hàm load_folders_db chính xác theo ảnh yêu cầu
 @st.cache_data(ttl=60, show_spinner=False)
 def load_folders_db():
     default_folders = [{
