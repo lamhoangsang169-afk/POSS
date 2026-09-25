@@ -140,7 +140,7 @@ def load_app_settings_db():
         pass
     return {}
 
-@st.cache_data(ttl=60, show_spinner=False)
+@st.cache_data(ttl=10, show_spinner=False)
 def load_folders_db():
     default_folders = [{
         "folder_name": "📌 Quản Lý Nghiệp Vụ",
@@ -155,32 +155,30 @@ def load_folders_db():
     if supabase is None:
         return default_folders
     try:
-        res = supabase.table("app_folders").select("folders_json").eq("id", 1).execute()
+        res = supabase.table("app_folders").select("*").eq("id", 1).execute()
         if res.data and len(res.data) > 0:
             folders_data = res.data[0].get("folders_json")
             if folders_data and isinstance(folders_data, list):
                 return folders_data
-    except Exception:
-        pass
+    except Exception as e:
+        st.warning(f"⚠️ Không đọc được dữ liệu thư mục từ Database: {e}")
     return default_folders
 
-# Hàm save_folders_db cập nhật trực tiếp theo id = 1
 def save_folders_db(folders_list):
     if supabase is None:
         st.error("⚠️ Chưa kết nối Supabase!")
         return None
     try:
         payload = {"id": 1, "folders_json": folders_list}
-        response = supabase.table("app_folders").update({"folders_json": folders_list}).eq("id", 1).execute()
+        response = supabase.table("app_folders").upsert(payload).execute()
         
-        if not response.data:
-            response = supabase.table("app_folders").insert(payload).execute()
-            
         load_folders_db.clear()
         st.cache_data.clear()
+        
+        st.success("✅ Lưu cấu hình vào Supabase thành công!")
         return response
     except Exception as e:
-        st.error(f"❌ Lỗi lưu thư mục vào Supabase: {e}")
+        st.error(f"❌ Lỗi khi lưu vào Supabase: {e}")
         return None
 
 def update_production_log_deleted_status(db_ids, is_deleted):
