@@ -130,17 +130,17 @@ def render_quan_ly_loi(current_menu_name):
     st.markdown("---")
     st.subheader("📋 Danh Sách Lỗi & Bộ Lọc Nâng Cao")
     
-    # Tải trước toàn bộ dữ liệu lỗi để xử lý bộ lọc động
+    # Tải toàn bộ dữ liệu lỗi để xử lý bộ lọc động theo nhân sự và thời gian
     df_loi = db.get_error_logs_db(limit_rows=2000)
+    
+    staff_filter_opts = ["Tất cả"] + st.session_state.get("staff_list", [])
     
     if not df_loi.empty:
         df_loi["Ngày_DT"] = pd.to_datetime(df_loi["Ngày"], errors="coerce").dt.date
-        # Lọc tạm theo khoảng ngày trước để xác định các loại lỗi mà nhân sự đó thực tế có trong khoảng thời gian này
+        # 1. Lọc dữ liệu thô theo khoảng thời gian trước
         df_temp_date = df_loi[(df_loi["Ngày_DT"] >= st.session_state.loi_start_date) & (df_loi["Ngày_DT"] <= st.session_state.loi_end_date)]
         
-        staff_filter_opts = ["Tất cả"] + st.session_state.get("staff_list", [])
-        
-        # Nếu đã chọn một nhân sự cụ thể, lọc danh sách lỗi theo nhân sự đó để lấy ra các loại lỗi tương ứng
+        # 2. Nếu đã chọn một nhân sự cụ thể, chỉ lấy các loại lỗi do nhân sự đó thực hiện trong khoảng thời gian này
         if st.session_state.get("loi_filter_ns", "Tất cả") != "Tất cả":
             df_temp_staff = df_temp_date[df_temp_date["Nhân Sự"] == st.session_state.loi_filter_ns]
             dynamic_cats = sorted(df_temp_staff["Phân Loại Lỗi"].dropna().unique().tolist())
@@ -149,7 +149,6 @@ def render_quan_ly_loi(current_menu_name):
             
         cat_filter_opts = ["Tất cả"] + dynamic_cats
     else:
-        staff_filter_opts = ["Tất cả"] + st.session_state.get("staff_list", [])
         cat_filter_opts = ["Tất cả"] + list(ds_loai_loi_hien_tai)
 
     # Đảm bảo nếu loại lỗi đang chọn không còn nằm trong danh sách lọc động thì reset về "Tất cả"
