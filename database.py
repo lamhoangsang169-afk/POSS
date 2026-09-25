@@ -140,7 +140,7 @@ def load_app_settings_db():
         pass
     return {}
 
-@st.cache_data(ttl=60, show_spinner=False)
+@st.cache_data(ttl=10, show_spinner=False)
 def load_folders_db():
     default_folders = [{
         "folder_name": "📌 Quản Lý Nghiệp Vụ",
@@ -149,20 +149,42 @@ def load_folders_db():
             {"id": "menu_2", "name": "2. Báo Cáo Thống Kê"},
             {"id": "menu_3", "name": "3. Tham Chiếu Định Mức"},
             {"id": "menu_4", "name": "4. Thùng Rác Sản Lượng"},
-            {"id": "menu_5", "name": "5. Thư Mục Báo Cáo"}
+            {"id": "menu_5", "name": "5. Thư Mục Báo Cáo"},
+            {"id": "menu_6", "name": "6. Quản Lý Lỗi"}
         ]
     }]
     if supabase is None:
         return default_folders
     try:
-        res = supabase.table("app_folders").select("folders_json").eq("id", 1).execute()
+        res = supabase.table("app_folders").select("*").eq("id", 1).execute()
         if res.data and len(res.data) > 0:
             folders_data = res.data[0].get("folders_json")
-            if folders_data:
+            if folders_data and isinstance(folders_data, list):
+                items = folders_data[0].get("items", [])
+                if not any(str(item.get("name", "")).startswith("6.") for item in items):
+                    items.append({"id": "menu_6", "name": "6. Quản Lý Lỗi"})
+                    folders_data[0]["items"] = items
                 return folders_data
-    except Exception:
-        pass
+    except Exception as e:
+        st.warning(f"⚠️ Không đọc được dữ liệu thư mục từ Database: {e}")
     return default_folders
+
+def save_folders_db(folders_list):
+    if supabase is None:
+        st.error("⚠️ Chưa kết nối Supabase!")
+        return None
+    try:
+        payload = {"id": 1, "folders_json": folders_list}
+        response = supabase.table("app_folders").upsert(payload).execute()
+        
+        load_folders_db.clear()
+        st.cache_data.clear()
+        
+        st.success("✅ Lưu cấu hình vào Supabase thành công!")
+        return response
+    except Exception as e:
+        st.error(f"❌ Lỗi khi lưu vào Supabase: {e}")
+        return None
 
 def update_production_log_deleted_status(db_ids, is_deleted):
     if supabase is None or not db_ids:
@@ -309,12 +331,10 @@ def delete_rule_db(db_id):
         pass
     return None
 
-
 # --- CÁC HÀM XỬ LÝ CHO QUẢN LÝ LỖI SẢN XUẤT ---
 
 @st.cache_data(ttl=600, show_spinner=False)
 def get_error_logs_db(limit_rows=1000):
-    """Tải danh sách báo cáo lỗi từ Supabase"""
     if supabase is None:
         return pd.DataFrame()
     try:
@@ -336,7 +356,6 @@ def get_error_logs_db(limit_rows=1000):
     return pd.DataFrame()
 
 def add_error_log_with_images_db(ngay, nhan_su, phan_loai_loi, so_luong, ghi_chu, images_base64_str):
-    """Thêm một báo cáo lỗi mới kèm chuỗi ảnh base64 vào Supabase"""
     if supabase is None:
         return None
     try:
@@ -356,7 +375,6 @@ def add_error_log_with_images_db(ngay, nhan_su, phan_loai_loi, so_luong, ghi_chu
 
 @st.cache_data(ttl=10, show_spinner=False)
 def get_error_categories_db():
-    """Tải danh mục loại lỗi từ bảng riêng error_settings trên Supabase"""
     default_categories = ["Sản phẩm hỏng", "Lỗi nguyên vật liệu", "Lỗi thao tác", "Lỗi máy móc / thiết bị", "Khác"]
     if supabase is None:
         return default_categories
@@ -371,7 +389,6 @@ def get_error_categories_db():
     return default_categories
 
 def save_error_categories_db(categories_list):
-    """Lưu hoặc cập nhật danh mục loại lỗi lên bảng error_settings"""
     if supabase is None:
         return None
     try:
