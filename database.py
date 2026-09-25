@@ -64,6 +64,7 @@ def add_production_log_db(ngay, gio, nhan_su, hang_muc, anh, don_vi, so_luong, h
         return None
 
 def get_production_logs_db(is_deleted=False, limit_rows=1000):
+    """Tăng limit_rows lên 1000 để tải đầy đủ toàn bộ bản ghi từ Supabase"""
     if supabase is None:
         return pd.DataFrame()
     try:
@@ -158,7 +159,7 @@ def load_folders_db():
         res = supabase.table("app_folders").select("folders_json").eq("id", 1).execute()
         if res.data and len(res.data) > 0:
             folders_data = res.data[0].get("folders_json")
-            if folders_data and isinstance(folders_data, list):
+            if folders_data:
                 return folders_data
     except Exception:
         pass
@@ -309,10 +310,12 @@ def delete_rule_db(db_id):
         pass
     return None
 
+
 # --- CÁC HÀM XỬ LÝ CHO QUẢN LÝ LỖI SẢN XUẤT ---
 
 @st.cache_data(ttl=600, show_spinner=False)
 def get_error_logs_db(limit_rows=1000):
+    """Tải danh sách báo cáo lỗi từ Supabase"""
     if supabase is None:
         return pd.DataFrame()
     try:
@@ -334,6 +337,7 @@ def get_error_logs_db(limit_rows=1000):
     return pd.DataFrame()
 
 def add_error_log_with_images_db(ngay, nhan_su, phan_loai_loi, so_luong, ghi_chu, images_base64_str):
+    """Thêm một báo cáo lỗi mới kèm chuỗi ảnh base64 vào Supabase"""
     if supabase is None:
         return None
     try:
@@ -353,6 +357,7 @@ def add_error_log_with_images_db(ngay, nhan_su, phan_loai_loi, so_luong, ghi_chu
 
 @st.cache_data(ttl=10, show_spinner=False)
 def get_error_categories_db():
+    """Tải danh mục loại lỗi từ bảng riêng error_settings trên Supabase"""
     default_categories = ["Sản phẩm hỏng", "Lỗi nguyên vật liệu", "Lỗi thao tác", "Lỗi máy móc / thiết bị", "Khác"]
     if supabase is None:
         return default_categories
@@ -367,6 +372,7 @@ def get_error_categories_db():
     return default_categories
 
 def save_error_categories_db(categories_list):
+    """Lưu hoặc cập nhật danh mục loại lỗi lên bảng error_settings"""
     if supabase is None:
         return None
     try:
