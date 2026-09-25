@@ -72,7 +72,6 @@ def render_quan_ly_loi(current_menu_name):
         elif so_luong_loi <= 0:
             st.warning("⚠️ Vui lòng nhập số lượng sản phẩm lỗi lớn hơn 0!")
         else:
-            # Tối ưu hiệu suất: Tải ảnh trực tiếp lên Supabase Storage thay vì mã hóa Base64
             uploaded_urls = ""
             if uploaded_images:
                 uploaded_urls = db.upload_multiple_images_to_storage(uploaded_images)
@@ -199,91 +198,92 @@ def render_quan_ly_loi(current_menu_name):
                 unsafe_allow_html=True
             )
 
-            st.markdown("---")
-            selected_db_ids = []
-            
-            col_act1, col_act2 = st.columns([2, 2])
-            with col_act1:
-                btn_del_selected = st.button("🗑️ Xóa các dòng đã chọn", use_container_width=True, type="primary")
-            with col_act2:
-                confirm_del_all = st.checkbox("Xác nhận xóa tất cả bản ghi trong trang này", value=False, key="chk_confirm_del_page")
-                btn_del_all = st.button("🗑️ Xóa tất cả trang này", use_container_width=True)
-            st.markdown("---")
-
-            for idx, row in page_df.iterrows():
-                db_id = row.get('db_id')
-                stt_hien_thi = start_idx + idx + 1
-                ngay_val = row.get('Ngày', '')
-                nhan_su_val = row.get('Nhân Sự', '')
-                phan_loai_val = row.get('Phân Loại Lỗi', '')
-                so_luong_val = row.get('Số Lượng', 0)
-                ghi_chu_val = row.get('Ghi Chú', '')
-                img_url_val = row.get("Số Ảnh Đính Kèm", "")
-
-                row_c1, row_c2 = st.columns([4, 1])
-                with row_c1:
-                    st.markdown(
-                        f"""
-                        <div style="background: rgba(255,255,255,0.85); padding: 10px 14px; border-radius: 8px; border: 1px solid rgba(0,0,0,0.1); margin-bottom: 4px; font-size: 0.9rem;">
-                            <b>STT: {stt_hien_thi} (ID: {db_id})</b> &nbsp;|&nbsp; 📅 <b>Ngày:</b> {ngay_val} &nbsp;|&nbsp; 👤 <b>Nhân sự:</b> {nhan_su_val}<br>
-                            📌 <b>Loại lỗi:</b> <span style="color: #d9534f; font-weight: bold;">{phan_loai_val}</span> &nbsp;|&nbsp; 📦 <b>Số lượng:</b> {so_luong_val} Cái<br>
-                            💬 <i>Ghi chú:</i> {ghi_chu_val if ghi_chu_val and str(ghi_chu_val).lower() != 'nan' else 'Không có ghi chú'}
-                        </div>
-                        """, 
-                        unsafe_allow_html=True
-                    )
-                    
-                    if st.checkbox(f"Chọn xóa bản ghi STT {stt_hien_thi}", key=f"chk_loi_{db_id}"):
-                        selected_db_ids.append(db_id)
-                        
-                with row_c2:
-                    if img_url_val and isinstance(img_url_val, str) and img_url_val.strip():
-                        urls = [u.strip() for u in img_url_val.split(",") if u.strip()]
-                        if urls:
-                            sub_cols = st.columns(min(len(urls), 4), gap="small")
-                            for i, u in enumerate(urls):
-                                with sub_cols[i]:
-                                    try:
-                                        if u.startswith("http://") or u.startswith("https://"):
-                                            with st.popover("🔍", help="Xem ảnh lớn"): 
-                                                st.image(u, use_container_width=True)
-                                            st.image(u, width=40)
-                                        else:
-                                            st.caption("⚠️ Không ảnh")
-                                    except Exception:
-                                        st.caption("❌ Lỗi")
-                    else:
-                        st.markdown("<small style='color: gray;'>Không ảnh</small>", unsafe_allow_html=True)
-
+            # --- DÙNG FORM ĐỂ CHỐNG CHỚP MÀN HÌNH KHI TÍCH CHỌN ---
+            with st.form("form_danh_sach_loi"):
+                st.markdown("---")
+                col_act1, col_act2 = st.columns([2, 2])
+                with col_act1:
+                    btn_del_selected = st.form_submit_button("🗑️ Xóa các dòng đã chọn", use_container_width=True)
+                with col_act2:
+                    confirm_del_all = st.checkbox("Xác nhận xóa tất cả bản ghi trong trang này", value=False, key="chk_confirm_del_page")
+                    btn_del_all = st.form_submit_button("🗑️ Xóa tất cả trang này", use_container_width=True)
                 st.markdown("---")
 
-            if btn_del_selected:
-                if selected_db_ids:
-                    try:
-                        for del_id in selected_db_ids:
-                            db.supabase.table("error_logs").delete().eq("id", del_id).execute()
-                        st.cache_data.clear()
-                        st.success(f"✅ Đã xóa thành công {len(selected_db_ids)} bản ghi lỗi đã chọn!")
-                        st.rerun()
-                    except Exception as e:
-                        st.error(f"Lỗi khi xóa bản ghi: {e}")
-                else:
-                    st.warning("⚠️ Vui lòng tích chọn ít nhất một dòng ở danh sách bên dưới để xóa!")
+                selected_db_ids = []
 
-            if btn_del_all:
-                if confirm_del_all:
-                    page_ids = page_df["db_id"].tolist()
-                    if page_ids:
+                for idx, row in page_df.iterrows():
+                    db_id = row.get('db_id')
+                    stt_hien_thi = start_idx + idx + 1
+                    ngay_val = row.get('Ngày', '')
+                    nhan_su_val = row.get('Nhân Sự', '')
+                    phan_loai_val = row.get('Phân Loại Lỗi', '')
+                    so_luong_val = row.get('Số Lượng', 0)
+                    ghi_chu_val = row.get('Ghi Chú', '')
+                    img_url_val = row.get("Số Ảnh Đính Kèm", "")
+
+                    row_c1, row_c2 = st.columns([4, 1])
+                    with row_c1:
+                        st.markdown(
+                            f"""
+                            <div style="background: rgba(255,255,255,0.85); padding: 10px 14px; border-radius: 8px; border: 1px solid rgba(0,0,0,0.1); margin-bottom: 4px; font-size: 0.9rem;">
+                                <b>STT: {stt_hien_thi} (ID: {db_id})</b> &nbsp;|&nbsp; 📅 <b>Ngày:</b> {ngay_val} &nbsp;|&nbsp; 👤 <b>Nhân sự:</b> {nhan_su_val}<br>
+                                📌 <b>Loại lỗi:</b> <span style="color: #d9534f; font-weight: bold;">{phan_loai_val}</span> &nbsp;|&nbsp; 📦 <b>Số lượng:</b> {so_luong_val} Cái<br>
+                                💬 <i>Ghi chú:</i> {ghi_chu_val if ghi_chu_val and str(ghi_chu_val).lower() != 'nan' else 'Không có ghi chú'}
+                            </div>
+                            """, 
+                            unsafe_allow_html=True
+                        )
+                        
+                        if st.checkbox(f"Chọn xóa bản ghi STT {stt_hien_thi}", key=f"chk_loi_{db_id}"):
+                            selected_db_ids.append(db_id)
+                            
+                    with row_c2:
+                        if img_url_val and isinstance(img_url_val, str) and img_url_val.strip():
+                            urls = [u.strip() for u in img_url_val.split(",") if u.strip()]
+                            if urls:
+                                sub_cols = st.columns(min(len(urls), 4), gap="small")
+                                for i, u in enumerate(urls):
+                                    with sub_cols[i]:
+                                        try:
+                                            if u.startswith("http://") or u.startswith("https://"):
+                                                st.image(u, width=40)
+                                            else:
+                                                st.caption("⚠️ Không ảnh")
+                                        except Exception:
+                                            st.caption("❌ Lỗi")
+                        else:
+                            st.markdown("<small style='color: gray;'>Không ảnh</small>", unsafe_allow_html=True)
+
+                    st.markdown("---")
+
+                # Xử lý sự kiện khi bấm nút trong form
+                if btn_del_selected:
+                    if selected_db_ids:
                         try:
-                            for del_id in page_ids:
+                            for del_id in selected_db_ids:
                                 db.supabase.table("error_logs").delete().eq("id", del_id).execute()
                             st.cache_data.clear()
-                            st.success(f"✅ Đã xóa toàn bộ {len(page_ids)} bản ghi trong trang này!")
+                            st.success(f"✅ Đã xóa thành công {len(selected_db_ids)} bản ghi lỗi đã chọn!")
                             st.rerun()
                         except Exception as e:
-                            st.error(f"Lỗi khi xóa: {e}")
-                else:
-                    st.warning("⚠️ Vui lòng tích vào ô 'Xác nhận xóa tất cả bản ghi trong trang này'!")
+                            st.error(f"Lỗi khi xóa bản ghi: {e}")
+                    else:
+                        st.warning("⚠️ Vui lòng tích chọn ít nhất một dòng ở danh sách bên dưới để xóa!")
+
+                if btn_del_all:
+                    if confirm_del_all:
+                        page_ids = page_df["db_id"].tolist()
+                        if page_ids:
+                            try:
+                                for del_id in page_ids:
+                                    db.supabase.table("error_logs").delete().eq("id", del_id).execute()
+                                st.cache_data.clear()
+                                st.success(f"✅ Đã xóa toàn bộ {len(page_ids)} bản ghi trong trang này!")
+                                st.rerun()
+                            except Exception as e:
+                                st.error(f"Lỗi khi xóa: {e}")
+                    else:
+                        st.warning("⚠️ Vui lòng tích vào ô 'Xác nhận xóa tất cả bản ghi trong trang này'!")
         else:
             st.info("Không có bản ghi lỗi nào trong khoảng thời gian và bộ lọc đã chọn.")
     else:
