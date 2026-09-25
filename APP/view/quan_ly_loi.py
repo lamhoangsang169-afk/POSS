@@ -15,9 +15,9 @@ def show_image_dialog(img_url):
         st.rerun()
 
 def render_quan_ly_loi(current_menu_name):
-    # Khởi tạo các biến session state để lưu trạng thái bộ lọc tránh bị mất khi F5 hoặc thao tác
+    # Khởi tạo các biến session state để bộ lọc Từ ngày & Đến ngày mặc định là ngày thực tế (hôm nay)
     if "loi_start_date" not in st.session_state:
-        st.session_state.loi_start_date = datetime.date.today() - datetime.timedelta(days=30)
+        st.session_state.loi_start_date = datetime.date.today()
     if "loi_end_date" not in st.session_state:
         st.session_state.loi_end_date = datetime.date.today()
     if "loi_filter_ns" not in st.session_state:
