@@ -130,18 +130,26 @@ def render_quan_ly_loi(current_menu_name):
     st.markdown("---")
     st.subheader("📋 Danh Sách Lỗi & Bộ Lọc Nâng Cao")
     
-    # Tải toàn bộ dữ liệu lỗi để xử lý bộ lọc động theo nhân sự và thời gian
-    df_loi = db.get_error_logs_db(limit_rows=2000)
+    # Hiển thị các widget lọc (Từ ngày, Đến ngày, Lọc theo Nhân Sự) trước để lấy đúng giá trị hiện tại
+    f_col1, f_col2, f_col3, f_col4, f_col5 = st.columns(5)
     
-    staff_filter_opts = ["Tất cả"] + st.session_state.get("staff_list", [])
+    with f_col1:
+        st.session_state.loi_start_date = st.date_input("Từ ngày", value=st.session_state.loi_start_date, key="widget_loi_start")
+    with f_col2:
+        st.session_state.loi_end_date = st.date_input("Đến ngày", value=st.session_state.loi_end_date, key="widget_loi_end")
+    with f_col3:
+        staff_filter_opts = ["Tất cả"] + st.session_state.get("staff_list", [])
+        curr_ns_idx = staff_filter_opts.index(st.session_state.loi_filter_ns) if st.session_state.loi_filter_ns in staff_filter_opts else 0
+        st.session_state.loi_filter_ns = st.selectbox("Lọc theo Nhân Sự", staff_filter_opts, index=curr_ns_idx, key="widget_loi_ns")
+
+    # Tải dữ liệu và tính toán danh sách loại lỗi động dựa chính xác theo nhân sự và khoảng thời gian vừa chọn
+    df_loi = db.get_error_logs_db(limit_rows=2000)
     
     if not df_loi.empty:
         df_loi["Ngày_DT"] = pd.to_datetime(df_loi["Ngày"], errors="coerce").dt.date
-        # 1. Lọc dữ liệu thô theo khoảng thời gian trước
         df_temp_date = df_loi[(df_loi["Ngày_DT"] >= st.session_state.loi_start_date) & (df_loi["Ngày_DT"] <= st.session_state.loi_end_date)]
         
-        # 2. Nếu đã chọn một nhân sự cụ thể, chỉ lấy các loại lỗi do nhân sự đó thực hiện trong khoảng thời gian này
-        if st.session_state.get("loi_filter_ns", "Tất cả") != "Tất cả":
+        if st.session_state.loi_filter_ns != "Tất cả":
             df_temp_staff = df_temp_date[df_temp_date["Nhân Sự"] == st.session_state.loi_filter_ns]
             dynamic_cats = sorted(df_temp_staff["Phân Loại Lỗi"].dropna().unique().tolist())
         else:
@@ -151,18 +159,9 @@ def render_quan_ly_loi(current_menu_name):
     else:
         cat_filter_opts = ["Tất cả"] + list(ds_loai_loi_hien_tai)
 
-    # Đảm bảo nếu loại lỗi đang chọn không còn nằm trong danh sách lọc động thì reset về "Tất cả"
     if st.session_state.loi_filter_cat not in cat_filter_opts:
         st.session_state.loi_filter_cat = "Tất cả"
 
-    f_col1, f_col2, f_col3, f_col4, f_col5 = st.columns(5)
-    with f_col1:
-        st.session_state.loi_start_date = st.date_input("Từ ngày", value=st.session_state.loi_start_date, key="widget_loi_start")
-    with f_col2:
-        st.session_state.loi_end_date = st.date_input("Đến ngày", value=st.session_state.loi_end_date, key="widget_loi_end")
-    with f_col3:
-        curr_ns_idx = staff_filter_opts.index(st.session_state.loi_filter_ns) if st.session_state.loi_filter_ns in staff_filter_opts else 0
-        st.session_state.loi_filter_ns = st.selectbox("Lọc theo Nhân Sự", staff_filter_opts, index=curr_ns_idx, key="widget_loi_ns")
     with f_col4:
         curr_cat_idx = cat_filter_opts.index(st.session_state.loi_filter_cat) if st.session_state.loi_filter_cat in cat_filter_opts else 0
         st.session_state.loi_filter_cat = st.selectbox("Lọc theo Phân Loại Lỗi", cat_filter_opts, index=curr_cat_idx, key="widget_loi_cat")
