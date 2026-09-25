@@ -47,7 +47,11 @@ import quan_ly_loi
 import thung_rac
 
 # Cấu hình giao diện trang web Streamlit
-st.set_page_config(page_title="Hệ Thống Quản Lý POSS", page_icon="🏭", layout="wide")
+st.set_page_config(
+    page_title="Hệ Thống Quản Lý POSS", 
+    page_icon="logo.png",  # Đường dẫn tới file ảnh logo của bạn
+    layout="wide"
+)
 
 init_db_data()
 
