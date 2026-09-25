@@ -5,6 +5,7 @@ import importlib.util
 import streamlit as st
 import pandas as pd
 import datetime
+import io
 import plotly.graph_objects as go
 
 # ==================== NẠP MODULE ĐỘNG THEO ĐƯỜNG DẪN TUYỆT ĐỐI ====================
@@ -40,7 +41,7 @@ def clean_name(full_name):
 def convert_minutes_to_work_days(total_minutes, minutes_per_day=480):
     """
     Hàm cải tiến quy đổi tổng số phút thành chuỗi chi tiết 'X ngày Y phút'.
-    Mặc định 1 ngày công tiêu chuẩn = 8 tiếng = 480 phút (Bạn có thể sửa số này theo quy định công ty).
+    Mặc định 1 ngày công tiêu chuẩn = 8 tiếng = 480 phút.
     """
     if total_minutes <= 0:
         return "0 ngày"
@@ -136,7 +137,7 @@ def render_bao_cao(current_menu_name):
     cross_df["tong_phut_lam"] = cross_df["tong_phut_lam_viec"].astype(int)
     cross_df["diem_moi_phut"] = (cross_df["tong_diem_tich_luy"] / cross_df["tong_phut_lam"].replace(0, 1)).round(3)
     
-    # === ÁP DỤNG CẢI TIẾN: Quy đổi tổng số phút thành chuỗi chi tiết "X ngày Y phút" ===
+    # Quy đổi tổng số phút thành chuỗi chi tiết "X ngày Y phút"
     cross_df["Số Ngày Làm Việc"] = cross_df["tong_phut_lam"].apply(lambda x: convert_minutes_to_work_days(x, minutes_per_day=480))
     
     cross_display = cross_df[[
@@ -154,12 +155,63 @@ def render_bao_cao(current_menu_name):
 
     st.markdown("---")
 
-    # --- KHỐI BIỂU ĐỒ TRÒN (PIE CHART) & CHI TIẾT TỶ LỆ ---
+    # --- KHỐI BIỂU ĐỒ TRÒN & TÍNH NĂNG XUẤT FILE THỰC TẾ ---
     chart_col, text_col = st.columns([1, 1.2])
     
     with chart_col:
-        st.button("📥 Xuất File & Lưu Cloud", use_container_width=True, key="btn_export_cloud")
-        st.button("💾 Tải File Về Máy", use_container_width=True, key="btn_download_local")
+        st.markdown("##### 📥 Thao Tác Xuất Dữ Liệu")
+        
+        # Chuẩn bị dữ liệu DataFrame để xuất file Excel
+        export_df = cross_display.copy() if 'cross_display' in locals() else summary_staff.copy()
+        
+        output = io.BytesIO()
+        with pd.ExcelWriter(output, engine='openpyxl') as writer:
+            export_df.to_excel(writer, index=False, sheet_name='BaoCao_HieuSuat')
+        excel_data = output.getvalue()
+        
+        file_name_download = f"Bao_Cao_San_Luong_{start_date}_den_{end_date}.xlsx"
+        
+        # Nút tải file Excel về máy tính
+        st.download_button(
+            label="💾 Tải File Về Máy (.xlsx)",
+            data=excel_data,
+            file_name=file_name_download,
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            use_container_width=True
+        )
+        
+        # Nút xuất file và lưu trực tiếp lên Cloud (Supabase Storage)
+        if st.button("☁️ Xuất File & Lưu Cloud", use_container_width=True, key="btn_export_cloud_real"):
+            if db.supabase is not None:
+                try:
+                    bucket_reports = "reports-storage"
+                    unique_filename = f"baocao_{start_date}_{end_date}_{int(datetime.datetime.now().timestamp())}.xlsx"
+                    
+                    db.supabase.storage.from_(bucket_reports).upload(
+                        path=unique_filename,
+                        file=excel_data,
+                        file_options={"content-type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"}
+                    )
+                    
+                    public_report_url = db.supabase.storage.from_(bucket_reports).get_public_url(unique_filename)
+                    
+                    if "cloud_folders" not in st.session_state:
+                        st.session_state["cloud_folders"] = []
+                    
+                    st.session_state["cloud_folders"].append({
+                        "db_id": len(st.session_state["cloud_folders"]) + 1,
+                        "name": unique_filename,
+                        "url": public_report_url,
+                        "is_deleted": False
+                    })
+                    
+                    st.success(f"✅ Đã lưu báo cáo lên Cloud thành công! Tên file: `{unique_filename}`")
+                except Exception as e:
+                    st.error(f"❌ Lỗi tải lên Cloud Storage: {e}")
+            else:
+                st.error("⚠️ Chưa kết nối cơ sở dữ liệu Supabase để lưu file lên Cloud!")
+        
+        st.markdown("<br>", unsafe_allow_html=True)
         
         short_labels = [clean_name(name) for name in summary_staff["Nhân Sự"]]
         color_palette = ['#3b82f6', '#ef4444', '#10b981', '#f59e0b', '#8b5cf6']
