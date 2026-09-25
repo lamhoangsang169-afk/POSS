@@ -42,7 +42,7 @@ from database import (
 import nhap_san_luong
 import cham_cong
 import bao_cao
-import thu_muc_bao_cao  # Đảm bảo đã import đầy đủ view này
+import thu_muc_bao_cao  
 import dinh_muc_cong_viec
 import quan_ly_loi
 import thung_rac
@@ -144,6 +144,7 @@ def save_app_settings_db(settings_dict):
     except Exception as e:
         st.error(f"Lỗi lưu cấu hình: {e}")
 
+# Hàm save_folders_db được cập nhật chính xác theo yêu cầu
 def save_folders_db(folders_list):
     if supabase is None:
         return
@@ -366,9 +367,11 @@ def render_main_content(current_menu_name):
                     
                 submitted_mf = st.form_submit_button("💾 Lưu Thay Đổi", use_container_width=True)
                 if submitted_mf:
-                    new_folders_structure = [{"folder_name": new_folder_name, "items": updated_items}]
+                    new_folders_structure = [{"folder_name": new_folder_name.strip(), "items": updated_items}]
                     st.session_state.folders = new_folders_structure
                     save_folders_db(new_folders_structure)
+                    if updated_items:
+                        st.session_state.current_menu = updated_items[0]["name"]
                     st.success("✅ Đã lưu cấu hình thư mục & menu thành công!")
                     st.rerun()
 
@@ -665,7 +668,7 @@ with st.sidebar:
         st.rerun()
 
     st.markdown("---")
-    # Lấy tên thư mục động từ cấu hình đã lưu
+    # Lấy tên thư mục động hiển thị ra sidebar
     folder_title = st.session_state.get("folders", [{}])[0].get("folder_name", "📂 CHỨC NĂNG HỆ THỐNG")
     st.markdown(f"### {folder_title}")
     
