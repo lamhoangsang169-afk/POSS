@@ -342,15 +342,22 @@ def render_main_content(current_menu_name):
             st.header("Quản Lý Thư Mục & Menu")
         with col_mf_h2:
             if st.button("🔄 Làm mới dữ liệu", use_container_width=True, key="btn_refresh_mf"):
+                load_folders_db.clear()
                 st.cache_data.clear()
+                if "folders" in st.session_state:
+                    del st.session_state["folders"]
                 st.rerun()
 
         if current_user_role != "Admin":
             st.warning("🔒 Bạn không có quyền truy cập trang quản lý cấu hình hệ thống này.")
         else:
+            fresh_folders = load_folders_db()
+            if fresh_folders and isinstance(fresh_folders, list):
+                st.session_state.folders = fresh_folders
+
             with st.form("manage_menu_form"):
                 current_folder_name = st.session_state.folders[0]["folder_name"] if st.session_state.folders else "📌 Quản Lý Nghiệp Vụ"
-                new_folder_name = st.text_input("Tên thư mục", value=current_folder_name)
+                new_folder_name = st.text_input("Tên thư mục", value=current_folder_name, key="input_folder_name_main")
                 
                 current_items = st.session_state.folders[0]["items"] if st.session_state.folders else []
                 
@@ -360,7 +367,7 @@ def render_main_content(current_menu_name):
                     default_name = current_items[i_idx]["name"] if i_idx < len(current_items) else f"{i_idx+1}. Mục mới"
                     default_id = current_items[i_idx]["id"] if i_idx < len(current_items) else f"menu_{i_idx+1}"
                     
-                    new_name = st.text_input(f"Tên hiển thị {i_idx+1}", value=default_name)
+                    new_name = st.text_input(f"Tên hiển thị {i_idx+1}", value=default_name, key=f"input_menu_name_{i_idx}")
                     if new_name.strip():
                         updated_items.append({"id": default_id, "name": new_name.strip()})
                     
@@ -372,8 +379,11 @@ def render_main_content(current_menu_name):
                     }]
                     st.session_state.folders = new_folders_structure
                     save_folders_db(new_folders_structure)
+                    load_folders_db.clear()
+                    
                     if updated_items:
                         st.session_state.current_menu = updated_items[0]["name"]
+                        
                     st.success("✅ Đã lưu cấu hình thư mục & menu thành công!")
                     st.rerun()
 
@@ -662,7 +672,10 @@ with st.sidebar:
     st.markdown('<div class="sidebar-scrollable-content">', unsafe_allow_html=True)
     
     if st.button("🔄 Cập Nhập", use_container_width=True):
+        load_folders_db.clear()
         st.cache_data.clear()
+        if "folders" in st.session_state:
+            del st.session_state["folders"]
         st.rerun()
         
     if st.button("⏱️ Chấm Công Ca Làm Việc", use_container_width=True):
@@ -670,13 +683,14 @@ with st.sidebar:
         st.rerun()
 
     st.markdown("---")
-    # Lấy tên thư mục động hiển thị ra sidebar
-    folder_title = st.session_state.get("folders", [{}])[0].get("folder_name", "📂 CHỨC NĂNG HỆ THỐNG")
+    # Lấy tên thư mục động hiển thị ra sidebar từ session state hoặc database mới nhất
+    current_folders_display = st.session_state.get("folders", load_folders_db())
+    folder_title = current_folders_display[0].get("folder_name", "📌 Quản Lý Nghiệp Vụ") if current_folders_display else "📌 Quản Lý Nghiệp Vụ"
     st.markdown(f"### {folder_title}")
     
     dynamic_menu_items = []
-    if st.session_state.get("folders") and len(st.session_state.folders) > 0:
-        for item in st.session_state.folders[0].get("items", []):
+    if current_folders_display and len(current_folders_display) > 0:
+        for item in current_folders_display[0].get("items", []):
             if item.get("name"):
                 dynamic_menu_items.append(item.get("name"))
                 
