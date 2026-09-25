@@ -140,7 +140,6 @@ def load_app_settings_db():
         pass
     return {}
 
-# Cập nhật hàm load_folders_db chính xác theo ảnh yêu cầu
 @st.cache_data(ttl=60, show_spinner=False)
 def load_folders_db():
     default_folders = [{
@@ -164,6 +163,21 @@ def load_folders_db():
     except Exception:
         pass
     return default_folders
+
+# Hàm save_folders_db đã được cập nhật chuẩn xác chống lỗi upsert
+def save_folders_db(folders_list):
+    if supabase is None:
+        st.error("⚠️ Chưa kết nối Supabase!")
+        return None
+    try:
+        payload = {"id": 1, "folders_json": folders_list}
+        response = supabase.table("app_folders").upsert(payload, on_conflict="id").execute()
+        load_folders_db.clear()
+        st.cache_data.clear()
+        return response
+    except Exception as e:
+        st.error(f"❌ Lỗi lưu thư mục vào Supabase: {e}")
+        return None
 
 def update_production_log_deleted_status(db_ids, is_deleted):
     if supabase is None or not db_ids:
