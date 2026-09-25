@@ -164,14 +164,18 @@ def load_folders_db():
         pass
     return default_folders
 
-# Hàm save_folders_db đã được cập nhật chuẩn xác chống lỗi upsert
+# Hàm save_folders_db cập nhật trực tiếp theo id = 1
 def save_folders_db(folders_list):
     if supabase is None:
         st.error("⚠️ Chưa kết nối Supabase!")
         return None
     try:
         payload = {"id": 1, "folders_json": folders_list}
-        response = supabase.table("app_folders").upsert(payload, on_conflict="id").execute()
+        response = supabase.table("app_folders").update({"folders_json": folders_list}).eq("id", 1).execute()
+        
+        if not response.data:
+            response = supabase.table("app_folders").insert(payload).execute()
+            
         load_folders_db.clear()
         st.cache_data.clear()
         return response
