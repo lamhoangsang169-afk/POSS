@@ -2,16 +2,13 @@
 import streamlit as st
 import pandas as pd
 import datetime
-import base64
 import database as db
 
 # Định nghĩa modal dialog hiển thị ảnh kích thước đầy đủ khi bấm nút xem lớn
 @st.dialog("Chi Tiết Hình Ảnh Lỗi")
-def show_image_dialog(b64_img):
+def show_image_dialog(img_url):
     try:
-        header, encoded = b64_img.split(",", 1)
-        img_bytes = base64.b64decode(encoded)
-        st.image(img_bytes, use_container_width=True)
+        st.image(img_url, use_container_width=True)
     except Exception:
         st.error("Không thể tải ảnh phóng to.")
     if st.button("Đóng", use_container_width=True):
@@ -75,19 +72,10 @@ def render_quan_ly_loi(current_menu_name):
         elif so_luong_loi <= 0:
             st.warning("⚠️ Vui lòng nhập số lượng sản phẩm lỗi lớn hơn 0!")
         else:
-            compressed_image_list = []
+            # Tối ưu hiệu suất: Tải ảnh trực tiếp lên Supabase Storage thay vì mã hóa Base64
+            uploaded_urls = ""
             if uploaded_images:
-                for img_file in uploaded_images:
-                    try:
-                        img_bytes = img_file.read()
-                        encoded_str = base64.b64encode(img_bytes).decode("utf-8")
-                        mime_type = img_file.type if img_file.type else "image/jpeg"
-                        b64_data_uri = f"data:{mime_type};base64,{encoded_str}"
-                        compressed_image_list.append(b64_data_uri)
-                    except Exception as e:
-                        st.error(f"Lỗi đọc file ảnh: {e}")
-            
-            images_string = "|||".join(compressed_image_list) if compressed_image_list else ""
+                uploaded_urls = db.upload_multiple_images_to_storage(uploaded_images)
             
             response = db.add_error_log_with_images_db(
                 ngay=ngay_phat_sinh,
@@ -95,12 +83,12 @@ def render_quan_ly_loi(current_menu_name):
                 phan_loai_loi=phan_loai_loi,
                 so_luong=so_luong_loi,
                 ghi_chu=ghi_chu_loi,
-                images_base64_str=images_string
+                images_base64_str=uploaded_urls
             )
             
             if response is not None:
                 st.cache_data.clear()
-                st.success(f"✅ Đã ghi nhận báo cáo lỗi và lưu thành công {len(compressed_image_list)} ảnh đính kèm lên Database!")
+                st.success("✅ Đã ghi nhận báo cáo lỗi và lưu ảnh lên Supabase Storage thành công!")
                 st.rerun()
 
     # --- PHẦN TÙY CHỈNH DANH MỤC LỖI ---
@@ -143,7 +131,6 @@ def render_quan_ly_loi(current_menu_name):
     st.markdown("---")
     st.subheader("📋 Danh Sách Lỗi & Bộ Lọc Nâng Cao")
     
-    # --- BỘ LỌC ĐƯỢC ĐẶT CHUNG TRÊN 1 HÀNG GỒM 5 CỘT ---
     f_col1, f_col2, f_col3, f_col4, f_col5 = st.columns(5)
     with f_col1:
         st.session_state.loi_start_date = st.date_input("Từ ngày", value=st.session_state.loi_start_date, key="widget_loi_start")
@@ -164,7 +151,6 @@ def render_quan_ly_loi(current_menu_name):
         st.error("⚠️ Ngày bắt đầu không thể lớn hơn ngày kết thúc!")
         return
 
-    # Tải dữ liệu lỗi từ Database
     df_loi = db.get_error_logs_db(limit_rows=2000)
     
     if not df_loi.empty:
@@ -182,7 +168,7 @@ def render_quan_ly_loi(current_menu_name):
         st.info(f"📅 Khoảng ngày có: {total_records} bản ghi lỗi")
 
         if total_records > 0:
-            page_size = 10  # Mặc định hiển thị 10 dòng mỗi trang
+            page_size = 10
             total_pages = max(1, (total_records + page_size - 1) // page_size)
             
             if st.session_state.loi_page_num > total_pages:
@@ -208,21 +194,11 @@ def render_quan_ly_loi(current_menu_name):
                         color: #333333;
                         line-height: 1.5;
                     }
-                    .error-thumb-img-fixed {
-                        width: 50px !important;
-                        height: 50px !important;
-                        object-fit: cover;
-                        border-radius: 6px;
-                        border: 1px solid #ccc;
-                        display: block;
-                        margin-bottom: 4px;
-                    }
                 </style>
                 """, 
                 unsafe_allow_html=True
             )
 
-            # --- CÁC NÚT THAO TÁC NẰM PHÍA TRÊN DANH SÁCH ---
             st.markdown("---")
             selected_db_ids = []
             
@@ -234,7 +210,6 @@ def render_quan_ly_loi(current_menu_name):
                 btn_del_all = st.button("🗑️ Xóa tất cả trang này", use_container_width=True)
             st.markdown("---")
 
-            # Duyệt danh sách hiển thị
             for idx, row in page_df.iterrows():
                 db_id = row.get('db_id')
                 stt_hien_thi = start_idx + idx + 1
@@ -267,26 +242,26 @@ def render_quan_ly_loi(current_menu_name):
                     )
 
                 with col_imgs:
-                    if img_data_str and isinstance(img_data_str, str) and len(img_data_str.strip()) > 20 and "data:image" in img_data_str:
-                        img_list = img_data_str.split("|||")
-                        for i, b64_img in enumerate(img_list):
-                            try:
-                                # Hiển thị ảnh thumbnail cố định 50x50px
-                                st.markdown(
-                                    f'<img src="{b64_img}" class="error-thumb-img-fixed" title="Ảnh đính kèm lỗi">', 
-                                    unsafe_allow_html=True
-                                )
-                                # Nút bấm icon phóng to toàn màn hình (Modal Dialog)
-                                if st.button("⛶ Xem lớn", key=f"btn_zoom_{db_id}_{i}", use_container_width=True):
-                                    show_image_dialog(b64_img)
-                            except Exception:
-                                st.error("Không thể tải ảnh.")
+                    if img_data_str and isinstance(img_data_str, str) and len(img_data_str.strip()) > 5:
+                        urls = [u.strip() for u in img_data_str.split(",") if u.strip()]
+                        if urls:
+                            sub_cols = st.columns(min(len(urls), 4), gap="small")
+                            for i, u in enumerate(urls):
+                                with sub_cols[i]:
+                                    try:
+                                        if u.startswith("http://") or u.startswith("https://"):
+                                            st.image(u, width=50)
+                                            if st.button("⛶ Xem lớn", key=f"btn_zoom_{db_id}_{i}", use_container_width=True):
+                                                show_image_dialog(u)
+                                        else:
+                                            st.caption("⚠️ Không tìm thấy ảnh")
+                                    except Exception:
+                                        st.error("Không thể tải ảnh.")
                     else:
                         st.caption("🖼️ Không có ảnh.")
                 
                 st.markdown("<div style='margin-bottom: 2px;'></div>", unsafe_allow_html=True)
 
-            # Xử lý sự kiện xóa
             if btn_del_selected:
                 if selected_db_ids:
                     try:
