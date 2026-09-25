@@ -180,20 +180,20 @@ def render_bao_cao(current_menu_name):
             use_container_width=True
         )
         
-        # Nút xuất file và lưu trực tiếp lên Cloud (Supabase Storage)
+        # Nút xuất file và lưu trực tiếp lên Cloud (Supabase Storage) - Dùng db_module chuẩn xác
         if st.button("☁️ Xuất File & Lưu Cloud", use_container_width=True, key="btn_export_cloud_real"):
-            if db.supabase is not None:
+            if db_module.supabase is not None:
                 try:
                     bucket_reports = "reports-storage"
                     unique_filename = f"baocao_{start_date}_{end_date}_{int(datetime.datetime.now().timestamp())}.xlsx"
                     
-                    db.supabase.storage.from_(bucket_reports).upload(
+                    db_module.supabase.storage.from_(bucket_reports).upload(
                         path=unique_filename,
                         file=excel_data,
                         file_options={"content-type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"}
                     )
                     
-                    public_report_url = db.supabase.storage.from_(bucket_reports).get_public_url(unique_filename)
+                    public_report_url = db_module.supabase.storage.from_(bucket_reports).get_public_url(unique_filename)
                     
                     if "cloud_folders" not in st.session_state:
                         st.session_state["cloud_folders"] = []
