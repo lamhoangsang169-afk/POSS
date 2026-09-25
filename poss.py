@@ -665,7 +665,9 @@ with st.sidebar:
         st.rerun()
 
     st.markdown("---")
-    st.markdown("### 📂 CHỨC NĂNG HỆ THỐNG")
+    # Lấy tên thư mục động từ cấu hình đã lưu
+    folder_title = st.session_state.get("folders", [{}])[0].get("folder_name", "📂 CHỨC NĂNG HỆ THỐNG")
+    st.markdown(f"### {folder_title}")
     
     dynamic_menu_items = []
     if st.session_state.get("folders") and len(st.session_state.folders) > 0:
