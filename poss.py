@@ -35,14 +35,13 @@ from database import (
     get_production_logs_by_date_range,
     get_total_production_count_db, 
     get_attendance_db,
-    load_app_settings_db, 
-    load_folders_db
+    load_app_settings_db
 )
 
 import nhap_san_luong
 import cham_cong
 import bao_cao
-import thu_muc_bao_cao  # Đảm bảo đã import đầy đủ view này
+import thu_muc_bao_cao  
 import dinh_muc_cong_viec
 import quan_ly_loi
 import thung_rac
@@ -143,17 +142,6 @@ def save_app_settings_db(settings_dict):
         st.cache_data.clear()
     except Exception as e:
         st.error(f"Lỗi lưu cấu hình: {e}")
-
-def save_folders_db(folders_list):
-    if supabase is None:
-        return
-    try:
-        payload = {"id": 1, "folders_json": folders_list}
-        supabase.table("app_folders").upsert(payload).execute()
-        load_folders_db.clear()
-        st.cache_data.clear()
-    except Exception as e:
-        st.error(f"Lỗi lưu thư mục: {e}")
 
 # ==================== KIỂM TRA ĐĂNG NHẬP SESSION ====================
 if "logged_in" not in st.session_state:
@@ -278,7 +266,6 @@ if "rules_df" not in st.session_state:
     except Exception:
         st.session_state.rules_df = pd.DataFrame()
 
-st.session_state.folders = load_folders_db()
 db_settings = load_app_settings_db()
 
 st.session_state.primary_color = db_settings.get("primary_color", st.session_state.get("primary_color", "#ff4b4b"))
@@ -334,43 +321,6 @@ def render_main_content(current_menu_name):
         quan_ly_loi.render_quan_ly_loi(current_menu_name)
     elif "thùng rác" in menu_lower:
         thung_rac.render_thung_rac(current_menu_name, current_user_role)
-        
-    # ==================== QUẢN LÝ THƯ MỤC & MENU ====================
-    elif current_menu_name == "📁 Quản Lý Thư Mục & Menu":
-        col_mf_h1, col_mf_h2 = st.columns([3, 1])
-        with col_mf_h1:
-            st.header("Quản Lý Thư Mục & Menu")
-        with col_mf_h2:
-            if st.button("🔄 Làm mới dữ liệu", use_container_width=True, key="btn_refresh_mf"):
-                st.cache_data.clear()
-                st.rerun()
-
-        if current_user_role != "Admin":
-            st.warning("🔒 Bạn không có quyền truy cập trang quản lý cấu hình hệ thống này.")
-        else:
-            with st.form("manage_menu_form"):
-                current_folder_name = st.session_state.folders[0]["folder_name"] if st.session_state.folders else "📌 Quản Lý Nghiệp Vụ"
-                new_folder_name = st.text_input("Tên thư mục", value=current_folder_name)
-                
-                current_items = st.session_state.folders[0]["items"] if st.session_state.folders else []
-                
-                total_items_count = max(len(current_items), 6)
-                updated_items = []
-                for i_idx in range(total_items_count):
-                    default_name = current_items[i_idx]["name"] if i_idx < len(current_items) else f"{i_idx+1}. Mục mới"
-                    default_id = current_items[i_idx]["id"] if i_idx < len(current_items) else f"menu_{i_idx+1}"
-                    
-                    new_name = st.text_input(f"Tên hiển thị {i_idx+1}", value=default_name)
-                    if new_name.strip():
-                        updated_items.append({"id": default_id, "name": new_name.strip()})
-                    
-                submitted_mf = st.form_submit_button("💾 Lưu Thay Đổi", use_container_width=True)
-                if submitted_mf:
-                    new_folders_structure = [{"folder_name": new_folder_name, "items": updated_items}]
-                    st.session_state.folders = new_folders_structure
-                    save_folders_db(new_folders_structure)
-                    st.success("✅ Đã lưu cấu hình thư mục & menu thành công!")
-                    st.rerun()
 
     # ==================== CÀI ĐẶT GIAO DIỆN ====================
     elif current_menu_name == "🎨 Cài Đặt Giao Diện":
@@ -667,21 +617,14 @@ with st.sidebar:
     st.markdown("---")
     st.markdown("### 📂 CHỨC NĂNG HỆ THỐNG")
     
-    dynamic_menu_items = []
-    if st.session_state.get("folders") and len(st.session_state.folders) > 0:
-        for item in st.session_state.folders[0].get("items", []):
-            if item.get("name"):
-                dynamic_menu_items.append(item.get("name"))
-                
-    if not dynamic_menu_items:
-        dynamic_menu_items = [
-            "1. Nhập Sản Lượng",
-            "📊 Báo Cáo & Biểu Đồ",
-            "📂 Thư Mục Báo Cáo",
-            "📋 Định Mức Công Việc",
-            "🛠️ Quản Lý Lỗi",
-            "🗑️ Thùng Rác"
-        ]
+    dynamic_menu_items = [
+        "1. Nhập Sản Lượng",
+        "📊 Báo Cáo & Biểu Đồ",
+        "📂 Thư Mục Báo Cáo",
+        "📋 Định Mức Công Việc",
+        "🛠️ Quản Lý Lỗi",
+        "🗑️ Thùng Rác"
+    ]
     
     chosen_menu = st.radio("📌 Danh Mục Nghiệp Vụ", dynamic_menu_items, label_visibility="collapsed")
     if chosen_menu:
@@ -690,8 +633,7 @@ with st.sidebar:
     if current_user_role == "Admin":
         st.markdown("---")
         st.markdown("### ⚙️ Cấu Hình Hệ Thống\n(Admin)")
-        if st.button("📁 Quản Lý Thư Mục & Menu", use_container_width=True):
-            st.session_state.current_menu = "📁 Quản Lý Thư Mục & Menu"
+        # Đã loại bỏ nút "📁 Quản Lý Thư Mục & Menu" ở đây
         if st.button("🎨 Cài Đặt Giao Diện", use_container_width=True):
             st.session_state.current_menu = "🎨 Cài Đặt Giao Diện"
         if st.button("🛡️ Quản Lý Tài Khoản & Phân Quyền", use_container_width=True):
