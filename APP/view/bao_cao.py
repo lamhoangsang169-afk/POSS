@@ -59,14 +59,22 @@ def convert_minutes_to_work_days(total_minutes, minutes_per_day=480):
 def render_bao_cao(current_menu_name):
     st.subheader(f"📊 {current_menu_name}")
     
+    # Khởi tạo session state lưu bộ lọc báo cáo để mặc định là ngày hiện tại (hôm nay)
+    if "report_start_date" not in st.session_state:
+        st.session_state.report_start_date = datetime.date.today()
+    if "report_end_date" not in st.session_state:
+        st.session_state.report_end_date = datetime.date.today()
+
     # --- BỘ LỌC THỜI GIAN ---
-    now_vn = datetime.datetime.now(VN_TIMEZONE)
     col_date_1, col_date_2 = st.columns(2)
     with col_date_1:
-        start_date = st.date_input("Từ ngày", now_vn.date() - datetime.timedelta(days=7))
+        start_date = st.date_input("Từ ngày", value=st.session_state.report_start_date, key="widget_report_start")
     with col_date_2:
-        end_date = st.date_input("Đến ngày", now_vn.date())
+        end_date = st.date_input("Đến ngày", value=st.session_state.report_end_date, key="widget_report_end")
         
+    st.session_state.report_start_date = start_date
+    st.session_state.report_end_date = end_date
+
     if start_date > end_date:
         st.error("⚠️ Ngày bắt đầu không thể lớn hơn ngày kết thúc!")
         return
