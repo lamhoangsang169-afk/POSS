@@ -15,11 +15,10 @@ def show_image_dialog(img_url):
         st.rerun()
 
 def render_quan_ly_loi(current_menu_name):
-    # Khởi tạo các biến session state để bộ lọc Từ ngày & Đến ngày mặc định là ngày thực tế (hôm nay)
-    if "loi_start_date" not in st.session_state:
-        st.session_state.loi_start_date = datetime.date.today()
-    if "loi_end_date" not in st.session_state:
-        st.session_state.loi_end_date = datetime.date.today()
+    # Luôn gán lại ngày bắt đầu và kết thúc bằng ngày thực tế (hôm nay) để tự động cập nhật theo ngày mới
+    st.session_state.loi_start_date = datetime.date.today()
+    st.session_state.loi_end_date = datetime.date.today()
+
     if "loi_filter_ns" not in st.session_state:
         st.session_state.loi_filter_ns = "Tất cả"
     if "loi_filter_cat" not in st.session_state:
