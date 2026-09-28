@@ -1,4 +1,3 @@
-# poss.py
 import os
 import sys
 import streamlit as st
@@ -47,7 +46,7 @@ import dinh_muc_cong_viec
 import quan_ly_loi
 import thung_rac
 
-# Cấu hình giao diện trang web Streamlit[cite: 3]
+# Cấu hình giao diện trang web Streamlit
 st.set_page_config(
     page_title="Hệ Thống Quản Lý POSS", 
     page_icon="logo.png", 
@@ -56,11 +55,11 @@ st.set_page_config(
 
 init_db_data()
 
-# Hàm mã hóa mật khẩu bảo mật[cite: 3]
+# Hàm mã hóa mật khẩu bảo mật
 def hash_password(password):
     return hashlib.sha256(password.encode()).hexdigest()
 
-# Hàm đo RAM tiến trình app thuần Python[cite: 3]
+# Hàm đo RAM tiến trình app thuần Python
 def get_app_memory_usage():
     try:
         import psutil
@@ -70,7 +69,7 @@ def get_app_memory_usage():
     except Exception:
         return "Ổn định"
 
-# Hàm tính dung lượng Database và File Storage thực tế từ Supabase[cite: 3]
+# Hàm tính dung lượng Database và File Storage thực tế từ Supabase
 def get_detailed_storage_usage():
     if supabase is None:
         return "0 MB / 500 MB", "0 MB / 1 GB"
@@ -624,33 +623,21 @@ with st.sidebar:
     
     dynamic_menu_items = [
         "1. Nhập Sản Lượng",
-        "📊 Báo Cáo & Biểu Đổ",
+        "📊 Báo Cáo & Biểu Đồ",
         "📂 Thư Mục Báo Cáo",
         "📋 Định Mức Công Việc",
         "🛠️ Quản Lý Lỗi",
         "🗑️ Thùng Rác"
     ]
     
-    # Định nghĩa hàm callback khi người dùng chọn menu qua radio để chống giật lag
-    def on_menu_change():
-        st.session_state.current_menu = st.session_state.nav_radio
-
-    radio_index = 0
-    if st.session_state.current_menu in dynamic_menu_items:
-        radio_index = dynamic_menu_items.index(st.session_state.current_menu)
-
-    st.radio(
-        "📌 Danh Mục Nghiệp Vụ", 
-        dynamic_menu_items, 
-        index=radio_index, 
-        key="nav_radio", 
-        on_change=on_menu_change,
-        label_visibility="collapsed"
-    )
+    chosen_menu = st.radio("📌 Danh Mục Nghiệp Vụ", dynamic_menu_items, label_visibility="collapsed")
+    if chosen_menu:
+        st.session_state.current_menu = chosen_menu
 
     if current_user_role == "Admin":
         st.markdown("---")
         st.markdown("### ⚙️ Cấu Hình Hệ Thống\n(Admin)")
+        # Đã loại bỏ nút "📁 Quản Lý Thư Mục & Menu" ở đây
         if st.button("🎨 Cài Đặt Giao Diện", use_container_width=True):
             st.session_state.current_menu = "🎨 Cài Đặt Giao Diện"
         if st.button("🛡️ Quản Lý Tài Khoản & Phân Quyền", use_container_width=True):
