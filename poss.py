@@ -631,16 +631,16 @@ with st.sidebar:
         "🗑️ Thùng Rác"
     ]
     
-    # Xác định index cho st.radio để không bị ghi đè khi đang ở menu ngoài danh sách chính
     radio_index = 0
     if st.session_state.current_menu in dynamic_menu_items:
         radio_index = dynamic_menu_items.index(st.session_state.current_menu)
 
     chosen_menu = st.radio("📌 Danh Mục Nghiệp Vụ", dynamic_menu_items, index=radio_index, label_visibility="collapsed")
     
+    # Cho phép chuyển menu ngay lập tức khi người dùng bấm chọn vào danh sách chức năng hệ thống
     if chosen_menu and chosen_menu != st.session_state.current_menu:
-        if st.session_state.current_menu in dynamic_menu_items:
-            st.session_state.current_menu = chosen_menu
+        st.session_state.current_menu = chosen_menu
+        st.rerun()
 
     if current_user_role == "Admin":
         st.markdown("---")
