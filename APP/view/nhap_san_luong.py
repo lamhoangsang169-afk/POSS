@@ -32,7 +32,7 @@ get_attendance_db = db_module.get_attendance_db
 get_rules_db = db_module.get_rules_db
 
 
-# ==================== FRAGMENT TỐI ƯU HIỆU NĂNG & CHỐNG CHỚP MÀN HÌNH ====================
+# ==================== FRAGMENT LỌC TỨC THÌ & CHỐNG CHỚP MÀN HÌNH ====================
 @st.fragment
 def render_production_table_fragment(raw_input_df, current_user_role, user_perms):
     now_vn = datetime.datetime.now(VN_TIMEZONE)
@@ -49,83 +49,48 @@ def render_production_table_fragment(raw_input_df, current_user_role, user_perms
         st.info("Chưa có dữ liệu sản lượng.")
         return
 
-    # Khởi tạo giá trị trong session_state nếu chưa có
-    if "f_start_val" not in st.session_state: st.session_state.f_start_val = now_vn.date()
-    if "f_end_val" not in st.session_state: st.session_state.f_end_val = now_vn.date()
-    if "f_hour_chk" not in st.session_state: st.session_state.f_hour_chk = False
-    if "f_start_t_val" not in st.session_state: st.session_state.f_start_t_val = datetime.time(7, 30)
-    if "f_end_t_val" not in st.session_state: st.session_state.f_end_t_val = datetime.time(17, 0)
-    if "f_staff_val" not in st.session_state: st.session_state.f_staff_val = "Tất cả"
-    if "f_task_val" not in st.session_state: st.session_state.f_task_val = "Tất cả"
-
     all_staff_opts = ["Tất cả"] + sorted(raw_input_df["Nhân Sự"].dropna().unique().tolist())
     all_task_opts = ["Tất cả"] + sorted(raw_input_df["Hạng Mục Công Việc"].dropna().unique().tolist())
 
-    # BỌC BỘ LỌC TRONG FORM KẾT HỢP NÚT LỌC VÀ NÚT XÓA BỘ LỌC
-    with st.form("form_filter_san_luong"):
-        f_col1, f_col2, f_col3, f_col4, f_col5 = st.columns([1.2, 1.2, 1.2, 1.2, 1.2])
-        
-        with f_col1:
-            s_date = st.date_input("Từ ngày", value=st.session_state.f_start_val)
-        with f_col2:
-            e_date = st.date_input("Đến ngày", value=st.session_state.f_end_val)
-        with f_col3:
-            h_chk = st.checkbox("Lọc theo Giờ", value=st.session_state.f_hour_chk)
-            s_t = st.time_input("Từ giờ", value=st.session_state.f_start_t_val, label_visibility="collapsed")
-            e_t = st.time_input("Đến giờ", value=st.session_state.f_end_t_val, label_visibility="collapsed")
-        with f_col4:
-            s_staff = st.selectbox("Lọc theo Nhân Sự", all_staff_opts, index=all_staff_opts.index(st.session_state.f_staff_val) if st.session_state.f_staff_val in all_staff_opts else 0)
-            s_task = st.selectbox("Lọc theo Hạng Mục", all_task_opts, index=all_task_opts.index(st.session_state.f_task_val) if st.session_state.f_task_val in all_task_opts else 0)
-        with f_col5:
-            st.markdown("<br>", unsafe_allow_html=True)
-            sub_c1, sub_c2 = st.columns(2)
-            with sub_c1:
-                submitted_filter = st.form_submit_button("🔎 Lọc", use_container_width=True)
-            with sub_c2:
-                submitted_reset = st.form_submit_button("🔄 Xóa", use_container_width=True)
+    # KHÔNG DÙNG FORM NỮA ĐỂ CÁC WIDGET PHẢN HỒI NGAY LẬP TỨC KHI TÍCH CHỌN
+    f_col1, f_col2, f_col3, f_col4, f_col5 = st.columns([1.2, 1.2, 1.2, 1.2, 1.0])
+    
+    with f_col1:
+        start_filter_date = st.date_input("Từ ngày", value=now_vn.date(), key="f_start_live")
+    with f_col2:
+        end_filter_date = st.date_input("Đến ngày", value=now_vn.date(), key="f_end_live")
+    with f_col3:
+        enable_hour_filter = st.checkbox("Lọc theo Giờ", value=False, key="f_hour_live")
+        start_t = st.time_input("Từ giờ", value=datetime.time(7, 30), label_visibility="collapsed", key="f_start_t_live")
+        end_t = st.time_input("Đến giờ", value=datetime.time(17, 0), label_visibility="collapsed", key="f_end_t_live")
+    with f_col4:
+        filter_staff = st.selectbox("Lọc theo Nhân Sự", all_staff_opts, key="f_staff_live")
+        filter_task = st.selectbox("Lọc theo Hạng Mục", all_task_opts, key="f_task_live")
+    with f_col5:
+        st.markdown("<br>", unsafe_allow_html=True)
+        if st.button("🔄 Đặt lại", use_container_width=True, key="btn_reset_live"):
+            st.rerun()
 
-    # Xử lý khi bấm nút "Lọc"
-    if submitted_filter:
-        st.session_state.f_start_val = s_date
-        st.session_state.f_end_val = e_date
-        st.session_state.f_hour_chk = h_chk
-        st.session_state.f_start_t_val = s_t
-        st.session_state.f_end_t_val = e_t
-        st.session_state.f_staff_val = s_staff
-        st.session_state.f_task_val = s_task
-        st.rerun()
-
-    # Xử lý khi bấm nút "Xóa" (đưa bộ lọc về mặc định)
-    if submitted_reset:
-        st.session_state.f_start_val = now_vn.date()
-        st.session_state.f_end_val = now_vn.date()
-        st.session_state.f_hour_chk = False
-        st.session_state.f_start_t_val = datetime.time(7, 30)
-        st.session_state.f_end_t_val = datetime.time(17, 0)
-        st.session_state.f_staff_val = "Tất cả"
-        st.session_state.f_task_val = "Tất cả"
-        st.rerun()
-
-    # Xử lý lọc dữ liệu dựa trên giá trị đã lưu trong session state
+    # XỬ LÝ LỌC DỮ LIỆU NGAY LẬP TỨC KHI THAY ĐỔI GIÁ TRỊ
     temp_filtered_df = raw_input_df.copy()
     temp_filtered_df["Ngày_DT"] = pd.to_datetime(temp_filtered_df["Ngày"], errors='coerce').dt.date
-    temp_filtered_df = temp_filtered_df[(temp_filtered_df["Ngày_DT"] >= st.session_state.f_start_val) & (temp_filtered_df["Ngày_DT"] <= st.session_state.f_end_val)]
+    temp_filtered_df = temp_filtered_df[(temp_filtered_df["Ngày_DT"] >= start_filter_date) & (temp_filtered_df["Ngày_DT"] <= end_filter_date)]
     
-    if st.session_state.f_staff_val != "Tất cả": 
-        temp_filtered_df = temp_filtered_df[temp_filtered_df["Nhân Sự"] == st.session_state.f_staff_val]
+    if filter_staff != "Tất cả": 
+        temp_filtered_df = temp_filtered_df[temp_filtered_df["Nhân Sự"] == filter_staff]
 
-    if st.session_state.f_hour_chk and st.session_state.f_start_t_val and st.session_state.f_end_t_val:
+    if enable_hour_filter and start_t and end_t:
         def check_time_in_range(t_str):
             try:
                 t_val = datetime.datetime.strptime(str(t_str).strip(), "%H:%M:%S").time()
-                return st.session_state.f_start_t_val <= t_val <= st.session_state.f_end_t_val
+                return start_t <= t_val <= end_t
             except:
                 return True
         temp_filtered_df = temp_filtered_df[temp_filtered_df["Thời Gian"].apply(check_time_in_range)]
 
     filtered_df = temp_filtered_df.copy()
-    if st.session_state.f_task_val != "Tất cả": 
-        filtered_df = filtered_df[filtered_df["Hạng Mục Công Việc"] == st.session_state.f_task_val]
+    if filter_task != "Tất cả": 
+        filtered_df = filtered_df[filtered_df["Hạng Mục Công Việc"] == filter_task]
         
     total_rows = len(filtered_df)
     st.markdown(f"<div style='background: rgba(254, 243, 199, 0.6); padding: 8px 12px; border-radius: 6px; border: 1px solid #f59e0b; margin-bottom: 15px; font-weight: bold; color: #b45309;'>📅 Khoảng ngày có: {total_rows} bản ghi</div>", unsafe_allow_html=True)
@@ -141,10 +106,10 @@ def render_production_table_fragment(raw_input_df, current_user_role, user_perms
     end_idx = start_idx + rows_per_page
     paginated_df = filtered_df.iloc[start_idx:end_idx]
 
-    if st.session_state.f_task_val != "Tất cả":
+    if filter_task != "Tất cả":
         total_qty_task = filtered_df["Số Lượng"].sum() if not filtered_df.empty else 0
         unit_name = filtered_df["Đơn Vị"].values[0] if not filtered_df.empty and "Đơn Vị" in filtered_df.columns else "Cái"
-        st.markdown(f'<div style="background: rgba(59, 130, 246, 0.15); padding: 12px 18px; border-radius: 8px; border: 2px solid #3b82f6; margin-bottom: 15px; font-size: 1rem; font-weight: bold; text-align: center;">📊 Tổng số lượng của hạng mục <span style="color: #ff4b4b;">"{st.session_state.f_task_val}"</span>: <span style="font-size: 1.2rem; color: #1d4ed8;">{total_qty_task:,.0f}</span> {unit_name}</div>', unsafe_allow_html=True)
+        st.markdown(f'<div style="background: rgba(59, 130, 246, 0.15); padding: 12px 18px; border-radius: 8px; border: 2px solid #3b82f6; margin-bottom: 15px; font-size: 1rem; font-weight: bold; text-align: center;">📊 Tổng số lượng của hạng mục <span style="color: #ff4b4b;">"{filter_task}"</span>: <span style="font-size: 1.2rem; color: #1d4ed8;">{total_qty_task:,.0f}</span> {unit_name}</div>', unsafe_allow_html=True)
 
     if not paginated_df.empty:
         can_delete_data = (current_user_role == "Admin" or user_perms.get("perm_input", False))
@@ -327,6 +292,6 @@ def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
 
     st.markdown("---")
 
-    # ==================== GỌI KHỐI FRAGMENT DANH SÁCH & HÌNH ẢNH ====================
+    # ==================== GỌI KHỐI FRAGMENT LỌC TỨC THÌ ====================
     raw_input_df = get_production_logs_db(is_deleted=False, limit_rows=2000)
     render_production_table_fragment(raw_input_df, current_user_role, user_perms)
