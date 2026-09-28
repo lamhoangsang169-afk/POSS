@@ -32,7 +32,7 @@ get_attendance_db = db_module.get_attendance_db
 get_rules_db = db_module.get_rules_db
 
 
-# ==================== FRAGMENT LỌC TỨC THÌ & SẮP XẾP BỐ CỤC CHUẨN MẪU ====================
+# ==================== FRAGMENT LỌC TỨC THÌ & TỐI ƯU GIAO DIỆN GIỜ ====================
 @st.fragment
 def render_production_table_fragment(raw_input_df, current_user_role, user_perms):
     now_vn = datetime.datetime.now(VN_TIMEZONE)
@@ -49,8 +49,8 @@ def render_production_table_fragment(raw_input_df, current_user_role, user_perms
         st.info("Chưa có dữ liệu sản lượng.")
         return
 
-    # SẮP XẾP 6 CỘT BỐ CỤC ĐÚNG NHƯ HÌNH MẪU
-    f_col1, f_col2, f_col3, f_col4, f_col5, f_col6 = st.columns([1.1, 1.1, 1.3, 1.3, 1.3, 1.2])
+    # SẮP XẾP 6 CỘT BỐ CỤC BỘ LỌC
+    f_col1, f_col2, f_col3, f_col4, f_col5, f_col6 = st.columns([1.1, 1.1, 1.4, 1.3, 1.3, 1.2])
     
     with f_col1:
         start_filter_date = st.date_input("Từ ngày", value=now_vn.date(), key="f_start_live")
@@ -59,10 +59,15 @@ def render_production_table_fragment(raw_input_df, current_user_role, user_perms
     with f_col3:
         enable_hour_filter = st.checkbox("Lọc theo Giờ", value=False, key="f_hour_live")
         if enable_hour_filter:
-            start_t = st.time_input("Từ giờ", value=datetime.time(7, 30), label_visibility="collapsed", key="f_start_t_live")
-            end_t = st.time_input("Đến giờ", value=datetime.time(17, 0), label_visibility="collapsed", key="f_end_t_live")
+            # Chia 2 cột nhỏ để 2 thanh giờ ngắn gọn nằm cạnh nhau
+            t_col1, t_col2 = st.columns(2)
+            with t_col1:
+                start_t = st.time_input("Từ", value=datetime.time(7, 30), label_visibility="collapsed", key="f_start_t_live")
+            with t_col2:
+                end_t = st.time_input("Đến", value=datetime.time(17, 0), label_visibility="collapsed", key="f_end_t_live")
         else:
             start_t, end_t = None, None
+            
     with f_col4:
         all_staff_opts = ["Tất cả"] + sorted(raw_input_df["Nhân Sự"].dropna().unique().tolist())
         filter_staff = st.selectbox("Lọc theo Nhân Sự", all_staff_opts, key="f_staff_live")
