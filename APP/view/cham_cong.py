@@ -83,6 +83,15 @@ def render_cham_cong(current_menu_name, current_user_role):
                     st.warning(f"⚠️ Nhân sự **{selected_staff}** đã Check-in trước đó và chưa kết thúc ca!")
                 else:
                     add_attendance_log_db(today_str, selected_staff, current_time_str)
+                    
+                    # === ÂM THANH THÔNG BÁO CHECK-IN THÀNH CÔNG ===
+                    st.markdown("""
+                        <audio autoplay style="display:none;">
+                            <source src="https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3" type="audio/mp3">
+                        </audio>
+                    """, unsafe_allow_html=True)
+                    # ===============================================
+
                     st.success(f"✅ Đã Check-in thành công cho **{selected_staff}** lúc {current_time_str}!")
                     st.cache_data.clear()
                     st.rerun()
@@ -109,6 +118,15 @@ def render_cham_cong(current_menu_name, current_user_role):
                         so_phut = 0
 
                     update_attendance_checkout_db(db_id, current_time_str, so_phut, ghi_chu)
+                    
+                    # === ÂM THANH THÔNG BÁO CHECK-OUT THÀNH CÔNG ===
+                    st.markdown("""
+                        <audio autoplay style="display:none;">
+                            <source src="https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3" type="audio/mp3">
+                        </audio>
+                    """, unsafe_allow_html=True)
+                    # ===============================================
+
                     st.success(f"🛑 Đã Check-out thành công cho **{selected_staff}** lúc {current_time_str}! Tổng thời gian: **{so_phut} phút**.")
                     st.cache_data.clear()
                     st.rerun()
