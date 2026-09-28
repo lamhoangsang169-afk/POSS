@@ -631,16 +631,22 @@ with st.sidebar:
         "🗑️ Thùng Rác"
     ]
     
+    # Định nghĩa hàm callback khi người dùng chọn menu qua radio để chống giật lag
+    def on_menu_change():
+        st.session_state.current_menu = st.session_state.nav_radio
+
     radio_index = 0
     if st.session_state.current_menu in dynamic_menu_items:
         radio_index = dynamic_menu_items.index(st.session_state.current_menu)
 
-    chosen_menu = st.radio("📌 Danh Mục Nghiệp Vụ", dynamic_menu_items, index=radio_index, label_visibility="collapsed")
-    
-    # Cho phép chuyển menu ngay lập tức khi người dùng bấm chọn vào danh sách chức năng hệ thống
-    if chosen_menu and chosen_menu != st.session_state.current_menu:
-        st.session_state.current_menu = chosen_menu
-        st.rerun()
+    st.radio(
+        "📌 Danh Mục Nghiệp Vụ", 
+        dynamic_menu_items, 
+        index=radio_index, 
+        key="nav_radio", 
+        on_change=on_menu_change,
+        label_visibility="collapsed"
+    )
 
     if current_user_role == "Admin":
         st.markdown("---")
