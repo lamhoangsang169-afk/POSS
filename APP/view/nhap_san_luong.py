@@ -32,7 +32,7 @@ get_attendance_db = db_module.get_attendance_db
 get_rules_db = db_module.get_rules_db
 
 
-# ==================== FRAGMENT LỌC TỨC THÌ & HẠNG MỤC ĐỒNG BỘ THEO NHÂN SỰ ====================
+# ==================== FRAGMENT LỌC TỨC THÌ & SẮP XẾP BỐ CỤC CHUẨN MẪU ====================
 @st.fragment
 def render_production_table_fragment(raw_input_df, current_user_role, user_perms):
     now_vn = datetime.datetime.now(VN_TIMEZONE)
@@ -49,23 +49,25 @@ def render_production_table_fragment(raw_input_df, current_user_role, user_perms
         st.info("Chưa có dữ liệu sản lượng.")
         return
 
-    # BỐ TRÍ 5 CỘT GIAO DIỆN BỘ LỌC
-    f_col1, f_col2, f_col3, f_col4, f_col5 = st.columns([1.2, 1.2, 1.2, 1.2, 0.9])
+    # SẮP XẾP 6 CỘT BỐ CỤC ĐÚNG NHƯ HÌNH MẪU
+    f_col1, f_col2, f_col3, f_col4, f_col5, f_col6 = st.columns([1.1, 1.1, 1.3, 1.3, 1.3, 1.2])
     
     with f_col1:
         start_filter_date = st.date_input("Từ ngày", value=now_vn.date(), key="f_start_live")
-        end_filter_date = st.date_input("Đến ngày", value=now_vn.date(), key="f_end_live")
-        
     with f_col2:
-        enable_hour_filter = st.checkbox("Lọc theo Giờ", value=False, key="f_hour_live")
-        start_t = st.time_input("Từ giờ", value=datetime.time(7, 30), label_visibility="collapsed", key="f_start_t_live")
-        end_t = st.time_input("Đến giờ", value=datetime.time(17, 0), label_visibility="collapsed", key="f_end_t_live")
-
+        end_filter_date = st.date_input("Đến ngày", value=now_vn.date(), key="f_end_live")
     with f_col3:
+        enable_hour_filter = st.checkbox("Lọc theo Giờ", value=False, key="f_hour_live")
+        if enable_hour_filter:
+            start_t = st.time_input("Từ giờ", value=datetime.time(7, 30), label_visibility="collapsed", key="f_start_t_live")
+            end_t = st.time_input("Đến giờ", value=datetime.time(17, 0), label_visibility="collapsed", key="f_end_t_live")
+        else:
+            start_t, end_t = None, None
+    with f_col4:
         all_staff_opts = ["Tất cả"] + sorted(raw_input_df["Nhân Sự"].dropna().unique().tolist())
         filter_staff = st.selectbox("Lọc theo Nhân Sự", all_staff_opts, key="f_staff_live")
 
-    # --- BƯỚC 1: LỌC TRƯỚC DỮ LIỆU THEO NGÀY, GIỜ VÀ NHÂN SỰ ĐỂ LẤY DANH SÁCH HẠNG MỤC CHUẨN XÁC ---
+    # --- BƯỚC 1: LỌC TRƯỚC DỮ LIỆU ĐỂ ĐỒNG BỘ DANH MỤC HẠNG MỤC THEO NHÂN SỰ ---
     df_pre_filter = raw_input_df.copy()
     df_pre_filter["Ngày_DT"] = pd.to_datetime(df_pre_filter["Ngày"], errors='coerce').dt.date
     df_pre_filter = df_pre_filter[(df_pre_filter["Ngày_DT"] >= start_filter_date) & (df_pre_filter["Ngày_DT"] <= end_filter_date)]
@@ -82,23 +84,16 @@ def render_production_table_fragment(raw_input_df, current_user_role, user_perms
                 return True
         df_pre_filter = df_pre_filter[df_pre_filter["Thời Gian"].apply(check_time_pre)]
 
-    # Trích xuất danh mục hạng mục chỉ thuộc riêng về nhân sự và khoảng thời gian đó
     dynamic_tasks = sorted(df_pre_filter["Hạng Mục Công Việc"].dropna().unique().tolist()) if not df_pre_filter.empty else []
     all_task_opts = ["Tất cả"] + dynamic_tasks
 
-    # Nếu hạng mục đang chọn không còn nằm trong danh sách của nhân sự đó thì tự động reset về "Tất cả"
     if st.session_state.get("f_task_live") not in all_task_opts:
         st.session_state["f_task_live"] = "Tất cả"
 
-    with f_col4:
-        filter_task = st.selectbox("Lọc theo Hạng Mục", all_task_opts, key="f_task_live")
-        
     with f_col5:
-        st.markdown("<br>", unsafe_allow_html=True)
-        if st.button("🔄 Đặt lại", use_container_width=True, key="btn_reset_live"):
-            st.rerun()
+        filter_task = st.selectbox("Lọc theo Hạng Mục", all_task_opts, key="f_task_live")
 
-    # --- BƯỚC 2: LỌC HOÀN CHỈNH ĐỂ HIỂN THỊ BẢNG DỮ LIỆU ---
+    # --- BƯỚC 2: LỌC HOÀN CHỈNH ĐỂ HIỂN THỊ BẢNG ---
     filtered_df = df_pre_filter.copy()
     if filter_task != "Tất cả": 
         filtered_df = filtered_df[filtered_df["Hạng Mục Công Việc"] == filter_task]
@@ -109,9 +104,8 @@ def render_production_table_fragment(raw_input_df, current_user_role, user_perms
     rows_per_page = 10
     total_pages = max(1, (total_rows - 1) // rows_per_page + 1)
 
-    c_p1, c_p2 = st.columns([4, 1])
-    with c_p2:
-        current_page = st.number_input(f"Trang ({total_pages} tr)", min_value=1, max_value=total_pages, value=1, step=1, key="pagination_page_num_frag")
+    with f_col6:
+        current_page = st.number_input(f"Trang hiển thị ({total_pages} tr | {total_rows} bản ghi)", min_value=1, max_value=total_pages, value=1, step=1, key="pagination_page_num_frag")
 
     start_idx = (current_page - 1) * rows_per_page
     end_idx = start_idx + rows_per_page
