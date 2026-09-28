@@ -613,15 +613,13 @@ with st.sidebar:
     if st.button("🔄 Cập Nhập", use_container_width=True):
         st.cache_data.clear()
         st.rerun()
-        
-    if st.button("⏱️ Chấm Công Ca Làm Việc", use_container_width=True):
-        st.session_state.current_menu = "⏱️ Chấm Công Ca Làm Việc"
-        st.rerun()
 
     st.markdown("---")
     st.markdown("### 📂 CHỨC NĂNG HỆ THỐNG")
     
+    # Đã đưa mục Chấm công vào chung danh sách menu radio và đồng bộ index chính xác
     dynamic_menu_items = [
+        "⏱️ Chấm Công Ca Làm Việc",
         "1. Nhập Sản Lượng",
         "📊 Báo Cáo & Biểu Đồ",
         "📂 Thư Mục Báo Cáo",
@@ -630,14 +628,17 @@ with st.sidebar:
         "🗑️ Thùng Rác"
     ]
     
-    chosen_menu = st.radio("📌 Danh Mục Nghiệp Vụ", dynamic_menu_items, label_visibility="collapsed")
+    current_index = 0
+    if st.session_state.get("current_menu") in dynamic_menu_items:
+        current_index = dynamic_menu_items.index(st.session_state.current_menu)
+
+    chosen_menu = st.radio("📌 Danh Mục Nghiệp Vụ", dynamic_menu_items, index=current_index, label_visibility="collapsed")
     if chosen_menu:
         st.session_state.current_menu = chosen_menu
 
     if current_user_role == "Admin":
         st.markdown("---")
         st.markdown("### ⚙️ Cấu Hình Hệ Thống\n(Admin)")
-        # Đã loại bỏ nút "📁 Quản Lý Thư Mục & Menu" ở đây
         if st.button("🎨 Cài Đặt Giao Diện", use_container_width=True):
             st.session_state.current_menu = "🎨 Cài Đặt Giao Diện"
         if st.button("🛡️ Quản Lý Tài Khoản & Phân Quyền", use_container_width=True):
