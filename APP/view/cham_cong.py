@@ -84,13 +84,12 @@ def render_cham_cong(current_menu_name, current_user_role):
                 else:
                     add_attendance_log_db(today_str, selected_staff, current_time_str)
                     
-                    # === ÂM THANH THÔNG BÁO CHECK-IN THÀNH CÔNG ===
+                    # Phát âm thanh thông báo thành công
                     st.markdown("""
                         <audio autoplay style="display:none;">
                             <source src="https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3" type="audio/mp3">
                         </audio>
                     """, unsafe_allow_html=True)
-                    # ===============================================
 
                     st.success(f"✅ Đã Check-in thành công cho **{selected_staff}** lúc {current_time_str}!")
                     st.cache_data.clear()
@@ -103,12 +102,10 @@ def render_cham_cong(current_menu_name, current_user_role):
                 elif selected_staff not in active_staff_now:
                     st.error(f"⚠️ Nhân sự **{selected_staff}** hiện chưa bấm Vào ca, không thể bấm Kết thúc!")
                 else:
-                    # Tìm bản ghi đang mở để tính số phút và cập nhật giờ ra
                     row_open = att_df[(att_df["Nhân Sự"] == selected_staff) & (att_df["Giờ Ra Ca"] == "Chưa kết thúc")].iloc[0]
                     db_id = row_open["db_id"]
                     gio_vao_str = row_open["Giờ Vào Ca"]
                     
-                    # Tính toán số phút làm việc thực tế
                     try:
                         t_vao = datetime.datetime.strptime(gio_vao_str, "%H:%M:%S")
                         t_ra = datetime.datetime.strptime(current_time_str, "%H:%M:%S")
@@ -119,13 +116,12 @@ def render_cham_cong(current_menu_name, current_user_role):
 
                     update_attendance_checkout_db(db_id, current_time_str, so_phut, ghi_chu)
                     
-                    # === ÂM THANH THÔNG BÁO CHECK-OUT THÀNH CÔNG ===
+                    # Phát âm thanh thông báo thành công
                     st.markdown("""
                         <audio autoplay style="display:none;">
                             <source src="https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3" type="audio/mp3">
                         </audio>
                     """, unsafe_allow_html=True)
-                    # ===============================================
 
                     st.success(f"🛑 Đã Check-out thành công cho **{selected_staff}** lúc {current_time_str}! Tổng thời gian: **{so_phut} phút**.")
                     st.cache_data.clear()
