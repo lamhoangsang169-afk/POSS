@@ -32,7 +32,7 @@ get_attendance_db = db_module.get_attendance_db
 get_rules_db = db_module.get_rules_db
 
 
-# ==================== FRAGMENT LỌC TỨC THÌ & CHỐNG CHỚP MÀN HÌNH ====================
+# ==================== FRAGMENT LỌC TỨC THÌ & HẠNG MỤC ĐỘNG ====================
 @st.fragment
 def render_production_table_fragment(raw_input_df, current_user_role, user_perms):
     now_vn = datetime.datetime.now(VN_TIMEZONE)
@@ -50,9 +50,8 @@ def render_production_table_fragment(raw_input_df, current_user_role, user_perms
         return
 
     all_staff_opts = ["Tất cả"] + sorted(raw_input_df["Nhân Sự"].dropna().unique().tolist())
-    all_task_opts = ["Tất cả"] + sorted(raw_input_df["Hạng Mục Công Việc"].dropna().unique().tolist())
 
-    # KHÔNG DÙNG FORM NỮA ĐỂ CÁC WIDGET PHẢN HỒI NGAY LẬP TỨC KHI TÍCH CHỌN
+    # CÁC WIDGET LỌC TRỰC TIẾP (LIVE FILTERING)
     f_col1, f_col2, f_col3, f_col4, f_col5 = st.columns([1.2, 1.2, 1.2, 1.2, 1.0])
     
     with f_col1:
@@ -65,30 +64,42 @@ def render_production_table_fragment(raw_input_df, current_user_role, user_perms
         end_t = st.time_input("Đến giờ", value=datetime.time(17, 0), label_visibility="collapsed", key="f_end_t_live")
     with f_col4:
         filter_staff = st.selectbox("Lọc theo Nhân Sự", all_staff_opts, key="f_staff_live")
-        filter_task = st.selectbox("Lọc theo Hạng Mục", all_task_opts, key="f_task_live")
-    with f_col5:
-        st.markdown("<br>", unsafe_allow_html=True)
-        if st.button("🔄 Đặt lại", use_container_width=True, key="btn_reset_live"):
-            st.rerun()
 
-    # XỬ LÝ LỌC DỮ LIỆU NGAY LẬP TỨC KHI THAY ĐỔI GIÁ TRỊ
-    temp_filtered_df = raw_input_df.copy()
-    temp_filtered_df["Ngày_DT"] = pd.to_datetime(temp_filtered_df["Ngày"], errors='coerce').dt.date
-    temp_filtered_df = temp_filtered_df[(temp_filtered_df["Ngày_DT"] >= start_filter_date) & (temp_filtered_df["Ngày_DT"] <= end_filter_date)]
+    # --- BƯỚC 1: LỌC TRƯỚC DỮ LIỆU THEO NGÀY, GIỜ VÀ NHÂN SỰ ĐỂ TRÍCH XUẤT HẠNG MỤC ĐỘNG ---
+    df_pre_filter = raw_input_df.copy()
+    df_pre_filter["Ngày_DT"] = pd.to_datetime(df_pre_filter["Ngày"], errors='coerce').dt.date
+    df_pre_filter = df_pre_filter[(df_pre_filter["Ngày_DT"] >= start_filter_date) & (df_pre_filter["Ngày_DT"] <= end_filter_date)]
     
     if filter_staff != "Tất cả": 
-        temp_filtered_df = temp_filtered_df[temp_filtered_df["Nhân Sự"] == filter_staff]
+        df_pre_filter = df_pre_filter[df_pre_filter["Nhân Sự"] == filter_staff]
 
     if enable_hour_filter and start_t and end_t:
-        def check_time_in_range(t_str):
+        def check_time_pre(t_str):
             try:
                 t_val = datetime.datetime.strptime(str(t_str).strip(), "%H:%M:%S").time()
                 return start_t <= t_val <= end_t
             except:
                 return True
-        temp_filtered_df = temp_filtered_df[temp_filtered_df["Thời Gian"].apply(check_time_in_range)]
+        df_pre_filter = df_pre_filter[df_pre_filter["Thời Gian"].apply(check_time_pre)]
 
-    filtered_df = temp_filtered_df.copy()
+    # Trích xuất danh sách hạng mục tương ứng với khoảng thời gian và nhân sự vừa lọc
+    dynamic_tasks = sorted(df_pre_filter["Hạng Mục Công Việc"].dropna().unique().tolist()) if not df_pre_filter.empty else []
+    all_task_opts = ["Tất cả"] + dynamic_tasks
+
+    # Kiểm tra nếu giá trị hạng mục đang chọn không còn nằm trong danh sách tương ứng thì tự động reset về "Tất cả"
+    if st.session_state.get("f_task_live") not in all_task_opts:
+        st.session_state["f_task_live"] = "Tất cả"
+
+    with f_col4:
+        filter_task = st.selectbox("Lọc theo Hạng Mục", all_task_opts, key="f_task_live")
+        
+    with f_col5:
+        st.markdown("<br>", unsafe_allow_html=True)
+        if st.button("🔄 Đặt lại", use_container_width=True, key="btn_reset_live"):
+            st.rerun()
+
+    # --- BƯỚC 2: LỌC HOÀN CHỈNH ĐỂ HIỂN THỊ BẢNG DỮ LIỆU ---
+    filtered_df = df_pre_filter.copy()
     if filter_task != "Tất cả": 
         filtered_df = filtered_df[filtered_df["Hạng Mục Công Việc"] == filter_task]
         
