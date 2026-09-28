@@ -32,7 +32,7 @@ get_attendance_db = db_module.get_attendance_db
 get_rules_db = db_module.get_rules_db
 
 
-# ==================== FRAGMENT LỌC TỨC THÌ & HẠNG MỤC ĐỘNG ====================
+# ==================== FRAGMENT LỌC TỨC THÌ & HẠNG MỤC ĐỒNG BỘ THEO NHÂN SỰ ====================
 @st.fragment
 def render_production_table_fragment(raw_input_df, current_user_role, user_perms):
     now_vn = datetime.datetime.now(VN_TIMEZONE)
@@ -49,23 +49,23 @@ def render_production_table_fragment(raw_input_df, current_user_role, user_perms
         st.info("Chưa có dữ liệu sản lượng.")
         return
 
-    all_staff_opts = ["Tất cả"] + sorted(raw_input_df["Nhân Sự"].dropna().unique().tolist())
-
-    # CÁC WIDGET LỌC TRỰC TIẾP (LIVE FILTERING)
-    f_col1, f_col2, f_col3, f_col4, f_col5 = st.columns([1.2, 1.2, 1.2, 1.2, 1.0])
+    # BỐ TRÍ 5 CỘT GIAO DIỆN BỘ LỌC
+    f_col1, f_col2, f_col3, f_col4, f_col5 = st.columns([1.2, 1.2, 1.2, 1.2, 0.9])
     
     with f_col1:
         start_filter_date = st.date_input("Từ ngày", value=now_vn.date(), key="f_start_live")
-    with f_col2:
         end_filter_date = st.date_input("Đến ngày", value=now_vn.date(), key="f_end_live")
-    with f_col3:
+        
+    with f_col2:
         enable_hour_filter = st.checkbox("Lọc theo Giờ", value=False, key="f_hour_live")
         start_t = st.time_input("Từ giờ", value=datetime.time(7, 30), label_visibility="collapsed", key="f_start_t_live")
         end_t = st.time_input("Đến giờ", value=datetime.time(17, 0), label_visibility="collapsed", key="f_end_t_live")
-    with f_col4:
+
+    with f_col3:
+        all_staff_opts = ["Tất cả"] + sorted(raw_input_df["Nhân Sự"].dropna().unique().tolist())
         filter_staff = st.selectbox("Lọc theo Nhân Sự", all_staff_opts, key="f_staff_live")
 
-    # --- BƯỚC 1: LỌC TRƯỚC DỮ LIỆU THEO NGÀY, GIỜ VÀ NHÂN SỰ ĐỂ TRÍCH XUẤT HẠNG MỤC ĐỘNG ---
+    # --- BƯỚC 1: LỌC TRƯỚC DỮ LIỆU THEO NGÀY, GIỜ VÀ NHÂN SỰ ĐỂ LẤY DANH SÁCH HẠNG MỤC CHUẨN XÁC ---
     df_pre_filter = raw_input_df.copy()
     df_pre_filter["Ngày_DT"] = pd.to_datetime(df_pre_filter["Ngày"], errors='coerce').dt.date
     df_pre_filter = df_pre_filter[(df_pre_filter["Ngày_DT"] >= start_filter_date) & (df_pre_filter["Ngày_DT"] <= end_filter_date)]
@@ -82,11 +82,11 @@ def render_production_table_fragment(raw_input_df, current_user_role, user_perms
                 return True
         df_pre_filter = df_pre_filter[df_pre_filter["Thời Gian"].apply(check_time_pre)]
 
-    # Trích xuất danh sách hạng mục tương ứng với khoảng thời gian và nhân sự vừa lọc
+    # Trích xuất danh mục hạng mục chỉ thuộc riêng về nhân sự và khoảng thời gian đó
     dynamic_tasks = sorted(df_pre_filter["Hạng Mục Công Việc"].dropna().unique().tolist()) if not df_pre_filter.empty else []
     all_task_opts = ["Tất cả"] + dynamic_tasks
 
-    # Kiểm tra nếu giá trị hạng mục đang chọn không còn nằm trong danh sách tương ứng thì tự động reset về "Tất cả"
+    # Nếu hạng mục đang chọn không còn nằm trong danh sách của nhân sự đó thì tự động reset về "Tất cả"
     if st.session_state.get("f_task_live") not in all_task_opts:
         st.session_state["f_task_live"] = "Tất cả"
 
