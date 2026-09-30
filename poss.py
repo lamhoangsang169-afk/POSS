@@ -214,7 +214,7 @@ if not st.session_state.logged_in:
                     if login_name == "--- Chọn họ và tên ---" or not password_staff:
                         st.error("⚠️ Vui lòng chọn họ tên và nhập mật khẩu!")
                     elif supabase is None:
-                        st.error("⚠ Chưa kết nối được tới cơ sở dữ liệu!")
+                        st.error("⚠️ Chưa kết nối được tới cơ sở dữ liệu!")
                     else:
                         try:
                             res = supabase.table("user_accounts").select("*").eq("name", login_name).execute()
@@ -435,7 +435,7 @@ def render_main_content(current_menu_name):
     elif current_menu_name == "🛡️ Quản Lý Tài Khoản & Phân Quyền":
         col_mr_h1, col_mr_h2 = st.columns([3, 1])
         with col_mr_h1:
-            st.header("🛡️️ Quản Lý Tài Khoản & Phân Quyền Chi Tiết")
+            st.header("🛡 Quản Lý Tài Khoản & Phân Quyền Chi Tiết")
         with col_mr_h2:
             if st.button("🔄 Làm mới dữ liệu", use_container_width=True, key="btn_refresh_mr"):
                 st.cache_data.clear()
@@ -713,7 +713,7 @@ with st.sidebar:
     st.markdown("### 📂 CHỨC NĂNG HỆ THỐNG")
     
     dynamic_menu_items = [
-        "⏱️ Chấm Công Ca Làm Việc",
+        "⏱️️ Chấm Công Ca Làm Việc",
         "1. Nhập Sản Lượng",
         "📊 Báo Cáo & Biểu Đồ",
         "📂 Thư Mục Báo Cáo",
@@ -735,6 +735,7 @@ with st.sidebar:
     if st.session_state.radio_selection in dynamic_menu_items:
         current_index = dynamic_menu_items.index(st.session_state.radio_selection)
 
+    # --- TỐI ƯU HÓA: KHÔNG DÙNG st.rerun() THỦ CÔNG TRONG st.radio ---
     chosen_menu = st.radio(
         "📌 Danh Mục Nghiệp Vụ", 
         dynamic_menu_items, 
@@ -743,23 +744,19 @@ with st.sidebar:
         key="sidebar_radio_menu"
     )
 
-    if chosen_menu != st.session_state.radio_selection:
-        st.session_state.radio_selection = chosen_menu
+    if chosen_menu != st.session_state.current_menu:
         st.session_state.current_menu = chosen_menu
-        st.rerun()
+        st.session_state.radio_selection = chosen_menu
 
     if current_user_role == "Admin":
         st.markdown("---")
         st.markdown("### ⚙️ Cấu Hình Hệ Thống\n(Admin)")
         if st.button("🎨 Cài Đặt Giao Diện", use_container_width=True):
             st.session_state.current_menu = "🎨 Cài Đặt Giao Diện"
-            st.rerun()
         if st.button("🛡️ Quản Lý Tài Khoản & Phân Quyền", use_container_width=True):
             st.session_state.current_menu = "🛡️ Quản Lý Tài Khoản & Phân Quyền"
-            st.rerun()
         if st.button("🧹 Làm Sạch & Tối Ưu Dữ Liệu", use_container_width=True):
             st.session_state.current_menu = "🧹 Làm Sạch Dữ Liệu"
-            st.rerun()
 
     st.markdown("---")
     if is_supabase_connected:
