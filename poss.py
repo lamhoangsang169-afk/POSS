@@ -183,7 +183,7 @@ if not st.session_state.logged_in:
                     if not email_input or not password_admin:
                         st.error("⚠️ Vui lòng nhập đầy đủ Email và Mật khẩu!")
                     elif supabase is None:
-                        st.error("⚠️ Chưa kết nối được tới cơ sở dữ liệu!")
+                        st.error("⚠️️ Chưa kết nối được tới cơ sở dữ liệu!")
                     else:
                         try:
                             clean_email = email_input.strip()
@@ -422,6 +422,44 @@ def render_main_content(current_menu_name):
         else:
             st.markdown("Tại đây bạn có thể tạo tài khoản, đổi mật khẩu và cấp quyền trực tiếp cho từng nhân sự:")
             
+            # --- BỔ SUNG: FORM TẠO TÀI KHOẢN MỚI ---
+            with st.expander("➕ Tạo Tài Khoản Nhân Sự Mới", expanded=False):
+                with st.form("create_new_account_form"):
+                    c_new1, c_new2, c_new3 = st.columns(3)
+                    with c_new1:
+                        new_acc_name = st.text_input("Họ và tên nhân sự", placeholder="Nhập tên nhân sự...")
+                    with c_new2:
+                        new_acc_pass = st.text_input("Mật khẩu tài khoản", type="password", placeholder="Nhập mật khẩu (>=6 ký tự)...")
+                    with c_new3:
+                        new_acc_role = st.selectbox("Vai trò", options=["Staff", "Manager", "Admin"])
+                    
+                    submitted_new_acc = st.form_submit_button("🚀 Tạo Tài Khoản Mới", use_container_width=True)
+                    if submitted_new_acc:
+                        if not new_acc_name.strip() or not new_acc_pass:
+                            st.error("⚠️ Vui lòng nhập đầy đủ tên nhân sự và mật khẩu!")
+                        elif len(new_acc_pass) < 6:
+                            st.error("⚠️ Mật khẩu phải có ít nhất 6 ký tự!")
+                        else:
+                            try:
+                                check_exist = supabase.table("user_accounts").select("*").eq("name", new_acc_name.strip()).execute()
+                                if check_exist.data and len(check_exist.data) > 0:
+                                    st.error(f"❌ Tài khoản hoặc nhân sự '{new_acc_name.strip()}' đã tồn tại trong hệ thống!")
+                                else:
+                                    supabase.table("user_accounts").insert({
+                                        "name": new_acc_name.strip(),
+                                        "password_hash": hash_password(new_acc_pass),
+                                        "role": new_acc_role,
+                                        "perm_input": True if new_acc_role == "Admin" else False,
+                                        "perm_report": True if new_acc_role == "Admin" else False,
+                                        "perm_attendance": True,
+                                        "perm_rules": True if new_acc_role == "Admin" else False
+                                    }).execute()
+                                    st.success(f"✅ Đã tạo thành công tài khoản cho **{new_acc_name.strip()}**!")
+                                    st.cache_data.clear()
+                                    st.rerun()
+                            except Exception as e:
+                                st.error(f"❌ Lỗi khi tạo tài khoản: {e}")
+
             try:
                 staff_list_names = get_staff_list_db()
                 for s_name in staff_list_names:
@@ -460,9 +498,10 @@ def render_main_content(current_menu_name):
                         
                         st.markdown("---")
                         st.markdown("##### 🔑 Đổi mật khẩu nhanh cho nhân sự")
+                        all_account_names = roles_df["name"].tolist() if "name" in roles_df.columns else staff_list_names
                         col_p1, col_p2, col_p3 = st.columns([1.5, 1.5, 1])
                         with col_p1:
-                            target_staff_pw = st.selectbox("Chọn nhân sự cần đổi mật khẩu", ["--- Chọn nhân sự ---"] + staff_list_names)
+                            target_staff_pw = st.selectbox("Chọn nhân sự cần đổi mật khẩu", ["--- Chọn nhân sự ---"] + all_account_names)
                         with col_p2:
                             new_staff_pass = st.text_input("Mật khẩu mới", type="password", placeholder="Nhập mật khẩu mới...")
                         with col_p3:
