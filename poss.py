@@ -354,40 +354,44 @@ def render_main_content(current_menu_name):
         else:
             st.markdown("### 🎨 Tùy Chỉnh Giao Diện Trực Tiếp")
             
-            c_col1, c_col2 = st.columns(2)
-            with c_col1:
-                picker_bg = st.color_picker("Màu nền ứng dụng", value=st.session_state.get("bg_color", "#ffffff"))
-                picker_text = st.color_picker("Màu chữ", value=st.session_state.get("text_color", "#31333F"))
-            with c_col2:
-                picker_primary = st.color_picker("Màu chủ đạo", value=st.session_state.get("primary_color", "#ff4b4b"))
-                picker_sidebar = st.color_picker("Màu nền sidebar", value=st.session_state.get("sidebar_bg", "#f0f2f6"))
-                
-            slider_opacity = st.slider("Độ mờ sidebar", 0.1, 1.0, float(st.session_state.get("sidebar_opacity", 0.9)), 0.05)
-            bg_file_upload = st.file_uploader("🖼️ Tải lên hình nền ứng dụng", type=["png", "jpg", "jpeg"], key="bg_uploader_direct")
-            
-            st.session_state.bg_color = picker_bg
-            st.session_state.text_color = picker_text
-            st.session_state.primary_color = picker_primary
-            st.session_state.sidebar_bg = picker_sidebar
-            st.session_state.sidebar_opacity = slider_opacity
-            
-            if bg_file_upload is not None:
-                compressed_bg = compress_image_to_base64(bg_file_upload, max_size=(1920, 1080), quality=80)
-                if compressed_bg:
-                    st.session_state.bg_image_base64 = compressed_bg
+            with st.form("settings_form"):
+                c_col1, c_col2 = st.columns(2)
+                with c_col1:
+                    picker_bg = st.color_picker("Màu nền ứng dụng", value=st.session_state.get("bg_color", "#ffffff"))
+                    picker_text = st.color_picker("Màu chữ", value=st.session_state.get("text_color", "#31333F"))
+                with c_col2:
+                    picker_primary = st.color_picker("Màu chủ đạo", value=st.session_state.get("primary_color", "#ff4b4b"))
+                    picker_sidebar = st.color_picker("Màu nền sidebar", value=st.session_state.get("sidebar_bg", "#f0f2f6"))
                     
-            if st.button("💾 Lưu Cài Đặt Giao Diện", use_container_width=True, type="primary"):
-                save_app_settings_db({
-                    "primary_color": st.session_state.primary_color, 
-                    "bg_color": st.session_state.bg_color,
-                    "sidebar_bg": st.session_state.sidebar_bg, 
-                    "sidebar_opacity": st.session_state.sidebar_opacity,
-                    "text_color": st.session_state.text_color, 
-                    "bg_image_base64": st.session_state.get("bg_image_base64"),
-                    "avatar_base64": st.session_state.get("avatar_base64")
-                })
-                st.success("✅ Đã lưu cài đặt giao diện vĩnh viễn lên cơ sở dữ liệu thành công!")
-                st.rerun()
+                slider_opacity = st.slider("Độ mờ sidebar", 0.1, 1.0, float(st.session_state.get("sidebar_opacity", 0.9)), 0.05)
+                bg_file_upload = st.file_uploader("🖼️ Tải lên hình nền ứng dụng", type=["png", "jpg", "jpeg"], key="bg_uploader_direct")
+                
+                submitted_settings = st.form_submit_button("💾 Lưu Cài Đặt Giao Diện", use_container_width=True, type="primary")
+                if submitted_settings:
+                    bg_base64_to_save = st.session_state.get("bg_image_base64")
+                    if bg_file_upload is not None:
+                        compressed_bg = compress_image_to_base64(bg_file_upload, max_size=(1920, 1080), quality=80)
+                        if compressed_bg:
+                            bg_base64_to_save = compressed_bg
+                            st.session_state.bg_image_base64 = compressed_bg
+
+                    st.session_state.bg_color = picker_bg
+                    st.session_state.text_color = picker_text
+                    st.session_state.primary_color = picker_primary
+                    st.session_state.sidebar_bg = picker_sidebar
+                    st.session_state.sidebar_opacity = slider_opacity
+
+                    save_app_settings_db({
+                        "primary_color": picker_primary, 
+                        "bg_color": picker_bg,
+                        "sidebar_bg": picker_sidebar, 
+                        "sidebar_opacity": slider_opacity,
+                        "text_color": picker_text, 
+                        "bg_image_base64": bg_base64_to_save,
+                        "avatar_base64": st.session_state.get("avatar_base64")
+                    })
+                    st.success("✅ Đã lưu cài đặt giao diện vĩnh viễn lên cơ sở dữ liệu thành công!")
+                    st.rerun()
 
             st.markdown("---")
             st.subheader("👥 Quản Lý Danh Sách Nhân Sự")
@@ -529,7 +533,7 @@ def render_main_content(current_menu_name):
                                     }).eq("name", target_staff_pw).execute()
                                     st.success(f"✅ Đã đổi mật khẩu thành công cho **{target_staff_pw}**!")
                                 else:
-                                    st.error("⚠️️ Mật khẩu phải có ít nhất 6 ký tự!")
+                                    st.error("⚠️ Mật khẩu phải có ít nhất 6 ký tự!")
                             else:
                                 st.warning("⚠️ Vui lòng chọn nhân sự và nhập mật khẩu mới!")
 
