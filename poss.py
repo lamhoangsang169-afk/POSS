@@ -214,7 +214,7 @@ if not st.session_state.logged_in:
                     if login_name == "--- Chọn họ và tên ---" or not password_staff:
                         st.error("⚠️ Vui lòng chọn họ tên và nhập mật khẩu!")
                     elif supabase is None:
-                        st.error("⚠️ Chưa kết nối được tới cơ sở dữ liệu!")
+                        st.error("⚠️️ Chưa kết nối được tới cơ sở dữ liệu!")
                     else:
                         try:
                             res = supabase.table("user_accounts").select("*").eq("name", login_name).execute()
@@ -288,7 +288,14 @@ if not db_settings:
 st.session_state.primary_color = db_settings.get("primary_color", "#ff4b4b")
 st.session_state.bg_color = db_settings.get("bg_color", "#ffffff")
 st.session_state.sidebar_bg = db_settings.get("sidebar_bg", "#f0f2f6")
-st.session_state.sidebar_opacity = float(db_settings.get("sidebar_opacity", 0.9))
+
+# Xử lý ép kiểu an toàn cho sidebar_opacity tránh lỗi TypeError
+val_opacity = db_settings.get("sidebar_opacity", 0.9)
+try:
+    st.session_state.sidebar_opacity = float(val_opacity) if val_opacity is not None and str(val_opacity).strip() != "" else 0.9
+except Exception:
+    st.session_state.sidebar_opacity = 0.9
+
 st.session_state.text_color = db_settings.get("text_color", "#31333F")
 st.session_state.bg_image_base64 = db_settings.get("bg_image_base64", None)
 st.session_state.avatar_base64 = db_settings.get("avatar_base64", None)
