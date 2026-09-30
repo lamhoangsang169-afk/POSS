@@ -89,11 +89,10 @@ def render_quan_ly_loi(current_menu_name):
                 st.success("✅ Đã ghi nhận báo cáo lỗi và lưu ảnh lên Supabase Storage thành công!")
                 st.rerun()
 
-    # ==================== PHẦN TÙY CHỈNH DANH MỤC LỖI (SỬ DỤNG FORM CHUẨN) ====================
+    # ==================== PHẦN TÙY CHỈNH DANH MỤC LỖI ====================
     with st.expander("⚙️ Tùy Chỉnh Danh Mục Loại Lỗi (Thêm/Bớt)", expanded=False):
         current_cats = list(db.get_error_categories_db())
         
-        # Form Thêm loại lỗi
         with st.form("form_add_loi_cat"):
             st.markdown("##### ➕ Thêm loại lỗi mới")
             new_loai_loi = st.text_input("Nhập tên loại lỗi mới...", placeholder="Nhập tên loại lỗi...")
@@ -117,7 +116,6 @@ def render_quan_ly_loi(current_menu_name):
 
         st.markdown("---")
 
-        # Form Xóa loại lỗi
         with st.form("form_del_loi_cat"):
             st.markdown("##### ➖ Xóa loại lỗi không dùng")
             loai_loi_can_xoa = st.selectbox("Chọn loại lỗi để xóa", current_cats, key="select_del_loi_box")
@@ -140,7 +138,6 @@ def render_quan_ly_loi(current_menu_name):
     st.markdown("---")
     st.subheader("📋 Danh Sách Lỗi & Bộ Lọc Nâng Cao")
     
-    # Hiển thị các widget lọc trước để lấy đúng giá trị hiện tại
     f_col1, f_col2, f_col3, f_col4, f_col5 = st.columns(5)
     
     with f_col1:
@@ -152,7 +149,6 @@ def render_quan_ly_loi(current_menu_name):
         curr_ns_idx = staff_filter_opts.index(st.session_state.loi_filter_ns) if st.session_state.loi_filter_ns in staff_filter_opts else 0
         st.session_state.loi_filter_ns = st.selectbox("Lọc theo Nhân Sự", staff_filter_opts, index=curr_ns_idx, key="widget_loi_ns")
 
-    # Tải dữ liệu từ database
     df_loi = db.get_error_logs_db(limit_rows=2000)
     
     if not df_loi.empty:
@@ -216,17 +212,11 @@ def render_quan_ly_loi(current_menu_name):
                         margin-bottom: 10px;
                         box-shadow: 0 1px 3px rgba(0,0,0,0.05);
                     }
-                    .log-card-text {
-                        font-size: 14px;
-                        color: #333333;
-                        line-height: 1.5;
-                    }
                 </style>
                 """, 
                 unsafe_allow_html=True
             )
 
-            # --- DÙNG FORM ĐỂ CHỐNG CHỚP MÀN HÌNH KHI TÍCH CHỌN ---
             with st.form("form_danh_sach_loi"):
                 st.markdown("---")
                 col_act1, col_act2 = st.columns([2, 2])
@@ -237,15 +227,14 @@ def render_quan_ly_loi(current_menu_name):
                     btn_del_all = st.form_submit_button("🗑️ Xóa tất cả trang này", use_container_width=True)
                 st.markdown("---")
 
-                selected_db_ids = []
+                selected_items = []
 
                 for idx, row in page_df.iterrows():
-                    # Quét linh hoạt mọi cột có chứa từ 'id' hoặc 'db_id' để lấy ID chính xác tuyệt đối
                     db_id = None
                     for col_name in page_df.columns:
                         if 'id' in str(col_name).lower():
                             val = row.get(col_name)
-                            if pd.notna(val) and str(val).strip() != "":
+                            if pd.notna(val) and str(val).strip() != "" and str(val).lower() != "none":
                                 db_id = val
                                 break
 
@@ -262,7 +251,7 @@ def render_quan_ly_loi(current_menu_name):
                         st.markdown(
                             f"""
                             <div style="background: rgba(255,255,255,0.85); padding: 10px 14px; border-radius: 8px; border: 1px solid rgba(0,0,0,0.1); margin-bottom: 4px; font-size: 0.9rem;">
-                                <b>STT: {stt_hien_thi} (ID: {db_id})</b> &nbsp;|&nbsp; 📅 <b>Ngày:</b> {ngay_val} &nbsp;|&nbsp; 👤 <b>Nhân sự:</b> {nhan_su_val}<br>
+                                <b>STT: {stt_hien_thi} (ID: {db_id if db_id else 'None'})</b> &nbsp;|&nbsp; 📅 <b>Ngày:</b> {ngay_val} &nbsp;|&nbsp; 👤 <b>Nhân sự:</b> {nhan_su_val}<br>
                                 📌 <b>Loại lỗi:</b> <span style="color: #d9534f; font-weight: bold;">{phan_loai_val}</span> &nbsp;|&nbsp; 📦 <b>Số lượng:</b> {so_luong_val} Cái<br>
                                 💬 <i>Ghi chú:</i> {ghi_chu_val if ghi_chu_val and str(ghi_chu_val).lower() != 'nan' else 'Không có ghi chú'}
                             </div>
@@ -270,11 +259,15 @@ def render_quan_ly_loi(current_menu_name):
                             unsafe_allow_html=True
                         )
                         
-                        if pd.notna(db_id):
-                            if st.checkbox(f"Chọn xóa bản ghi STT {stt_hien_thi}", key=f"chk_loi_{db_id}_{idx}"):
-                                selected_db_ids.append(db_id)
-                        else:
-                            st.warning("⚠️ Bản ghi này thiếu ID, không thể xóa trực tiếp.")
+                        # Cho phép tích chọn xóa kể cả khi ID là None (dùng bộ lọc thông tin dòng)
+                        if st.checkbox(f"Chọn xóa bản ghi STT {stt_hien_thi}", key=f"chk_loi_item_{idx}"):
+                            selected_items.append({
+                                "db_id": db_id,
+                                "ngay": str(ngay_val),
+                                "nhan_su": str(nhan_su_val),
+                                "phan_loai": str(phan_loai_val),
+                                "so_luong": int(so_luong_val) if pd.notna(so_luong_val) else 0
+                            })
                             
                     with row_c2:
                         if img_url_val and isinstance(img_url_val, str) and img_url_val.strip():
@@ -295,14 +288,23 @@ def render_quan_ly_loi(current_menu_name):
 
                     st.markdown("---")
 
-                # Xử lý sự kiện khi bấm nút trong form
+                # Xử lý sự kiện khi bấm nút xóa các dòng đã chọn (hỗ trợ cả bản ghi thiếu ID)
                 if btn_del_selected:
-                    if selected_db_ids:
+                    if selected_items:
                         try:
-                            for del_id in selected_db_ids:
-                                db.supabase.table("error_logs").delete().eq("id", int(del_id)).execute()
+                            for item in selected_items:
+                                if item["db_id"] is not None:
+                                    db.supabase.table("error_logs").delete().eq("id", int(item["db_id"])).execute()
+                                else:
+                                    # Fallback xóa theo thông tin dòng nếu thiếu ID
+                                    db.supabase.table("error_logs").delete()\
+                                        .eq("ngay", item["ngay"])\
+                                        .eq("nhan_su", item["nhan_su"])\
+                                        .eq("phan_loai_loi", item["phan_loai"])\
+                                        .eq("so_luong", item["so_luong"])\
+                                        .execute()
                             st.cache_data.clear()
-                            st.success(f"✅ Đã xóa thành công {len(selected_db_ids)} bản ghi lỗi đã chọn!")
+                            st.success(f"✅ Đã xóa thành công {len(selected_items)} bản ghi lỗi đã chọn!")
                             st.rerun()
                         except Exception as e:
                             st.error(f"Lỗi khi xóa bản ghi: {e}")
@@ -311,27 +313,29 @@ def render_quan_ly_loi(current_menu_name):
 
                 if btn_del_all:
                     if confirm_del_all:
-                        page_ids = []
-                        for _, r in page_df.iterrows():
-                            found_id = None
-                            for c_name in page_df.columns:
-                                if 'id' in str(c_name).lower():
-                                    v = r.get(c_name)
-                                    if pd.notna(v) and str(v).strip() != "":
-                                        found_id = v
-                                        break
-                            if pd.notna(found_id):
-                                page_ids.append(found_id)
-
-                        if page_ids:
-                            try:
-                                for del_id in page_ids:
-                                    db.supabase.table("error_logs").delete().eq("id", int(del_id)).execute()
-                                st.cache_data.clear()
-                                st.success(f"✅ Đã xóa toàn bộ {len(page_ids)} bản ghi trong trang này!")
-                                st.rerun()
-                            except Exception as e:
-                                st.error(f"Lỗi khi xóa: {e}")
+                        try:
+                            for _, r in page_df.iterrows():
+                                f_id = None
+                                for c_name in page_df.columns:
+                                    if 'id' in str(c_name).lower():
+                                        v = r.get(c_name)
+                                        if pd.notna(v) and str(v).strip() != "" and str(v).lower() != "none":
+                                            f_id = v
+                                            break
+                                if f_id is not None:
+                                    db.supabase.table("error_logs").delete().eq("id", int(f_id)).execute()
+                                else:
+                                    db.supabase.table("error_logs").delete()\
+                                        .eq("ngay", str(r.get("Ngày", "")))\
+                                        .eq("nhan_su", str(r.get("Nhân Sự", "")))\
+                                        .eq("phan_loai_loi", str(r.get("Phân Loại Lỗi", "")))\
+                                        .eq("so_luong", int(r.get("Số Lượng", 0)))\
+                                        .execute()
+                            st.cache_data.clear()
+                            st.success(f"✅ Đã xóa toàn bộ bản ghi trong trang này!")
+                            st.rerun()
+                        except Exception as e:
+                            st.error(f"Lỗi khi xóa: {e}")
                     else:
                         st.warning("⚠️ Vui lòng tích vào ô 'Xác nhận xóa tất cả bản ghi trong trang này'!")
         else:
