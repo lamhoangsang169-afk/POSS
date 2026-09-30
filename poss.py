@@ -479,7 +479,7 @@ def render_main_content(current_menu_name):
                                 else:
                                     st.error("⚠️ Mật khẩu phải có ít nhất 6 ký tự!")
                             else:
-                                st.warning("⚠️ Vui lòng chọn nhân sự và nhập mật khẩu mới!")
+                                st.warning("⚠️️ Vui lòng chọn nhân sự và nhập mật khẩu mới!")
 
                         if st.form_submit_button("💾 Lưu Cập Nhật Quyền Hạn Hàng Loạt", use_container_width=True):
                             for _, row in edited_roles_df.iterrows():
@@ -630,7 +630,6 @@ with st.sidebar:
     if "current_menu" not in st.session_state or st.session_state.current_menu not in dynamic_menu_items:
         st.session_state.current_menu = "1. Nhập Sản Lượng"
 
-    # Sử dụng trực tiếp key="current_menu" để đồng bộ trạng thái ngay trong 1 cú click
     chosen_menu = st.radio(
         "📌 Danh Mục Nghiệp Vụ", 
         dynamic_menu_items, 
@@ -643,10 +642,13 @@ with st.sidebar:
         st.markdown("### ⚙️ Cấu Hình Hệ Thống\n(Admin)")
         if st.button("🎨 Cài Đặt Giao Diện", use_container_width=True):
             st.session_state.current_menu = "🎨 Cài Đặt Giao Diện"
+            st.rerun()
         if st.button("🛡️ Quản Lý Tài Khoản & Phân Quyền", use_container_width=True):
             st.session_state.current_menu = "🛡️ Quản Lý Tài Khoản & Phân Quyền"
+            st.rerun()
         if st.button("🧹 Làm Sạch & Tối Ưu Dữ Liệu", use_container_width=True):
             st.session_state.current_menu = "🧹 Làm Sạch Dữ Liệu"
+            st.rerun()
 
     st.markdown("---")
     if is_supabase_connected:
