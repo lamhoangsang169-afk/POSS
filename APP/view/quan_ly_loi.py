@@ -102,15 +102,18 @@ def render_quan_ly_loi(current_menu_name):
             if btn_add_cat:
                 clean_name = new_loai_loi.strip()
                 if not clean_name:
-                    st.error("⚠️ Vui lòng nhập tên loại lỗi!")
+                    st.error("⚠️️ Vui lòng nhập tên loại lỗi!")
                 elif clean_name in current_cats:
                     st.warning("⚠️ Loại lỗi này đã tồn tại!")
                 else:
                     current_cats.append(clean_name)
-                    db.save_error_categories_db(current_cats)
-                    st.cache_data.clear()
-                    st.success(f"✅ Đã thêm loại lỗi: '{clean_name}' vào Database thành công!")
-                    st.rerun()
+                    try:
+                        db.save_error_categories_db(current_cats)
+                        st.cache_data.clear()
+                        st.success(f"✅ Đã thêm loại lỗi: '{clean_name}' vào Database thành công!")
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"Lỗi lưu danh mục lỗi: {e}")
 
         st.markdown("---")
 
@@ -124,17 +127,20 @@ def render_quan_ly_loi(current_menu_name):
                 if len(current_cats) > 1:
                     if loai_loi_can_xoa in current_cats:
                         current_cats.remove(loai_loi_can_xoa)
-                        db.save_error_categories_db(current_cats)
-                        st.cache_data.clear()
-                        st.success(f"✅ Đã xóa loại lỗi: '{loai_loi_can_xoa}' khỏi Database thành công!")
-                        st.rerun()
+                        try:
+                            db.save_error_categories_db(current_cats)
+                            st.cache_data.clear()
+                            st.success(f"✅ Đã xóa loại lỗi: '{loai_loi_can_xoa}' khỏi Database thành công!")
+                            st.rerun()
+                        except Exception as e:
+                            st.error(f"Lỗi lưu danh mục lỗi: {e}")
                 else:
-                    st.error("⚠️ Cần giữ lại ít nhất một phân loại lỗi!")
+                    st.error("⚠️️ Cần giữ lại ít nhất một phân loại lỗi!")
 
     st.markdown("---")
     st.subheader("📋 Danh Sách Lỗi & Bộ Lọc Nâng Cao")
     
-    # Hiển thị các widget lọc (Từ ngày, Đến ngày, Lọc theo Nhân Sự) trước để lấy đúng giá trị hiện tại
+    # Hiển thị các widget lọc trước để lấy đúng giá trị hiện tại
     f_col1, f_col2, f_col3, f_col4, f_col5 = st.columns(5)
     
     with f_col1:
@@ -146,7 +152,7 @@ def render_quan_ly_loi(current_menu_name):
         curr_ns_idx = staff_filter_opts.index(st.session_state.loi_filter_ns) if st.session_state.loi_filter_ns in staff_filter_opts else 0
         st.session_state.loi_filter_ns = st.selectbox("Lọc theo Nhân Sự", staff_filter_opts, index=curr_ns_idx, key="widget_loi_ns")
 
-    # Tải dữ liệu và tính toán danh sách loại lỗi động dựa chính xác theo nhân sự và khoảng thời gian vừa chọn
+    # Tải dữ liệu từ database
     df_loi = db.get_error_logs_db(limit_rows=2000)
     
     if not df_loi.empty:
@@ -234,7 +240,11 @@ def render_quan_ly_loi(current_menu_name):
                 selected_db_ids = []
 
                 for idx, row in page_df.iterrows():
+                    # Lấy ID an toàn, kiểm tra cả 'db_id' và 'id' để không bao giờ bị nan
                     db_id = row.get('db_id')
+                    if pd.isna(db_id):
+                        db_id = row.get('id')
+
                     stt_hien_thi = start_idx + idx + 1
                     ngay_val = row.get('Ngày', '')
                     nhan_su_val = row.get('Nhân Sự', '')
@@ -256,8 +266,11 @@ def render_quan_ly_loi(current_menu_name):
                             unsafe_allow_html=True
                         )
                         
-                        if st.checkbox(f"Chọn xóa bản ghi STT {stt_hien_thi}", key=f"chk_loi_{db_id}"):
-                            selected_db_ids.append(db_id)
+                        if pd.notna(db_id):
+                            if st.checkbox(f"Chọn xóa bản ghi STT {stt_hien_thi}", key=f"chk_loi_{db_id}_{idx}"):
+                                selected_db_ids.append(db_id)
+                        else:
+                            st.warning("⚠️ Bản ghi này thiếu ID, không thể xóa trực tiếp.")
                             
                     with row_c2:
                         if img_url_val and isinstance(img_url_val, str) and img_url_val.strip():
@@ -283,7 +296,7 @@ def render_quan_ly_loi(current_menu_name):
                     if selected_db_ids:
                         try:
                             for del_id in selected_db_ids:
-                                db.supabase.table("error_logs").delete().eq("id", del_id).execute()
+                                db.supabase.table("error_logs").delete().eq("id", int(del_id)).execute()
                             st.cache_data.clear()
                             st.success(f"✅ Đã xóa thành công {len(selected_db_ids)} bản ghi lỗi đã chọn!")
                             st.rerun()
@@ -294,11 +307,18 @@ def render_quan_ly_loi(current_menu_name):
 
                 if btn_del_all:
                     if confirm_del_all:
-                        page_ids = page_df["db_id"].tolist()
+                        page_ids = []
+                        for _, r in page_df.iterrows():
+                            val_id = r.get('db_id')
+                            if pd.isna(val_id):
+                                val_id = r.get('id')
+                            if pd.notna(val_id):
+                                page_ids.append(val_id)
+
                         if page_ids:
                             try:
                                 for del_id in page_ids:
-                                    db.supabase.table("error_logs").delete().eq("id", del_id).execute()
+                                    db.supabase.table("error_logs").delete().eq("id", int(del_id)).execute()
                                 st.cache_data.clear()
                                 st.success(f"✅ Đã xóa toàn bộ {len(page_ids)} bản ghi trong trang này!")
                                 st.rerun()
