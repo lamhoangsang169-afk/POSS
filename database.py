@@ -64,17 +64,28 @@ def get_rules_db():
     return pd.DataFrame()
 
 # ==================== SẢN LƯỢNG & CHẤM CÔNG ====================
+def add_production_log_db(payload):
+    """Thêm mới một bản ghi sản lượng vào cơ sở dữ liệu"""
+    if supabase is None:
+        return False
+    try:
+        supabase.table("production_logs").insert(payload).execute()
+        st.cache_data.clear()
+        return True
+    except Exception as e:
+        print(f"Lỗi thêm sản lượng: {e}")
+        return False
+
 @st.cache_data(ttl=5)
 def get_production_logs_db(is_deleted=False, limit_rows=500):
     if supabase is None:
         return pd.DataFrame()
     try:
         query = supabase.table("production_logs").select("*")
-        if "is_deleted" in query.__dict__ or True:
-            try:
-                query = query.eq("is_deleted", is_deleted)
-            except Exception:
-                pass
+        try:
+            query = query.eq("is_deleted", is_deleted)
+        except Exception:
+            pass
         res = query.order("id", desc=True).limit(limit_rows).execute()
         if res.data:
             return pd.DataFrame(res.data)
