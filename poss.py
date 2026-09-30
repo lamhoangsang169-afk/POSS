@@ -183,7 +183,7 @@ if not st.session_state.logged_in:
                     if not email_input or not password_admin:
                         st.error("⚠️ Vui lòng nhập đầy đủ Email và Mật khẩu!")
                     elif supabase is None:
-                        st.error("⚠️️ Chưa kết nối được tới cơ sở dữ liệu!")
+                        st.error("⚠️ Chưa kết nối được tới cơ sở dữ liệu!")
                     else:
                         try:
                             clean_email = email_input.strip()
@@ -212,7 +212,7 @@ if not st.session_state.logged_in:
                 
                 if st.form_submit_button("🚀 Đăng Nhập Nhân Viên", use_container_width=True):
                     if login_name == "--- Chọn họ và tên ---" or not password_staff:
-                        st.error("⚠️ Vui lòng chọn họ tên và nhập mật khẩu!")
+                        st.error("⚠️️ Vui lòng chọn họ tên và nhập mật khẩu!")
                     elif supabase is None:
                         st.error("⚠️ Chưa kết nối được tới cơ sở dữ liệu!")
                     else:
@@ -420,9 +420,9 @@ def render_main_content(current_menu_name):
         if current_user_role != "Admin":
             st.warning("🔒 Chỉ Quản trị viên mới có quyền quản lý tài khoản và phân quyền!")
         else:
-            st.markdown("Tại đây bạn có thể tạo tài khoản, đổi mật khẩu và cấp quyền trực tiếp cho từng nhân sự:")
+            st.markdown("Tại đây bạn có thể tạo tài khoản, đổi mật khẩu, xóa tài khoản và cấp quyền trực tiếp cho từng nhân sự:")
             
-            # --- BỔ SUNG: FORM TẠO TÀI KHOẢN MỚI ---
+            # --- FORM TẠO TÀI KHOẢN MỚI ---
             with st.expander("➕ Tạo Tài Khoản Nhân Sự Mới", expanded=False):
                 with st.form("create_new_account_form"):
                     c_new1, c_new2, c_new3 = st.columns(3)
@@ -533,6 +533,36 @@ def render_main_content(current_menu_name):
                             st.cache_data.clear()
                             st.success("✅ Đã cập nhật quyền hạn chi tiết thành công!")
                             st.rerun()
+
+                    # --- FORM XÓA TÀI KHOẢN NHÂN SỰ (TỰ ĐỘNG XÓA DỮ LIỆU LIÊN QUAN) ---
+                    st.markdown("---")
+                    with st.expander("🗑️ Xóa Tài Khoản Nhân Sự", expanded=False):
+                        with st.form("delete_account_form"):
+                            all_account_names = roles_df["name"].tolist() if "name" in roles_df.columns else staff_list_names
+                            col_d1, col_d2 = st.columns([2, 1])
+                            with col_d1:
+                                target_staff_del = st.selectbox("Chọn nhân sự cần xóa tài khoản", ["--- Chọn nhân sự ---"] + all_account_names, key="select_del_staff_acc")
+                            with col_d2:
+                                st.markdown("<br>", unsafe_allow_html=True)
+                                btn_execute_delete = st.form_submit_button("🔥 Xóa Tài Khoản Này", use_container_width=True)
+
+                            if btn_execute_delete:
+                                if target_staff_del == "--- Chọn nhân sự ---":
+                                    st.warning("⚠️ Vui lòng chọn nhân sự cần xóa!")
+                                else:
+                                    try:
+                                        # Tự động xóa toàn bộ các bản ghi liên quan trực tiếp tới nhân sự đó ở các bảng
+                                        supabase.table("user_accounts").delete().eq("name", target_staff_del).execute()
+                                        supabase.table("staff").delete().eq("name", target_staff_del).execute()
+                                        supabase.table("production_logs").delete().eq("nhan_su", target_staff_del).execute()
+                                        supabase.table("attendance").delete().eq("nhan_su", target_staff_del).execute()
+                                        supabase.table("error_logs").delete().eq("nhan_su", target_staff_del).execute()
+                                        
+                                        st.success(f"✅ Đã xóa thành công nhân sự **{target_staff_del}** cùng toàn bộ dữ liệu sản lượng, chấm công và lỗi liên quan!")
+                                        st.cache_data.clear()
+                                        st.rerun()
+                                    except Exception as e:
+                                        st.error(f"❌ Lỗi khi xóa nhân sự và dữ liệu liên quan: {e}")
                 else:
                     st.info("Chưa có tài khoản nhân sự nào trong hệ thống.")
             except Exception as e:
