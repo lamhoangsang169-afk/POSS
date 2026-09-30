@@ -1,142 +1,123 @@
-# database.py
-import time
-import datetime
+import os
 import streamlit as st
 import pandas as pd
 from supabase import create_client, Client
 
-# Khởi tạo kết nối Supabase an toàn qua st.secrets (hoặc fallback nếu chưa cấu hình secrets)
-def init_supabase():
-    try:
-        # Ưu tiên lấy từ st.secrets của Streamlit
-        url = st.secrets.get("SUPABASE_URL", "https://mnwyewgsxvpjwnpmgyhj.supabase.co")
-        key = st.secrets.get("SUPABASE_KEY", "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1ud3lld2dzeHZwanducG1neWhqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTA3MjMwNjgsImV4cCI6MjEwNjI5OTA2OH0.eeTU1a16zY5c4XHr7YobwRRJXstgkQjt3lyIosUMVQk")
-        return create_client(url, key)
-    except Exception as e:
-        # Fallback nếu chạy môi trường khác chưa có secrets
-        try:
-            url = "https://mnwyewgsxvpjwnpmgyhj.supabase.co"
-            key = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1ud3lld2dzeHZwanducG1neWhqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTA3MjMwNjgsImV4cCI6MjEwNjI5OTA2OH0.eeTU1a16zY5c4XHr7YobwRRJXstgkQjt3lyIosUMVQk"
-            return create_client(url, key)
-        except Exception as ex:
-            st.error(f"Lỗi khởi tạo Supabase: {ex}")
-            return None
+# ==================== CẤU HÌNH KẾT NỐI SUPABASE ====================
+SUPABASE_URL = st.secrets.get("SUPABASE_URL", os.environ.get("SUPABASE_URL", ""))
+SUPABASE_KEY = st.secrets.get("SUPABASE_KEY", os.environ.get("SUPABASE_KEY", ""))
 
-supabase = init_supabase()
-is_supabase_connected = supabase is not None
+try:
+    if SUPABASE_URL and SUPABASE_KEY:
+        supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
+        is_supabase_connected = True
+    else:
+        supabase = None
+        is_supabase_connected = False
+except Exception as e:
+    supabase = None
+    is_supabase_connected = False
 
 def init_db_data():
+    """Khởi tạo dữ liệu cơ bản nếu cần"""
     pass
 
-@st.cache_data(ttl=600, show_spinner=False)
-def get_staff_df_db():
-    if supabase is None:
-        return pd.DataFrame(columns=["id", "name"])
-    try:
-        res = supabase.table("staff").select("*").execute()
-        if res.data:
-            df = pd.DataFrame(res.data)
-            if "name" not in df.columns and "ten" in df.columns:
-                df = df.rename(columns={"ten": "name"})
-            return df
-    except Exception:
-        pass
-    return pd.DataFrame(columns=["id", "name"])
-
+# ==================== QUẢN LÝ NHÂN SỰ & TÀI KHOẢN ====================
+@st.cache_data(ttl=10)
 def get_staff_list_db():
-    df = get_staff_df_db()
-    if not df.empty and "name" in df.columns:
-        return df["name"].dropna().tolist()
+    """Lấy danh sách tên nhân sự trực tiếp từ bảng user_accounts (Đồng bộ tập trung)"""
+    if supabase is None:
+        return []
+    try:
+        res = supabase.table("user_accounts").select("name").execute()
+        if res.data:
+            return [row["name"] for row in res.data if row.get("name")]
+    except Exception as e:
+        print(f"Lỗi khi lấy danh sách nhân sự từ user_accounts: {e}")
     return []
 
-@st.cache_data(ttl=600, show_spinner=False)
-def add_production_log_db(ngay, gio, nhan_su, hang_muc, anh, don_vi, so_luong, he_so, tong_diem, ghi_chu):
+@st.cache_data(ttl=10)
+def get_staff_df_db():
+    """Lấy DataFrame nhân sự từ bảng user_accounts"""
+    if supabase is None:
+        return pd.DataFrame(columns=["id", "name", "role"])
     try:
-        data = {
-            "ngay": ngay,
-            "thoi_gian": gio,
-            "nhan_su": nhan_su,
-            "hang_muc_cong_viec": hang_muc,
-            "hinh_anh_url": anh,
-            "don_vi": don_vi,
-            "so_luong": so_luong,
-            "he_so_diem": he_so,
-            "tong_diem": tong_diem,
-            "ghi_chu": ghi_chu,
-            "is_deleted": False
-        }
-        response = supabase.table("production_logs").insert(data).execute()
-        return response
+        res = supabase.table("user_accounts").select("id, name, role").execute()
+        if res.data:
+            return pd.DataFrame(res.data)
     except Exception as e:
-        st.error(f"Lỗi database: {e}")
-        return None
+        print(f"Lỗi khi tải DataFrame nhân sự: {e}")
+    return pd.DataFrame(columns=["id", "name", "role"])
 
-def get_production_logs_db(is_deleted=False, limit_rows=1000):
+# ==================== ĐỊNH MỨC CÔNG VIỆC (RULES) ====================
+@st.cache_data(ttl=10)
+def get_rules_db():
+    """Lấy danh mục định mức công việc từ bảng rules"""
     if supabase is None:
         return pd.DataFrame()
     try:
-        res = supabase.table("production_logs").select("*").eq("is_deleted", is_deleted).order("id", desc=True).limit(limit_rows).execute()
+        res = supabase.table("rules").select("*").execute()
         if res.data:
-            df = pd.DataFrame(res.data)
-            df = df.rename(columns={
-                "id": "db_id", "ngay": "Ngày", "thoi_gian": "Thời Gian",
-                "nhan_su": "Nhân Sự", "hang_muc_cong_viec": "Hạng Mục Công Việc",
-                "hinh_anh_url": "Hình Ảnh", "don_vi": "Đơn Vị", "so_luong": "Số Lượng",
-                "he_so": "Hệ Số", "tong_diem": "Tổng Điểm", "ghi_chu": "Ghi Chú"
-            })
-            df.insert(0, "STT", range(1, len(df) + 1))
-            return df
-    except Exception:
-        pass
+            return pd.DataFrame(res.data)
+    except Exception as e:
+        print(f"Lỗi tải rules: {e}")
     return pd.DataFrame()
 
+# ==================== SẢN LƯỢNG & CHẤM CÔNG ====================
+@st.cache_data(ttl=5)
+def get_production_logs_db(is_deleted=False, limit_rows=500):
+    if supabase is None:
+        return pd.DataFrame()
+    try:
+        query = supabase.table("production_logs").select("*")
+        if "is_deleted" in query.__dict__ or True:
+            try:
+                query = query.eq("is_deleted", is_deleted)
+            except Exception:
+                pass
+        res = query.order("id", desc=True).limit(limit_rows).execute()
+        if res.data:
+            return pd.DataFrame(res.data)
+    except Exception as e:
+        print(f"Lỗi tải production_logs: {e}")
+    return pd.DataFrame()
+
+@st.cache_data(ttl=5)
 def get_production_logs_by_date_range(start_date, end_date):
     if supabase is None:
         return pd.DataFrame()
     try:
-        res = supabase.table("production_logs").select("*").eq("is_deleted", False).gte("ngay", str(start_date)).lte("ngay", str(end_date)).execute()
+        res = supabase.table("production_logs").select("*").gte("ngay", str(start_date)).lte("ngay", str(end_date)).execute()
         if res.data:
-            df = pd.DataFrame(res.data)
-            df = df.rename(columns={
-                "id": "db_id", "ngay": "Ngày", "thoi_gian": "Thời Gian",
-                "nhan_su": "Nhân Sự", "hang_muc_cong_viec": "Hạng Mục Công Việc",
-                "hinh_anh_url": "Hình Ảnh", "don_vi": "Đơn Vị", "so_luong": "Số Lượng",
-                "he_so": "Hệ Số", "tong_diem": "Tổng Điểm", "ghi_chu": "Ghi Chú"
-            })
-            return df
-    except Exception:
-        pass
+            return pd.DataFrame(res.data)
+    except Exception as e:
+        print(f"Lỗi tải production_logs theo ngày: {e}")
     return pd.DataFrame()
 
+@st.cache_data(ttl=5)
 def get_total_production_count_db():
     if supabase is None:
         return 0
     try:
-        res = supabase.table("production_logs").select("id", count="exact").eq("is_deleted", False).execute()
-        return res.count if res and res.count is not None else 0
+        res = supabase.table("production_logs").select("id", count="exact").execute()
+        return res.count if res.count is not None else 0
     except Exception:
         return 0
 
-@st.cache_data(ttl=600, show_spinner=False)
+@st.cache_data(ttl=5)
 def get_attendance_db():
     if supabase is None:
         return pd.DataFrame()
     try:
-        res = supabase.table("attendance").select("*").order("id", desc=True).limit(100).execute()
+        res = supabase.table("attendance").select("*").execute()
         if res.data:
-            df = pd.DataFrame(res.data)
-            df = df.rename(columns={
-                "id": "db_id", "ngay": "Ngày", "nhan_su": "Nhân Sự",
-                "gio_vao_ca": "Giờ Vào Ca", "gio_ra_ca": "Giờ Ra Ca",
-                "so_phut_lam_viec": "Số Phút Làm Việc", "ghi_chu": "Ghi Chú"
-            })
-            df.insert(0, "STT", range(1, len(df) + 1))
-            return df
-    except Exception:
-        pass
+            return pd.DataFrame(res.data)
+    except Exception as e:
+        print(f"Lỗi tải attendance: {e}")
     return pd.DataFrame()
 
-@st.cache_data(ttl=60, show_spinner=False)
+# ==================== CẤU HÌNH ỨNG DỤNG ====================
+@st.cache_data(ttl=30)
 def load_app_settings_db():
     if supabase is None:
         return {}
@@ -144,213 +125,15 @@ def load_app_settings_db():
         res = supabase.table("app_settings").select("*").eq("id", 1).execute()
         if res.data and len(res.data) > 0:
             return res.data[0]
-    except Exception:
-        pass
+    except Exception as e:
+        print(f"Lỗi tải app_settings: {e}")
     return {}
 
-@st.cache_data(ttl=10, show_spinner=False)
-def load_folders_db():
-    default_folders = [{
-        "folder_name": "📌 Quản Lý Nghiệp Vụ",
-        "items": [
-            {"id": "menu_1", "name": "1. Nhập Sản Lượng"},
-            {"id": "menu_2", "name": "2. Báo Cáo Thống Kê"},
-            {"id": "menu_3", "name": "3. Tham Chiếu Định Mức"},
-            {"id": "menu_4", "name": "4. Thùng Rác Sản Lượng"},
-            {"id": "menu_5", "name": "5. Thư Mục Báo Cáo"},
-            {"id": "menu_6", "name": "6. Quản Lý Lỗi"}
-        ]
-    }]
-    if supabase is None:
-        return default_folders
+def permanent_delete_db(ids_list):
+    if supabase is None or not ids_list:
+        return
     try:
-        res = supabase.table("app_folders").select("*").eq("id", 1).execute()
-        if res.data and len(res.data) > 0:
-            folders_data = res.data[0].get("folders_json")
-            if folders_data and isinstance(folders_data, list):
-                items = folders_data[0].get("items", [])
-                if not any(str(item.get("name", "")).startswith("6.") for item in items):
-                    items.append({"id": "menu_6", "name": "6. Quản Lý Lỗi"})
-                    folders_data[0]["items"] = items
-                return folders_data
-    except Exception as e:
-        st.warning(f"⚠️ Không đọc được dữ liệu thư mục từ Database: {e}")
-    return default_folders
-
-def save_folders_db(folders_list):
-    if supabase is None:
-        st.error("⚠️ Chưa kết nối Supabase!")
-        return None
-    try:
-        payload = {"id": 1, "folders_json": folders_list}
-        response = supabase.table("app_folders").upsert(payload).execute()
-        load_folders_db.clear()
+        supabase.table("production_logs").delete().in_("id", ids_list).execute()
         st.cache_data.clear()
-        st.success("✅ Lưu cấu hình vào Supabase thành công!")
-        return response
     except Exception as e:
-        st.error(f"❌ Lỗi khi lưu vào Supabase: {e}")
-        return None
-
-def update_production_log_deleted_status(db_ids, is_deleted):
-    if supabase is None or not db_ids:
-        return None
-    try:
-        for db_id in db_ids:
-            supabase.table("production_logs").update({"is_deleted": is_deleted}).eq("id", db_id).execute()
-        return True
-    except Exception as e:
-        st.error(f"Lỗi khi cập nhật trạng thái xóa: {e}")
-        return None
-
-def upload_multiple_images_to_storage(uploaded_files):
-    if not uploaded_files or supabase is None:
-        return ""
-    
-    uploaded_urls = []
-    bucket_name = "production_images"
-
-    for file in uploaded_files:
-        try:
-            unique_filename = f"{int(time.time())}_{file.name.replace(' ', '_')}"
-            file_bytes = file.read()
-            
-            supabase.storage.from_(bucket_name).upload(
-                path=unique_filename,
-                file=file_bytes,
-                file_options={"content-type": file.type}
-            )
-            
-            public_url = supabase.storage.from_(bucket_name).get_public_url(unique_filename)
-            uploaded_urls.append(public_url)
-        except Exception as e:
-            st.error(f"Lỗi upload ảnh {file.name}: {e}")
-            
-    return ",".join(uploaded_urls)
-
-def permanent_delete_db(db_ids):
-    if supabase is None or not db_ids:
-        return None
-    try:
-        for db_id in db_ids:
-            supabase.table("production_logs").delete().eq("id", db_id).execute()
-        return True
-    except Exception as e:
-        st.error(f"Lỗi khi xóa vĩnh viễn: {e}")
-        return None
-
-def add_attendance_log_db(ngay, nhan_su, gio_vao):
-    if supabase is None:
-        return None
-    try:
-        data = {
-            "ngay": ngay,
-            "nhan_su": nhan_su,
-            "gio_vao_ca": gio_vao,
-            "gio_ra_ca": "Chưa kết thúc",
-            "so_phut_lam_viec": 0,
-            "ghi_chu": ""
-        }
-        response = supabase.table("attendance").insert(data).execute()
-        return response
-    except Exception as e:
-        st.error(f"Lỗi Check-in: {e}")
-        return None
-
-def update_attendance_checkout_db(db_id, gio_ra, so_phut, ghi_chu=""):
-    if supabase is None:
-        return None
-    try:
-        data = {
-            "gio_ra_ca": gio_ra,
-            "so_phut_lam_viec": so_phut,
-            "ghi_chu": ghi_chu
-        }
-        response = supabase.table("attendance").update(data).eq("id", db_id).execute()
-        return response
-    except Exception as e:
-        st.error(f"Lỗi Check-out: {e}")
-        return None
-
-@st.cache_data(ttl=600, show_spinner=False)
-def get_rules_db():
-    if supabase is None:
-        return pd.DataFrame()
-    try:
-        res = supabase.table("rules").select("*").execute()
-        if res.data:
-            df = pd.DataFrame(res.data)
-            rename_map = {}
-            if "hang_muc" in df.columns: rename_map["hang_muc"] = "Hạng Mục Công Việc"
-            if "hang_muc_cong_viec" in df.columns: rename_map["hang_muc_cong_viec"] = "Hạng Mục Công Việc"
-            if "he_so_diem" in df.columns: rename_map["he_so_diem"] = "Hệ Số Điểm"
-            if "don_vi" in df.columns: rename_map["don_vi"] = "Đơn Vị"
-            if "ghi_chu" in df.columns: rename_map["ghi_chu"] = "Ghi Chú"
-            
-            df = df.rename(columns=rename_map)
-            return df
-    except Exception as e:
-        st.error(f"Lỗi khi tải bảng định mức: {e}")
-    return pd.DataFrame()
-
-@st.cache_data(ttl=600, show_spinner=False)
-def get_error_logs_db(limit_rows=1000):
-    if supabase is None:
-        return pd.DataFrame()
-    try:
-        res = supabase.table("error_logs").select("*").order("id", desc=True).limit(limit_rows).execute()
-        if res.data:
-            df = pd.DataFrame(res.data)
-            df = df.rename(columns={
-                "id": "db_id", "ngay": "Ngày", "nhan_su": "Nhân Sự",
-                "phan_loai_loi": "Phân Loại Lỗi", "so_luong": "Số Lượng",
-                "ghi_chu": "Ghi Chú", "so_anh_dinh_kem": "Số Ảnh Đính Kèm"
-            })
-            return df
-    except Exception:
-        pass
-    return pd.DataFrame()
-
-def add_error_log_with_images_db(ngay, nhan_su, phan_loai_loi, so_luong, ghi_chu, images_base64_str):
-    if supabase is None:
-        return None
-    try:
-        data = {
-            "ngay": str(ngay),
-            "nhan_su": nhan_su,
-            "phan_loai_loi": phan_loai_loi,
-            "so_luong": so_luong,
-            "ghi_chu": ghi_chu,
-            "so_anh_dinh_kem": images_base64_str
-        }
-        response = supabase.table("error_logs").insert(data).execute()
-        return response
-    except Exception as e:
-        st.error(f"Lỗi ghi nhận báo cáo lỗi: {e}")
-        return None
-
-@st.cache_data(ttl=10, show_spinner=False)
-def get_error_categories_db():
-    default_categories = ["Sản phẩm hỏng", "Lỗi nguyên vật liệu", "Lỗi thao tác", "Lỗi máy móc / thiết bị", "Khác"]
-    if supabase is None:
-        return default_categories
-    try:
-        res = supabase.table("error_settings").select("*").eq("id", 1).execute()
-        if res.data and len(res.data) > 0:
-            categories = res.data[0].get("categories_json")
-            if categories and isinstance(categories, list):
-                return categories
-    except Exception:
-        pass
-    return default_categories
-
-def save_error_categories_db(categories_list):
-    if supabase is None:
-        return None
-    try:
-        data = {"id": 1, "categories_json": categories_list}
-        response = supabase.table("error_settings").upsert(data).execute()
-        return response
-    except Exception as e:
-        st.error(f"Lỗi lưu danh mục lỗi: {e}")
-        return None
+        print(f"Lỗi xóa vĩnh viễn: {e}")
