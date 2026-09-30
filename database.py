@@ -155,6 +155,18 @@ def get_attendance_db():
         print(f"Lỗi tải attendance: {e}")
     return pd.DataFrame()
 
+def add_attendance_log_db(payload):
+    """Thêm mới bản ghi chấm công vào cơ sở dữ liệu"""
+    if supabase is None:
+        return False
+    try:
+        supabase.table("attendance").insert(payload).execute()
+        st.cache_data.clear()
+        return True
+    except Exception as e:
+        print(f"Lỗi thêm chấm công: {e}")
+        return False
+
 # ==================== CẤU HÌNH ỨNG DỤNG ====================
 @st.cache_data(ttl=30)
 def load_app_settings_db():
