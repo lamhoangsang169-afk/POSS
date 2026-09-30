@@ -212,7 +212,7 @@ if not st.session_state.logged_in:
                 
                 if st.form_submit_button("🚀 Đăng Nhập Nhân Viên", use_container_width=True):
                     if login_name == "--- Chọn họ và tên ---" or not password_staff:
-                        st.error("⚠️️ Vui lòng chọn họ tên và nhập mật khẩu!")
+                        st.error("⚠️ Vui lòng chọn họ tên và nhập mật khẩu!")
                     elif supabase is None:
                         st.error("⚠️ Chưa kết nối được tới cơ sở dữ liệu!")
                     else:
@@ -272,13 +272,26 @@ if "rules_df" not in st.session_state:
 
 db_settings = load_app_settings_db()
 
-st.session_state.primary_color = db_settings.get("primary_color", st.session_state.get("primary_color", "#ff4b4b"))
-st.session_state.bg_color = db_settings.get("bg_color", st.session_state.get("bg_color", "#ffffff"))
-st.session_state.sidebar_bg = db_settings.get("sidebar_bg", st.session_state.get("sidebar_bg", "#f0f2f6"))
-st.session_state.sidebar_opacity = float(db_settings.get("sidebar_opacity", st.session_state.get("sidebar_opacity", 0.9)))
-st.session_state.text_color = db_settings.get("text_color", st.session_state.get("text_color", "#31333F"))
-st.session_state.bg_image_base64 = db_settings.get("bg_image_base64", st.session_state.get("bg_image_base64", None))
-st.session_state.avatar_base64 = db_settings.get("avatar_base64", st.session_state.get("avatar_base64", None))
+if not db_settings:
+    db_settings = {
+        "primary_color": "#ff4b4b",
+        "bg_color": "#ffffff",
+        "sidebar_bg": "#f0f2f6",
+        "sidebar_opacity": 0.9,
+        "text_color": "#31333F"
+    }
+    try:
+        save_app_settings_db(db_settings)
+    except Exception:
+        pass
+
+st.session_state.primary_color = db_settings.get("primary_color", "#ff4b4b")
+st.session_state.bg_color = db_settings.get("bg_color", "#ffffff")
+st.session_state.sidebar_bg = db_settings.get("sidebar_bg", "#f0f2f6")
+st.session_state.sidebar_opacity = float(db_settings.get("sidebar_opacity", 0.9))
+st.session_state.text_color = db_settings.get("text_color", "#31333F")
+st.session_state.bg_image_base64 = db_settings.get("bg_image_base64", None)
+st.session_state.avatar_base64 = db_settings.get("avatar_base64", None)
 
 if "current_menu" not in st.session_state: 
     st.session_state.current_menu = "1. Nhập Sản Lượng"
@@ -516,7 +529,7 @@ def render_main_content(current_menu_name):
                                     }).eq("name", target_staff_pw).execute()
                                     st.success(f"✅ Đã đổi mật khẩu thành công cho **{target_staff_pw}**!")
                                 else:
-                                    st.error("⚠️ Mật khẩu phải có ít nhất 6 ký tự!")
+                                    st.error("⚠️️ Mật khẩu phải có ít nhất 6 ký tự!")
                             else:
                                 st.warning("⚠️ Vui lòng chọn nhân sự và nhập mật khẩu mới!")
 
@@ -534,35 +547,34 @@ def render_main_content(current_menu_name):
                             st.success("✅ Đã cập nhật quyền hạn chi tiết thành công!")
                             st.rerun()
 
-                    # --- FORM XÓA TÀI KHOẢN NHÂN SỰ (TỰ ĐỘNG XÓA DỮ LIỆU LIÊN QUAN) ---
-                    st.markdown("---")
-                    with st.expander("🗑️ Xóa Tài Khoản Nhân Sự", expanded=False):
-                        with st.form("delete_account_form"):
-                            all_account_names = roles_df["name"].tolist() if "name" in roles_df.columns else staff_list_names
-                            col_d1, col_d2 = st.columns([2, 1])
-                            with col_d1:
-                                target_staff_del = st.selectbox("Chọn nhân sự cần xóa tài khoản", ["--- Chọn nhân sự ---"] + all_account_names, key="select_del_staff_acc")
-                            with col_d2:
-                                st.markdown("<br>", unsafe_allow_html=True)
-                                btn_execute_delete = st.form_submit_button("🔥 Xóa Tài Khoản Này", use_container_width=True)
+                        # --- FORM XÓA TÀI KHOẢN NHÂN SỰ (TỰ ĐỘNG XÓA DỮ LIỆU LIÊN QUAN) ---
+                        st.markdown("---")
+                        with st.expander("🗑️ Xóa Tài Khoản Nhân Sự", expanded=False):
+                            with st.form("delete_account_form"):
+                                all_account_names = roles_df["name"].tolist() if "name" in roles_df.columns else staff_list_names
+                                col_d1, col_d2 = st.columns([2, 1])
+                                with col_d1:
+                                    target_staff_del = st.selectbox("Chọn nhân sự cần xóa tài khoản", ["--- Chọn nhân sự ---"] + all_account_names, key="select_del_staff_acc")
+                                with col_d2:
+                                    st.markdown("<br>", unsafe_allow_html=True)
+                                    btn_execute_delete = st.form_submit_button("🔥 Xóa Tài Khoản Này", use_container_width=True)
 
-                            if btn_execute_delete:
-                                if target_staff_del == "--- Chọn nhân sự ---":
-                                    st.warning("⚠️ Vui lòng chọn nhân sự cần xóa!")
-                                else:
-                                    try:
-                                        # Tự động xóa toàn bộ các bản ghi liên quan trực tiếp tới nhân sự đó ở các bảng
-                                        supabase.table("user_accounts").delete().eq("name", target_staff_del).execute()
-                                        supabase.table("staff").delete().eq("name", target_staff_del).execute()
-                                        supabase.table("production_logs").delete().eq("nhan_su", target_staff_del).execute()
-                                        supabase.table("attendance").delete().eq("nhan_su", target_staff_del).execute()
-                                        supabase.table("error_logs").delete().eq("nhan_su", target_staff_del).execute()
-                                        
-                                        st.success(f"✅ Đã xóa thành công nhân sự **{target_staff_del}** cùng toàn bộ dữ liệu sản lượng, chấm công và lỗi liên quan!")
-                                        st.cache_data.clear()
-                                        st.rerun()
-                                    except Exception as e:
-                                        st.error(f"❌ Lỗi khi xóa nhân sự và dữ liệu liên quan: {e}")
+                                if btn_execute_delete:
+                                    if target_staff_del == "--- Chọn nhân sự ---":
+                                        st.warning("⚠️ Vui lòng chọn nhân sự cần xóa!")
+                                    else:
+                                        try:
+                                            supabase.table("user_accounts").delete().eq("name", target_staff_del).execute()
+                                            supabase.table("staff").delete().eq("name", target_staff_del).execute()
+                                            supabase.table("production_logs").delete().eq("nhan_su", target_staff_del).execute()
+                                            supabase.table("attendance").delete().eq("nhan_su", target_staff_del).execute()
+                                            supabase.table("error_logs").delete().eq("nhan_su", target_staff_del).execute()
+                                            
+                                            st.success(f"✅ Đã xóa thành công nhân sự **{target_staff_del}** cùng toàn bộ dữ liệu sản lượng, chấm công và lỗi liên quan!")
+                                            st.cache_data.clear()
+                                            st.rerun()
+                                        except Exception as e:
+                                            st.error(f"❌ Lỗi khi xóa nhân sự và dữ liệu liên quan: {e}")
                 else:
                     st.info("Chưa có tài khoản nhân sự nào trong hệ thống.")
             except Exception as e:
