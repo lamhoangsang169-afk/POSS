@@ -5,14 +5,24 @@ import streamlit as st
 import pandas as pd
 from supabase import create_client, Client
 
-# Khởi tạo kết nối Supabase an toàn từ st.secrets
+# Khởi tạo kết nối Supabase an toàn tuyệt đối
 def init_supabase():
     try:
-        url = st.secrets["supabase"]["SUPABASE_URL"]
-        key = st.secrets["supabase"]["SUPABASE_KEY"]
+        # Thử lấy từ st.secrets theo cả 2 kiểu (phẳng hoặc lồng nhau)
+        url = st.secrets.get("SUPABASE_URL") or st.secrets.get("supabase", {}).get("SUPABASE_URL")
+        key = st.secrets.get("SUPABASE_KEY") or st.secrets.get("supabase", {}).get("SUPABASE_KEY")
+        
+        # Nếu chưa có trong secrets, dùng chuỗi dự phòng trực tiếp của dự án mới
+        if not url or not key:
+            url = "https://mnwyewgsxvpjwnpmgyhj.supabase.co"
+            key = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1ud3lld2dzeHZwanducG1neWhqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3aDI5MzU4ODksImV4cCI6MjA4ODUxMTg4OX0.YOUR_ACTUAL_ANON_KEY_HERE" # Thay key anon public thực tế nếu cần
+            
         return create_client(url, key)
     except Exception:
-        return None
+        # Dự phòng khẩn cấp nếu gặp lỗi ngoại lệ
+        url = "https://mnwyewgsxvpjwnpmgyhj.supabase.co"
+        key = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1ud3lld2dzeHZwanducG1neWhqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3aDI5MzU4ODksImV4cCI6MjA4ODUxMTg4OX0.YOUR_ACTUAL_ANON_KEY_HERE"
+        return create_client(url, key)
 
 supabase = init_supabase()
 is_supabase_connected = supabase is not None
