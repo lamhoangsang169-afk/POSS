@@ -88,6 +88,22 @@ def update_production_log_deleted_status(log_id, is_deleted):
         print(f"Lỗi cập nhật trạng thái xóa: {e}")
         return False
 
+def upload_multiple_images_to_storage(files, bucket_name="production_images"):
+    """Tải nhiều ảnh lên Supabase Storage và trả về danh sách URL"""
+    if supabase is None or not files:
+        return []
+    urls = []
+    try:
+        for file in files:
+            file_path = f"{file.name}"
+            supabase.storage.from_(bucket_name).upload(file_path, file.getvalue(), file_options={"upsert": "true"})
+            public_url = supabase.storage.from_(bucket_name).get_public_url(file_path)
+            if public_url:
+                urls.append(public_url)
+    except Exception as e:
+        print(f"Lỗi upload ảnh: {e}")
+    return urls
+
 @st.cache_data(ttl=5)
 def get_production_logs_db(is_deleted=False, limit_rows=500):
     if supabase is None:
