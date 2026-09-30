@@ -28,7 +28,18 @@ def init_db_data():
     if supabase is None:
         return
     try:
-        # Kiểm tra và khởi tạo app_folders nếu trống
+        # Khởi tạo app_settings nếu trống
+        res_settings = supabase.table("app_settings").select("id").eq("id", 1).execute()
+        if not res_settings.data:
+            default_settings = {
+                "id": 1,
+                "primary_color": "#1f77b4",
+                "bg_color": "#ffffff",
+                "sidebar_bg": "#f0f2f6"
+            }
+            supabase.table("app_settings").upsert(default_settings).execute()
+
+        # Khởi tạo app_folders nếu trống
         res_folder = supabase.table("app_folders").select("id").eq("id", 1).execute()
         if not res_folder.data:
             default_folders = [{
@@ -44,7 +55,7 @@ def init_db_data():
             }]
             supabase.table("app_folders").upsert({"id": 1, "folders_json": default_folders}).execute()
 
-        # Kiểm tra và khởi tạo error_settings nếu trống
+        # Khởi tạo error_settings nếu trống
         res_error = supabase.table("error_settings").select("id").eq("id", 1).execute()
         if not res_error.data:
             default_categories = ["Sản phẩm hỏng", "Lỗi nguyên vật liệu", "Lỗi thao tác", "Lỗi máy móc / thiết bị", "Khác"]
@@ -176,6 +187,20 @@ def load_app_settings_db():
     except Exception:
         pass
     return {}
+
+def save_app_settings_db(settings_dict):
+    """Lưu cài đặt giao diện/màu sắc vào Supabase để không bị mất khi F5"""
+    if supabase is None:
+        return None
+    try:
+        settings_dict["id"] = 1
+        response = supabase.table("app_settings").upsert(settings_dict).execute()
+        load_app_settings_db.clear()
+        st.cache_data.clear()
+        return response
+    except Exception as e:
+        st.error(f"Lỗi khi lưu cài đặt ứng dụng: {e}")
+        return None
 
 @st.cache_data(ttl=10, show_spinner=False)
 def load_folders_db():
