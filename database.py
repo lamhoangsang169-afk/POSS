@@ -8,12 +8,10 @@ from supabase import create_client, Client
 # Khởi tạo kết nối Supabase an toàn qua st.secrets (hoặc fallback nếu chưa cấu hình secrets)
 def init_supabase():
     try:
-        # Ưu tiên lấy từ st.secrets của Streamlit
         url = st.secrets.get("SUPABASE_URL", "https://mnwyewgsxvpjwnpmgyhj.supabase.co")
         key = st.secrets.get("SUPABASE_KEY", "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1ud3lld2dzeHZwanducG1neWhqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTA3MjMwNjgsImV4cCI6MjEwNjI5OTA2OH0.eeTU1a16zY5c4XHr7YobwRRJXstgkQjt3lyIosUMVQk")
         return create_client(url, key)
     except Exception as e:
-        # Fallback nếu chạy môi trường khác chưa có secrets
         try:
             url = "https://mnwyewgsxvpjwnpmgyhj.supabase.co"
             key = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1ud3lld2dzeHZwanducG1neWhqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTA3MjMwNjgsImV4cCI6MjEwNjI5OTA2OH0.eeTU1a16zY5c4XHr7YobwRRJXstgkQjt3lyIosUMVQk"
@@ -26,7 +24,36 @@ supabase = init_supabase()
 is_supabase_connected = supabase is not None
 
 def init_db_data():
-    pass
+    """Đảm bảo các bảng cấu hình luôn có sẵn dòng id = 1 để F5 không bị mất dữ liệu"""
+    if supabase is None:
+        return
+    try:
+        # Kiểm tra và khởi tạo app_folders nếu trống
+        res_folder = supabase.table("app_folders").select("id").eq("id", 1).execute()
+        if not res_folder.data:
+            default_folders = [{
+                "folder_name": "📌 Quản Lý Nghiệp Vụ",
+                "items": [
+                    {"id": "menu_1", "name": "1. Nhập Sản Lượng"},
+                    {"id": "menu_2", "name": "2. Báo Cáo Thống Kê"},
+                    {"id": "menu_3", "name": "3. Tham Chiếu Định Mức"},
+                    {"id": "menu_4", "name": "4. Thùng Rác Sản Lượng"},
+                    {"id": "menu_5", "name": "5. Thư Mục Báo Cáo"},
+                    {"id": "menu_6", "name": "6. Quản Lý Lỗi"}
+                ]
+            }]
+            supabase.table("app_folders").upsert({"id": 1, "folders_json": default_folders}).execute()
+
+        # Kiểm tra và khởi tạo error_settings nếu trống
+        res_error = supabase.table("error_settings").select("id").eq("id", 1).execute()
+        if not res_error.data:
+            default_categories = ["Sản phẩm hỏng", "Lỗi nguyên vật liệu", "Lỗi thao tác", "Lỗi máy móc / thiết bị", "Khác"]
+            supabase.table("error_settings").upsert({"id": 1, "categories_json": default_categories}).execute()
+    except Exception:
+        pass
+
+# Gọi khởi tạo ngầm an toàn
+init_db_data()
 
 @st.cache_data(ttl=10, show_spinner=False)
 def get_staff_df_db():
@@ -352,6 +379,8 @@ def save_error_categories_db(categories_list):
     try:
         data = {"id": 1, "categories_json": categories_list}
         response = supabase.table("error_settings").upsert(data).execute()
+        load_error_categories_db.clear()
+        st.cache_data.clear()
         return response
     except Exception as e:
         st.error(f"Lỗi lưu danh mục lỗi: {e}")
