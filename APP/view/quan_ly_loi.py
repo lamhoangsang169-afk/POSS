@@ -1,4 +1,3 @@
-# APP/view/quan_ly_loi.py
 import streamlit as st
 import pandas as pd
 import datetime
@@ -37,7 +36,8 @@ def render_quan_ly_loi(current_menu_name):
     st.markdown("### ⚠️ Khai Báo Lỗi Phát Sinh")
     
     # Tải danh mục loại lỗi gốc từ Database Supabase cho form khai báo
-    ds_loai_loi_hien_tai = db.get_error_categories_db()
+    raw_cats = db.get_error_categories_db()
+    ds_loai_loi_hien_tai = list(raw_cats) if isinstance(raw_cats, (list, tuple)) else ["Sản phẩm hỏng", "Lỗi nguyên vật liệu", "Lỗi thao tác", "Lỗi máy móc / thiết bị", "Khác"]
 
     with st.form("form_khai_bao_loi", clear_on_submit=True):
         col1, col2, col3 = st.columns(3)
@@ -47,7 +47,7 @@ def render_quan_ly_loi(current_menu_name):
             staff_options = ["--- Vui lòng chọn nhân sự ---"] + st.session_state.get("staff_list", [])
             nhan_su_phat_hien = st.selectbox("Nhân sự chịu trách nhiệm/phát hiện", staff_options, key="select_nhan_su_loi")
         with col3:
-            phan_loai_loi = st.selectbox("Phân loại lỗi", ds_loai_loi_hien_tai if isinstance(ds_loai_loi_hien_tai, list) else ["Sản phẩm hỏng"], key="select_phan_loai_loi")
+            phan_loai_loi = st.selectbox("Phân loại lỗi", ds_loai_loi_hien_tai, key="select_phan_loai_loi")
             
         uploaded_images = st.file_uploader(
             "Tải ảnh đính kèm (Tối đa nhiều ảnh)", 
@@ -89,40 +89,45 @@ def render_quan_ly_loi(current_menu_name):
                 st.success("✅ Đã ghi nhận báo cáo lỗi và lưu ảnh lên Supabase Storage thành công!")
                 st.rerun()
 
-    # --- PHẦN TÙY CHỈNH DANH MỤC LỖI ---
-    with st.expander("⚙️ Tùy Chỉnh Danh Mục Loại Lỗi (Thêm/Bớt)"):
+    # ==================== PHẦN TÙY CHỈNH DANH MỤC LỖI (SỬ DỤNG FORM CHUẨN) ====================
+    with st.expander("⚙️ Tùy Chỉnh Danh Mục Loại Lỗi (Thêm/Bớt)", expanded=False):
         current_cats = list(db.get_error_categories_db())
         
-        st.markdown("##### ➕ Thêm loại lỗi mới")
-        col_t1, col_t2 = st.columns([3, 1])
-        with col_t1:
-            new_loai_loi = st.text_input("Nhập tên loại lỗi...", placeholder="Nhập tên loại lỗi...", label_visibility="collapsed", key="input_new_loi")
-        with col_t2:
-            if st.button("Thêm Loại Lỗi", use_container_width=True, key="btn_add_loi_cat"):
-                if new_loai_loi.strip():
-                    if new_loai_loi.strip() not in current_cats:
-                        current_cats.append(new_loai_loi.strip())
-                        db.save_error_categories_db(current_cats)
-                        st.cache_data.clear()
-                        st.success(f"✅ Đã thêm loại lỗi: '{new_loai_loi.strip()}' vào Database!")
-                        st.rerun()
-                    else:
-                        st.warning("⚠️ Loại lỗi này đã tồn tại!")
-                else:
+        # Form Thêm loại lỗi
+        with st.form("form_add_loi_cat"):
+            st.markdown("##### ➕ Thêm loại lỗi mới")
+            new_loai_loi = st.text_input("Nhập tên loại lỗi mới...", placeholder="Nhập tên loại lỗi...")
+            btn_add_cat = st.form_submit_button("Thêm Loại Lỗi", use_container_width=True)
+            
+            if btn_add_cat:
+                clean_name = new_loai_loi.strip()
+                if not clean_name:
                     st.error("⚠️ Vui lòng nhập tên loại lỗi!")
-
-        st.markdown("##### ➖ Xóa loại lỗi không dùng")
-        col_x1, col_x2 = st.columns([3, 1])
-        with col_x1:
-            loai_loi_can_xoa = st.selectbox("Chọn loại lỗi để xóa", current_cats, label_visibility="collapsed", key="select_del_loi")
-        with col_x2:
-            if st.button("Xóa Loại Lỗi", use_container_width=True, key="btn_del_loi_cat"):
-                if len(current_cats) > 1:
-                    current_cats.remove(loai_loi_can_xoa)
+                elif clean_name in current_cats:
+                    st.warning("⚠️ Loại lỗi này đã tồn tại!")
+                else:
+                    current_cats.append(clean_name)
                     db.save_error_categories_db(current_cats)
                     st.cache_data.clear()
-                    st.success(f"✅ Đã xóa loại lỗi: '{loai_loi_can_xoa}' khỏi Database!")
+                    st.success(f"✅ Đã thêm loại lỗi: '{clean_name}' vào Database thành công!")
                     st.rerun()
+
+        st.markdown("---")
+
+        # Form Xóa loại lỗi
+        with st.form("form_del_loi_cat"):
+            st.markdown("##### ➖ Xóa loại lỗi không dùng")
+            loai_loi_can_xoa = st.selectbox("Chọn loại lỗi để xóa", current_cats, key="select_del_loi_box")
+            btn_del_cat = st.form_submit_button("Xóa Loại Lỗi", use_container_width=True)
+            
+            if btn_del_cat:
+                if len(current_cats) > 1:
+                    if loai_loi_can_xoa in current_cats:
+                        current_cats.remove(loai_loi_can_xoa)
+                        db.save_error_categories_db(current_cats)
+                        st.cache_data.clear()
+                        st.success(f"✅ Đã xóa loại lỗi: '{loai_loi_can_xoa}' khỏi Database thành công!")
+                        st.rerun()
                 else:
                     st.error("⚠️ Cần giữ lại ít nhất một phân loại lỗi!")
 
@@ -156,7 +161,7 @@ def render_quan_ly_loi(current_menu_name):
             
         cat_filter_opts = ["Tất cả"] + dynamic_cats
     else:
-        cat_filter_opts = ["Tất cả"] + list(ds_loai_loi_hien_tai)
+        cat_filter_opts = ["Tất cả"] + ds_loai_loi_hien_tai
 
     if st.session_state.loi_filter_cat not in cat_filter_opts:
         st.session_state.loi_filter_cat = "Tất cả"
