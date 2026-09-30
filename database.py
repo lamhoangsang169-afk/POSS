@@ -10,7 +10,7 @@ def init_supabase():
     try:
         url = "https://mnwyewgsxvpjwnpmgyhj.supabase.co"
         # Khóa anon public của bạn được gán trực tiếp tại đây để triệt tiêu lỗi không đọc được secrets
-        key = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1ud3lld2dzeHZwanducG1neWhqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3aDI5MzU4ODksImV4cCI6MjA4ODUxMTg4OX0.YOUR_ACTUAL_ANON_KEY_HERE"
+        key = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1ud3lld2dzeHZwanducG1neWhqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3aDI5MzU4ODksImV4cCI6MjA4ODUxMTg4OX0"
         return create_client(url, key)
     except Exception as e:
         st.error(f"Lỗi khởi tạo Supabase: {e}")
