@@ -102,7 +102,7 @@ def render_quan_ly_loi(current_menu_name):
             if btn_add_cat:
                 clean_name = new_loai_loi.strip()
                 if not clean_name:
-                    st.error("⚠️️ Vui lòng nhập tên loại lỗi!")
+                    st.error("⚠️ Vui lòng nhập tên loại lỗi!")
                 elif clean_name in current_cats:
                     st.warning("⚠️ Loại lỗi này đã tồn tại!")
                 else:
@@ -135,7 +135,7 @@ def render_quan_ly_loi(current_menu_name):
                         except Exception as e:
                             st.error(f"Lỗi lưu danh mục lỗi: {e}")
                 else:
-                    st.error("⚠️️ Cần giữ lại ít nhất một phân loại lỗi!")
+                    st.error("⚠️ Cần giữ lại ít nhất một phân loại lỗi!")
 
     st.markdown("---")
     st.subheader("📋 Danh Sách Lỗi & Bộ Lọc Nâng Cao")
@@ -240,10 +240,14 @@ def render_quan_ly_loi(current_menu_name):
                 selected_db_ids = []
 
                 for idx, row in page_df.iterrows():
-                    # Lấy ID an toàn, kiểm tra cả 'db_id' và 'id' để không bao giờ bị nan
-                    db_id = row.get('db_id')
-                    if pd.isna(db_id):
-                        db_id = row.get('id')
+                    # Quét linh hoạt mọi cột có chứa từ 'id' hoặc 'db_id' để lấy ID chính xác tuyệt đối
+                    db_id = None
+                    for col_name in page_df.columns:
+                        if 'id' in str(col_name).lower():
+                            val = row.get(col_name)
+                            if pd.notna(val) and str(val).strip() != "":
+                                db_id = val
+                                break
 
                     stt_hien_thi = start_idx + idx + 1
                     ngay_val = row.get('Ngày', '')
@@ -309,11 +313,15 @@ def render_quan_ly_loi(current_menu_name):
                     if confirm_del_all:
                         page_ids = []
                         for _, r in page_df.iterrows():
-                            val_id = r.get('db_id')
-                            if pd.isna(val_id):
-                                val_id = r.get('id')
-                            if pd.notna(val_id):
-                                page_ids.append(val_id)
+                            found_id = None
+                            for c_name in page_df.columns:
+                                if 'id' in str(c_name).lower():
+                                    v = r.get(c_name)
+                                    if pd.notna(v) and str(v).strip() != "":
+                                        found_id = v
+                                        break
+                            if pd.notna(found_id):
+                                page_ids.append(found_id)
 
                         if page_ids:
                             try:
