@@ -76,6 +76,18 @@ def add_production_log_db(payload):
         print(f"Lỗi thêm sản lượng: {e}")
         return False
 
+def update_production_log_deleted_status(log_id, is_deleted):
+    """Cập nhật trạng thái xóa mềm của bản ghi sản lượng"""
+    if supabase is None:
+        return False
+    try:
+        supabase.table("production_logs").update({"is_deleted": is_deleted}).eq("id", log_id).execute()
+        st.cache_data.clear()
+        return True
+    except Exception as e:
+        print(f"Lỗi cập nhật trạng thái xóa: {e}")
+        return False
+
 @st.cache_data(ttl=5)
 def get_production_logs_db(is_deleted=False, limit_rows=500):
     if supabase is None:
