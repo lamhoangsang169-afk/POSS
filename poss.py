@@ -214,7 +214,7 @@ if not st.session_state.logged_in:
                     if login_name == "--- Chọn họ và tên ---" or not password_staff:
                         st.error("⚠️ Vui lòng chọn họ tên và nhập mật khẩu!")
                     elif supabase is None:
-                        st.error("⚠️️ Chưa kết nối được tới cơ sở dữ liệu!")
+                        st.error("⚠ Chưa kết nối được tới cơ sở dữ liệu!")
                     else:
                         try:
                             res = supabase.table("user_accounts").select("*").eq("name", login_name).execute()
@@ -435,7 +435,7 @@ def render_main_content(current_menu_name):
     elif current_menu_name == "🛡️ Quản Lý Tài Khoản & Phân Quyền":
         col_mr_h1, col_mr_h2 = st.columns([3, 1])
         with col_mr_h1:
-            st.header("🛡️ Quản Lý Tài Khoản & Phân Quyền Chi Tiết")
+            st.header("🛡️️ Quản Lý Tài Khoản & Phân Quyền Chi Tiết")
         with col_mr_h2:
             if st.button("🔄 Làm mới dữ liệu", use_container_width=True, key="btn_refresh_mr"):
                 st.cache_data.clear()
@@ -503,6 +503,7 @@ def render_main_content(current_menu_name):
                 if res_roles and res_roles.data:
                     roles_df = pd.DataFrame(res_roles.data)
                     
+                    # --- FORM 1: CẬP NHẬT QUYỀN HẠN HÀNG LOẠT ---
                     with st.form("manage_accounts_form"):
                         edited_roles_df = st.data_editor(
                             roles_df,
@@ -520,7 +521,24 @@ def render_main_content(current_menu_name):
                             use_container_width=True
                         )
                         
-                        st.markdown("---")
+                        if st.form_submit_button("💾 Lưu Cập Nhật Quyền Hạn Hàng Loạt", use_container_width=True):
+                            for _, row in edited_roles_df.iterrows():
+                                r_id = row["id"]
+                                supabase.table("user_accounts").update({
+                                    "role": row["role"],
+                                    "perm_input": bool(row["perm_input"]),
+                                    "perm_report": bool(row["perm_report"]),
+                                    "perm_attendance": bool(row["perm_attendance"]),
+                                    "perm_rules": bool(row["perm_rules"])
+                                }).eq("id", r_id).execute()
+                            st.cache_data.clear()
+                            st.success("✅ Đã cập nhật quyền hạn chi tiết thành công!")
+                            st.rerun()
+
+                    st.markdown("---")
+                    
+                    # --- FORM 2: ĐỔI MẬT KHẨU NHANH (ĐỘC LẬP) ---
+                    with st.form("change_password_form_standalone"):
                         st.markdown("##### 🔑 Đổi mật khẩu nhanh cho nhân sự")
                         all_account_names = roles_df["name"].tolist() if "name" in roles_df.columns else staff_list_names
                         col_p1, col_p2, col_p3 = st.columns([1.5, 1.5, 1])
@@ -544,48 +562,33 @@ def render_main_content(current_menu_name):
                             else:
                                 st.warning("⚠️ Vui lòng chọn nhân sự và nhập mật khẩu mới!")
 
-                        if st.form_submit_button("💾 Lưu Cập Nhật Quyền Hạn Hàng Loạt", use_container_width=True):
-                            for _, row in edited_roles_df.iterrows():
-                                r_id = row["id"]
-                                supabase.table("user_accounts").update({
-                                    "role": row["role"],
-                                    "perm_input": bool(row["perm_input"]),
-                                    "perm_report": bool(row["perm_report"]),
-                                    "perm_attendance": bool(row["perm_attendance"]),
-                                    "perm_rules": bool(row["perm_rules"])
-                                }).eq("id", r_id).execute()
-                            st.cache_data.clear()
-                            st.success("✅ Đã cập nhật quyền hạn chi tiết thành công!")
-                            st.rerun()
+                    # --- FORM 3: XÓA TÀI KHOẢN (ĐỘC LẬP) ---
+                    with st.expander("🗑️ Xóa Tài Khoản Nhân Sự", expanded=False):
+                        with st.form("delete_account_form_standalone"):
+                            all_account_names = roles_df["name"].tolist() if "name" in roles_df.columns else staff_list_names
+                            col_d1, col_d2 = st.columns([2, 1])
+                            with col_d1:
+                                target_staff_del = st.selectbox("Chọn nhân sự cần xóa tài khoản", ["--- Chọn nhân sự ---"] + all_account_names, key="select_del_staff_acc")
+                            with col_d2:
+                                st.markdown("<br>", unsafe_allow_html=True)
+                                btn_execute_delete = st.form_submit_button("🔥 Xóa Tài Khoản Này", use_container_width=True)
 
-                        # --- FORM XÓA TÀI KHOẢN NHÂN SỰ (TỰ ĐỘNG XÓA DỮ LIỆU LIÊN QUAN) ---
-                        st.markdown("---")
-                        with st.expander("🗑️ Xóa Tài Khoản Nhân Sự", expanded=False):
-                            with st.form("delete_account_form"):
-                                all_account_names = roles_df["name"].tolist() if "name" in roles_df.columns else staff_list_names
-                                col_d1, col_d2 = st.columns([2, 1])
-                                with col_d1:
-                                    target_staff_del = st.selectbox("Chọn nhân sự cần xóa tài khoản", ["--- Chọn nhân sự ---"] + all_account_names, key="select_del_staff_acc")
-                                with col_d2:
-                                    st.markdown("<br>", unsafe_allow_html=True)
-                                    btn_execute_delete = st.form_submit_button("🔥 Xóa Tài Khoản Này", use_container_width=True)
-
-                                if btn_execute_delete:
-                                    if target_staff_del == "--- Chọn nhân sự ---":
-                                        st.warning("⚠️ Vui lòng chọn nhân sự cần xóa!")
-                                    else:
-                                        try:
-                                            supabase.table("user_accounts").delete().eq("name", target_staff_del).execute()
-                                            supabase.table("staff").delete().eq("name", target_staff_del).execute()
-                                            supabase.table("production_logs").delete().eq("nhan_su", target_staff_del).execute()
-                                            supabase.table("attendance").delete().eq("nhan_su", target_staff_del).execute()
-                                            supabase.table("error_logs").delete().eq("nhan_su", target_staff_del).execute()
-                                            
-                                            st.success(f"✅ Đã xóa thành công nhân sự **{target_staff_del}** cùng toàn bộ dữ liệu sản lượng, chấm công và lỗi liên quan!")
-                                            st.cache_data.clear()
-                                            st.rerun()
-                                        except Exception as e:
-                                            st.error(f"❌ Lỗi khi xóa nhân sự và dữ liệu liên quan: {e}")
+                            if btn_execute_delete:
+                                if target_staff_del == "--- Chọn nhân sự ---":
+                                    st.warning("⚠️ Vui lòng chọn nhân sự cần xóa!")
+                                else:
+                                    try:
+                                        supabase.table("user_accounts").delete().eq("name", target_staff_del).execute()
+                                        supabase.table("staff").delete().eq("name", target_staff_del).execute()
+                                        supabase.table("production_logs").delete().eq("nhan_su", target_staff_del).execute()
+                                        supabase.table("attendance").delete().eq("nhan_su", target_staff_del).execute()
+                                        supabase.table("error_logs").delete().eq("nhan_su", target_staff_del).execute()
+                                        
+                                        st.success(f"✅ Đã xóa thành công nhân sự **{target_staff_del}** cùng toàn bộ dữ liệu sản lượng, chấm công và lỗi liên quan!")
+                                        st.cache_data.clear()
+                                        st.rerun()
+                                    except Exception as e:
+                                        st.error(f"❌ Lỗi khi xóa nhân sự và dữ liệu liên quan: {e}")
                 else:
                     st.info("Chưa có tài khoản nhân sự nào trong hệ thống.")
             except Exception as e:
