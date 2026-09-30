@@ -181,7 +181,7 @@ if not st.session_state.logged_in:
                 
                 if st.form_submit_button("🚀 Đăng Nhập Quản Trị Viên", use_container_width=True):
                     if not email_input or not password_admin:
-                        st.error("⚠️️ Vui lòng nhập đầy đủ Email và Mật khẩu!")
+                        st.error("⚠️ Vui lòng nhập đầy đủ Email và Mật khẩu!")
                     elif supabase is None:
                         st.error("⚠️ Chưa kết nối được tới cơ sở dữ liệu!")
                     else:
@@ -630,19 +630,28 @@ with st.sidebar:
     if "current_menu" not in st.session_state: 
         st.session_state.current_menu = "1. Nhập Sản Lượng"
 
-    current_index = 0
+    if "radio_selection" not in st.session_state:
+        st.session_state.radio_selection = "1. Nhập Sản Lượng"
+
     if st.session_state.current_menu in dynamic_menu_items:
-        current_index = dynamic_menu_items.index(st.session_state.current_menu)
+        st.session_state.radio_selection = st.session_state.current_menu
+
+    current_index = 0
+    if st.session_state.radio_selection in dynamic_menu_items:
+        current_index = dynamic_menu_items.index(st.session_state.radio_selection)
 
     chosen_menu = st.radio(
         "📌 Danh Mục Nghiệp Vụ", 
         dynamic_menu_items, 
         index=current_index,
-        label_visibility="collapsed"
+        label_visibility="collapsed",
+        key="sidebar_radio_menu"
     )
 
-    if chosen_menu != st.session_state.current_menu:
+    if chosen_menu != st.session_state.radio_selection:
+        st.session_state.radio_selection = chosen_menu
         st.session_state.current_menu = chosen_menu
+        st.rerun()
 
     if current_user_role == "Admin":
         st.markdown("---")
