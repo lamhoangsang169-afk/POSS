@@ -5,16 +5,22 @@ import streamlit as st
 import pandas as pd
 from supabase import create_client, Client
 
-# Khởi tạo kết nối Supabase trực tiếp an toàn tuyệt đối
+# Khởi tạo kết nối Supabase an toàn qua st.secrets (hoặc fallback nếu chưa cấu hình secrets)
 def init_supabase():
     try:
-        url = "https://mnwyewgsxvpjwnpmgyhj.supabase.co"
-        # Khóa anon public của bạn được gán trực tiếp tại đây để triệt tiêu lỗi không đọc được secrets
-        key = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1ud3lld2dzeHZwanducG1neWhqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTA3MjMwNjgsImV4cCI6MjEwNjI5OTA2OH0.eeTU1a16zY5c4XHr7YobwRRJXstgkQjt3lyIosUMVQk"
+        # Ưu tiên lấy từ st.secrets của Streamlit
+        url = st.secrets.get("SUPABASE_URL", "https://mnwyewgsxvpjwnpmgyhj.supabase.co")
+        key = st.secrets.get("SUPABASE_KEY", "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1ud3lld2dzeHZwanducG1neWhqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTA3MjMwNjgsImV4cCI6MjEwNjI5OTA2OH0.eeTU1a16zY5c4XHr7YobwRRJXstgkQjt3lyIosUMVQk")
         return create_client(url, key)
     except Exception as e:
-        st.error(f"Lỗi khởi tạo Supabase: {e}")
-        return None
+        # Fallback nếu chạy môi trường khác chưa có secrets
+        try:
+            url = "https://mnwyewgsxvpjwnpmgyhj.supabase.co"
+            key = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1ud3lld2dzeHZwanducG1neWhqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTA3MjMwNjgsImV4cCI6MjEwNjI5OTA2OH0.eeTU1a16zY5c4XHr7YobwRRJXstgkQjt3lyIosUMVQk"
+            return create_client(url, key)
+        except Exception as ex:
+            st.error(f"Lỗi khởi tạo Supabase: {ex}")
+            return None
 
 supabase = init_supabase()
 is_supabase_connected = supabase is not None
@@ -178,10 +184,8 @@ def save_folders_db(folders_list):
     try:
         payload = {"id": 1, "folders_json": folders_list}
         response = supabase.table("app_folders").upsert(payload).execute()
-        
         load_folders_db.clear()
         st.cache_data.clear()
-        
         st.success("✅ Lưu cấu hình vào Supabase thành công!")
         return response
     except Exception as e:
@@ -208,7 +212,6 @@ def upload_multiple_images_to_storage(uploaded_files):
 
     for file in uploaded_files:
         try:
-            file_ext = file.name.split(".")[-1]
             unique_filename = f"{int(time.time())}_{file.name.replace(' ', '_')}"
             file_bytes = file.read()
             
@@ -288,52 +291,7 @@ def get_rules_db():
             return df
     except Exception as e:
         st.error(f"Lỗi khi tải bảng định mức: {e}")
-        pass
     return pd.DataFrame()
-
-def add_rule_db(hang_muc, he_so, don_vi, ghi_chu=""):
-    if supabase is None:
-        return None
-    try:
-        data = {
-            "hang_muc_cong_viec": hang_muc,
-            "he_so_diem": he_so,
-            "don_vi": don_vi,
-            "ghi_chu": ghi_chu
-        }
-        response = supabase.table("rules").insert(data).execute()
-        return response
-    except Exception as e:
-        st.error(f"Lỗi thêm định mức: {e}")
-        return None
-
-def update_rule_db(db_id, hang_muc, he_so, don_vi, ghi_chu=""):
-    if supabase is None:
-        return None
-    try:
-        data = {
-            "hang_muc_cong_viec": hang_muc,
-            "he_so_diem": he_so,
-            "don_vi": don_vi,
-            "ghi_chu": ghi_chu
-        }
-        response = supabase.table("rules").update(data).eq("id", db_id).execute()
-        return response
-    except Exception as e:
-        st.error(f"Lỗi cập nhật định mức: {e}")
-        return None
-
-def delete_rule_db(db_id):
-    if supabase is None:
-        return None
-    try:
-        response = supabase.table("rules").delete().eq("id", db_id).execute()
-        return response
-    except Exception:
-        pass
-    return None
-
-# --- CÁC HÀM XỬ LÝ CHO QUẢN LÝ LỖI SẢN XUẤT ---
 
 @st.cache_data(ttl=600, show_spinner=False)
 def get_error_logs_db(limit_rows=1000):
@@ -344,13 +302,9 @@ def get_error_logs_db(limit_rows=1000):
         if res.data:
             df = pd.DataFrame(res.data)
             df = df.rename(columns={
-                "id": "db_id", 
-                "ngay": "Ngày", 
-                "nhan_su": "Nhân Sự",
-                "phan_loai_loi": "Phân Loại Lỗi", 
-                "so_luong": "Số Lượng",
-                "ghi_chu": "Ghi Chú", 
-                "so_anh_dinh_kem": "Số Ảnh Đính Kèm"
+                "id": "db_id", "ngay": "Ngày", "nhan_su": "Nhân Sự",
+                "phan_loai_loi": "Phân Loại Lỗi", "so_luong": "Số Lượng",
+                "ghi_chu": "Ghi Chú", "so_anh_dinh_kem": "Số Ảnh Đính Kèm"
             })
             return df
     except Exception:
@@ -394,10 +348,7 @@ def save_error_categories_db(categories_list):
     if supabase is None:
         return None
     try:
-        data = {
-            "id": 1,
-            "categories_json": categories_list
-        }
+        data = {"id": 1, "categories_json": categories_list}
         response = supabase.table("error_settings").upsert(data).execute()
         return response
     except Exception as e:
