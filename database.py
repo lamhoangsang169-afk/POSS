@@ -258,8 +258,8 @@ def update_production_log_deleted_status(db_ids, is_deleted):
         st.error(f"Lỗi khi cập nhật trạng thái xóa: {e}")
         return None
 
-def upload_multiple_images_to_storage(uploaded_files, bucket_name="production_images", max_size=(1280, 720), quality=75):
-    """Nén tự động ảnh (giảm kích thước & chất lượng) trước khi tải lên Supabase Storage"""
+def upload_multiple_images_to_storage(uploaded_files, bucket_name="production_images", max_size=(800, 600), target_kb=50):
+    """Nén tự động ảnh sao cho dung lượng đạt xấp xỉ mục tiêu (mặc định ~50KB) trước khi tải lên"""
     if not uploaded_files or supabase is None:
         return ""
     
@@ -271,17 +271,24 @@ def upload_multiple_images_to_storage(uploaded_files, bucket_name="production_im
             image_bytes = file.read()
             img = Image.open(io.BytesIO(image_bytes))
 
-            # Chuyển đổi định dạng sang RGB nếu ảnh ở dạng RGBA / PNG trong suốt để lưu JPEG nén tối ưu
+            # Chuyển đổi định dạng sang RGB nếu ảnh ở dạng RGBA / PNG trong suốt
             if img.mode in ("RGBA", "P"):
                 img = img.convert("RGB")
 
-            # 2. Thu nhỏ kích thước ảnh nếu vượt quá giới hạn max_size (giữ nguyên tỉ lệ)
+            # 2. Thu nhỏ kích thước khung hình (giữ tỉ lệ)
             img.thumbnail(max_size, Image.Resampling.LANCZOS)
 
-            # 3. Lưu ảnh vào bộ nhớ đệm (BytesIO) dưới dạng JPEG với mức chất lượng (quality) chỉ định
+            # 3. Vòng lặp tự động giảm chất lượng (quality) để ép dung lượng về sát mức target_kb (50KB)
+            quality = 85
             output_io = io.BytesIO()
             img.save(output_io, format="JPEG", quality=quality, optimize=True)
             compressed_file_bytes = output_io.getvalue()
+
+            while len(compressed_file_bytes) > target_kb * 1024 and quality > 20:
+                quality -= 10
+                output_io = io.BytesIO()
+                img.save(output_io, format="JPEG", quality=quality, optimize=True)
+                compressed_file_bytes = output_io.getvalue()
 
             # 4. Tạo tên tệp độc lập và tiến hành upload lên Supabase Storage
             clean_filename = file.name.rsplit('.', 1)[0].replace(' ', '_')
