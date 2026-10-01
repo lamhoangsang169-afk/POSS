@@ -282,12 +282,44 @@ def upload_multiple_images_to_storage(uploaded_files):
             
     return ",".join(uploaded_urls)
 
+def delete_images_from_storage_by_urls(image_urls_str, bucket_name="production_images"):
+    """Hàm phụ trợ: Xóa các tệp ảnh trên Supabase Storage dựa vào chuỗi URL lưu trong database"""
+    if not image_urls_str or supabase is None:
+        return
+    try:
+        urls = [u.strip() for u in str(image_urls_str).split(",") if u.strip()]
+        file_paths_to_delete = []
+        
+        for url in urls:
+            if "storage/v1/object/public/" in url:
+                parts = url.split(f"/storage/v1/object/public/{bucket_name}/")
+                if len(parts) > 1:
+                    file_paths_to_delete.append(parts[1])
+            elif "/" in url:
+                file_paths_to_delete.append(url.split("/")[-1])
+                
+        if file_paths_to_delete:
+            supabase.storage.from_(bucket_name).remove(file_paths_to_delete)
+    except Exception as e:
+        print(f"Lỗi khi xóa ảnh trên Supabase Storage: {e}")
+
 def permanent_delete_db(db_ids):
+    """Xóa vĩnh viễn bản ghi sản lượng đồng thời xóa luôn các tệp ảnh liên quan trên Storage"""
     if supabase is None or not db_ids:
         return None
     try:
         for db_id in db_ids:
+            # 1. Truy vấn lấy đường dẫn ảnh của bản ghi trước khi xóa
+            res = supabase.table("production_logs").select("hinh_anh_url").eq("id", db_id).execute()
+            if res.data and len(res.data) > 0:
+                img_url = res.data[0].get("hinh_anh_url", "")
+                if img_url:
+                    delete_images_from_storage_by_urls(img_url, bucket_name="production_images")
+            
+            # 2. Thực hiện xóa dòng dữ liệu khỏi bảng production_logs
             supabase.table("production_logs").delete().eq("id", db_id).execute()
+            
+        st.cache_data.clear()
         return True
     except Exception as e:
         st.error(f"Lỗi khi xóa vĩnh viễn: {e}")
