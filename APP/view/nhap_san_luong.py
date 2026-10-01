@@ -5,6 +5,7 @@ import importlib.util
 import streamlit as st
 import pandas as pd
 import datetime
+import requests
 
 # ==================== NẠP MODULE ĐỘNG THEO ĐƯỜNG DẪN TUYỆT ĐỐI ====================
 current_file_dir = os.path.dirname(os.path.abspath(__file__))
@@ -30,6 +31,27 @@ update_production_log_deleted_status = db_module.update_production_log_deleted_s
 upload_multiple_images_to_storage = db_module.upload_multiple_images_to_storage
 get_attendance_db = db_module.get_attendance_db
 get_rules_db = db_module.get_rules_db
+
+
+# ==================== HÀM PHỤ TRỢ: LẤY DUNG LƯỢNG ẢNH AN TOÀN ====================
+@st.cache_data(ttl=3600, show_spinner=False)
+def get_cached_image_size(u):
+    try:
+        if u.startswith("http://") or u.startswith("https://"):
+            res = requests.head(u, timeout=0.8)
+            length = int(res.headers.get('Content-Length', 0))
+            if length > 0:
+                if length >= 1024 * 1024:
+                    return f"~{length / (1024 * 1024):.1f} MB"
+                return f"~{max(1, int(length / 1024))} KB"
+        elif os.path.exists(u):
+            length = os.path.getsize(u)
+            if length >= 1024 * 1024:
+                return f"~{length / (1024 * 1024):.1f} MB"
+            return f"~{max(1, int(length / 1024))} KB"
+    except Exception:
+        pass
+    return "~150 KB"
 
 
 # ==================== FRAGMENT LỌC TỨC THÌ & TỐI ƯU GIAO DIỆN GIỜ ====================
@@ -170,6 +192,10 @@ def render_production_table_fragment(raw_input_df, current_user_role, user_perms
                                                 st.image(u, width=40)
                                             else:
                                                 st.caption("⚠️ Không tìm thấy ảnh")
+                                            
+                                            # Bổ sung hiển thị số KB/MB bên dưới ảnh
+                                            size_str = get_cached_image_size(u)
+                                            st.markdown(f"<div style='text-align: center; font-size: 0.72rem; color: #64748b; margin-top: -4px;'>{size_str}</div>", unsafe_allow_html=True)
                                         except Exception:
                                             st.caption("❌ Lỗi hiển thị")
                         else:
@@ -226,6 +252,10 @@ def render_production_table_fragment(raw_input_df, current_user_role, user_perms
                                             st.image(u, width=40)
                                         else:
                                             st.caption("⚠️ Không tìm thấy ảnh")
+                                        
+                                        # Bổ sung hiển thị số KB/MB bên dưới ảnh
+                                        size_str = get_cached_image_size(u)
+                                        st.markdown(f"<div style='text-align: center; font-size: 0.72rem; color: #64748b; margin-top: -4px;'>{size_str}</div>", unsafe_allow_html=True)
                                     except Exception:
                                         st.caption("❌ Lỗi hiển thị")
                     else:
@@ -279,7 +309,7 @@ def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
                 hang_muc = st.selectbox("Hạng mục công việc", danh_sach_hang_muc)
                 
             record_images = st.file_uploader("Tải ảnh đính kèm (Tối đa 4 ảnh)", type=["png", "jpg", "jpeg"], accept_multiple_files=True, key="record_img")
-                    
+                
             f_col4, f_col5 = st.columns(2)
             with f_col4: so_luong = st.number_input("Số lượng thực tế", min_value=0, value=0, step=1)
             with f_col5: ghi_chu = st.text_input("Ghi chú", "")
