@@ -1,4 +1,3 @@
-# database.py
 import time
 import datetime
 import streamlit as st
@@ -478,3 +477,46 @@ def save_error_categories_db(categories_list):
     except Exception as e:
         st.error(f"Lỗi lưu danh mục lỗi: {e}")
         return None
+
+def delete_storage_files_by_date_range(start_date, end_date):
+    if supabase is None:
+        return 0, "Chưa kết nối Supabase"
+    
+    deleted_count = 0
+    try:
+        # Lấy danh sách các bản ghi production_logs nằm trong khoảng thời gian và có lưu ảnh
+        res = supabase.table("production_logs")\
+            .select("hinh_anh_url")\
+            .gte("ngay", start_date.strftime("%Y-%m-%d"))\
+            .lte("ngay", end_date.strftime("%Y-%m-%d"))\
+            .execute()
+            
+        if not res.data:
+            return 0, "Không tìm thấy tệp ảnh nào trong khoảng thời gian này."
+
+        file_paths_to_delete = []
+        for row in res.data:
+            img_url = row.get("hinh_anh_url")
+            if img_url:
+                # Trích xuất đường dẫn file bên trong bucket từ URL công khai của Supabase
+                for u in img_url.split(","):
+                    u = u.strip()
+                    if "production_images/" in u:
+                        path_part = u.split("production_images/")[-1]
+                        file_paths_to_delete.append(path_part)
+
+        if file_paths_to_delete:
+            # Xóa các tệp trên Supabase Storage bucket 'production_images'
+            supabase.storage.from_("production_images").remove(file_paths_to_delete)
+            deleted_count = len(file_paths_to_delete)
+            
+            # Cập nhật lại các bản ghi trong database thành không còn ảnh (tránh lỗi link hỏng)
+            supabase.table("production_logs")\
+                .update({"hinh_anh_url": None})\
+                .gte("ngay", start_date.strftime("%Y-%m-%d"))\
+                .lte("ngay", end_date.strftime("%Y-%m-%d"))\
+                .execute()
+
+        return deleted_count, f"Đã xóa thành công {deleted_count} tệp ảnh."
+    except Exception as e:
+        return 0, f"Lỗi khi xóa ảnh theo ngày: {e}"
