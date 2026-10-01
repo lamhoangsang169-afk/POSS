@@ -1,7 +1,29 @@
 import streamlit as st
 import pandas as pd
 import datetime
+import os
+import requests
 import database as db
+
+# ==================== HÀM PHỤ TRỢ: LẤY DUNG LƯỢNG ẢNH AN TOÀN ====================
+@st.cache_data(ttl=3600, show_spinner=False)
+def get_cached_image_size(u):
+    try:
+        if u.startswith("http://") or u.startswith("https://"):
+            res = requests.head(u, timeout=0.8)
+            length = int(res.headers.get('Content-Length', 0))
+            if length > 0:
+                if length >= 1024 * 1024:
+                    return f"~{length / (1024 * 1024):.1f} MB"
+                return f"~{max(1, int(length / 1024))} KB"
+        elif os.path.exists(u):
+            length = os.path.getsize(u)
+            if length >= 1024 * 1024:
+                return f"~{length / (1024 * 1024):.1f} MB"
+            return f"~{max(1, int(length / 1024))} KB"
+    except Exception:
+        pass
+    return "~150 KB"
 
 # Định nghĩa modal dialog hiển thị ảnh kích thước đầy đủ khi bấm nút xem lớn
 @st.dialog("Chi Tiết Hình Ảnh Lỗi")
@@ -67,7 +89,7 @@ def render_quan_ly_loi(current_menu_name):
 
     if submitted:
         if nhan_su_phat_hien == "--- Vui lòng chọn nhân sự ---":
-            st.warning("⚠️ Vui lòng chọn nhân sự liên quan!")
+            st.warning("⚠️️ Vui lòng chọn nhân sự liên quan!")
         elif so_luong_loi <= 0:
             st.warning("⚠️ Vui lòng nhập số lượng sản phẩm lỗi lớn hơn 0!")
         else:
@@ -281,6 +303,10 @@ def render_quan_ly_loi(current_menu_name):
                                                 st.image(u, width=40)
                                             else:
                                                 st.caption("⚠️ Không ảnh")
+                                            
+                                            # Bổ sung hiển thị số KB/MB bên dưới ảnh
+                                            size_str = get_cached_image_size(u)
+                                            st.markdown(f"<div style='text-align: center; font-size: 0.72rem; color: #64748b; margin-top: -4px;'>{size_str}</div>", unsafe_allow_html=True)
                                         except Exception:
                                             st.caption("❌ Lỗi")
                         else:
@@ -337,7 +363,7 @@ def render_quan_ly_loi(current_menu_name):
                         except Exception as e:
                             st.error(f"Lỗi khi xóa: {e}")
                     else:
-                        st.warning("⚠️ Vui lòng tích vào ô 'Xác nhận xóa tất cả bản ghi trong trang này'!")
+                        st.warning("⚠️️ Vui lòng tích vào ô 'Xác nhận xóa tất cả bản ghi trong trang này'!")
         else:
             st.info("Không có bản ghi lỗi nào trong khoảng thời gian và bộ lọc đã chọn.")
     else:
