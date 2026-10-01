@@ -287,12 +287,25 @@ def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
     elif not active_staff:
         st.warning(f"⚠️ Hiện tại chưa có nhân sự nào **Check-in (Vào ca)**. Vui lòng thực hiện Check-in trước khi nhập sản lượng!")
     else:
+        # Khởi tạo giá trị mặc định trong st.session_state nếu chưa có
+        if "selected_staff_val" not in st.session_state:
+            st.session_state.selected_staff_val = "--- Vui lòng chọn nhân sự ---"
+        if "selected_task_val" not in st.session_state:
+            st.session_state.selected_task_val = ""
+
         with st.form("entry_form"):
             f_col1, f_col2, f_col3 = st.columns(3)
-            with f_col1: st.date_input("Ngày làm việc", now_vn.date(), disabled=True)
+            with f_col1: 
+                st.date_input("Ngày làm việc", now_vn.date(), disabled=True)
             with f_col2:
                 staff_options = ["--- Vui lòng chọn nhân sự ---"] + active_staff
-                nhan_su = st.selectbox("Nhân sự thực hiện", staff_options)
+                
+                try:
+                    curr_staff_idx = staff_options.index(st.session_state.selected_staff_val)
+                except ValueError:
+                    curr_staff_idx = 0
+                    
+                nhan_su = st.selectbox("Nhân sự thực hiện", staff_options, index=curr_staff_idx, key="widget_staff_select")
             with f_col3:
                 rules_df = st.session_state.get("rules_df", pd.DataFrame())
                 if rules_df.empty:
@@ -306,7 +319,13 @@ def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
                 danh_sach_hang_muc = [str(t).strip() for t in raw_tasks if pd.notna(t) and str(t).strip() and str(t).strip().lower() not in ["nan", "none"]]
                 if not danh_sach_hang_muc: 
                     danh_sach_hang_muc = ["Chưa có dữ liệu định mức"]
-                hang_muc = st.selectbox("Hạng mục công việc", danh_sach_hang_muc)
+                
+                try:
+                    curr_task_idx = danh_sach_hang_muc.index(st.session_state.selected_task_val) if st.session_state.selected_task_val in danh_sach_hang_muc else 0
+                except ValueError:
+                    curr_task_idx = 0
+
+                hang_muc = st.selectbox("Hạng mục công việc", danh_sach_hang_muc, index=curr_task_idx, key="widget_task_select")
                 
             record_images = st.file_uploader("Tải ảnh đính kèm (Tối đa 4 ảnh)", type=["png", "jpg", "jpeg"], accept_multiple_files=True, key="record_img")
                 
@@ -326,6 +345,11 @@ def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
                 current_time_str = datetime.datetime.now(VN_TIMEZONE).strftime("%H:%M:%S")
                 
                 add_production_log_db(today_str, current_time_str, nhan_su, hang_muc, img_urls, don_vi, so_luong, he_so, tong_diem, ghi_chu)
+                
+                # --- RESET LẠI GIÁ TRỊ MẶC ĐỊNH SAU KHI GHI NHẬN THÀNH CÔNG ---
+                st.session_state.selected_staff_val = "--- Vui lòng chọn nhân sự ---"
+                st.session_state.selected_task_val = danh_sach_hang_muc[0] if danh_sach_hang_muc else ""
+                
                 st.success(f"✅ Ghi nhận thành công cho **{nhan_su}**!")
                 st.cache_data.clear()
                 st.rerun()
