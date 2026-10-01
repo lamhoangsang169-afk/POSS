@@ -88,7 +88,7 @@ def get_detailed_storage_usage():
 
         storage_bytes = 0
         try:
-            files_img = supabase.storage.from_("production_images").list()
+            files_img = supabase.storage.from_("production-images").list()
             files_rep = supabase.storage.from_("reports-storage").list()
             total_files = (files_img if files_img else []) + (files_rep if files_rep else [])
             for f in total_files:
@@ -461,7 +461,7 @@ def render_main_content(current_menu_name):
                         if not new_acc_name.strip() or not new_acc_pass:
                             st.error("⚠️ Vui lòng nhập đầy đủ tên nhân sự và mật khẩu!")
                         elif len(new_acc_pass) < 6:
-                            st.error("⚠️ Mật khẩu phải có ít nhất 6 ký tự!")
+                            st.error("⚠️️ Mật khẩu phải có ít nhất 6 ký tự!")
                         else:
                             try:
                                 check_exist = supabase.table("user_accounts").select("*").eq("name", new_acc_name.strip()).execute()
@@ -555,7 +555,7 @@ def render_main_content(current_menu_name):
                                     }).eq("name", target_staff_pw).execute()
                                     st.success(f"✅ Đã đổi mật khẩu thành công cho **{target_staff_pw}**!")
                                 else:
-                                    st.error("⚠️ Mật khẩu phải có ít nhất 6 ký tự!")
+                                    st.error("⚠️️ Mật khẩu phải có ít nhất 6 ký tự!")
                             else:
                                 st.warning("⚠️ Vui lòng chọn nhân sự và nhập mật khẩu mới!")
 
@@ -663,7 +663,7 @@ with st.sidebar:
 
     st.markdown('<div style="position: absolute; bottom: 2px; right: 10px; z-index: 9999999;">', unsafe_allow_html=True)
     with st.popover("⚙️"):
-        st.markdown("##### ⚙️️ Cài Đặt Ảnh Đại Diện")
+        st.markdown("##### ⚙ Cài Đặt Ảnh Đại Diện")
         avatar_file = st.file_uploader("Tải ảnh mới", type=["png", "jpg", "jpeg"], key="avatar_uploader_popover_unique", label_visibility="collapsed")
         if avatar_file is not None:
             current_file_sig = f"{avatar_file.name}_{avatar_file.size}"
@@ -731,7 +731,7 @@ with st.sidebar:
     st.markdown("### 📂 CHỨC NĂNG HỆ THỐNG")
     
     dynamic_menu_items = [
-        "⏱️️ Chấm Công Ca Làm Việc",
+        "⏱ Chấm Công Ca Làm Việc",
         "1. Nhập Sản Lượng",
         "📊 Báo Cáo & Biểu Đồ",
         "📂 Thư Mục Báo Cáo",
@@ -785,9 +785,42 @@ with st.sidebar:
     db_usage_str, storage_usage_str = get_detailed_storage_usage()
     total_db_count = get_total_production_count_db()
 
+    # --- KIỂM TRA NGƯỠNG CẢNH BÁO STORAGE (Ví dụ: > 80%) ---
+    storage_warning = False
+    try:
+        storage_val_mb = float(storage_usage_str.split("MB")[0].strip()) if "MB" in storage_usage_str else 1024.0
+        if "GB" in storage_usage_str:
+            storage_val_mb = float(storage_usage_str.split("GB")[0].strip()) * 1024.0
+            
+        if storage_val_mb >= (1024.0 * 0.8): # Ngưỡng 80% của 1 GB
+            storage_warning = True
+    except Exception:
+        pass
+
     st.markdown(f'<div style="background-color: #f8d7da; border: 1px solid #f5c6cb; padding: 8px; border-radius: 8px; text-align: center; font-size: 0.85rem; font-weight: bold; color: #721c24; margin-bottom: 6px;">🧠 RAM App: {ram_usage_str}</div>', unsafe_allow_html=True)
     st.markdown(f'<div style="background-color: #fff3cd; border: 1px solid #ffeeba; padding: 8px; border-radius: 8px; text-align: center; font-size: 0.85rem; font-weight: bold; color: #856404; margin-bottom: 6px;">💾 Database: {db_usage_str}</div>', unsafe_allow_html=True)
-    st.markdown(f'<div style="background-color: #d1ecf1; border: 1px solid #bee5eb; padding: 8px; border-radius: 8px; text-align: center; font-size: 0.85rem; font-weight: bold; color: #0c5460; margin-bottom: 6px;">🗂️ File Storage: {storage_usage_str}</div>', unsafe_allow_html=True)
+    
+    if storage_warning:
+        st.markdown(f'<div style="background-color: #f8d7da; border: 2px solid #dc3545; padding: 8px; border-radius: 8px; text-align: center; font-size: 0.85rem; font-weight: bold; color: #dc3545; margin-bottom: 6px;">⚠️ File Storage: {storage_usage_str} (Đầy!)</div>', unsafe_allow_html=True)
+        
+        # 1. Nút chuyển hướng nội bộ tới mục Làm Sạch Dữ Liệu
+        if st.button("🧹 Xử Lý Làm Sạch Ngay", use_container_width=True, type="primary"):
+            st.session_state.current_menu = "🧹 Làm Sạch Dữ Liệu"
+            st.session_state.radio_selection = "🧹 Làm Sạch Dữ Liệu"
+            st.rerun()
+            
+        # 2. Link mở trực tiếp trang quản lý Storage trên Supabase Dashboard
+        supabase_storage_url = "https://supabase.com/dashboard/project/mnwyewgsxvpjwnpmgyhj/storage/buckets"
+        st.markdown(f"""
+            <div style="text-align: center; margin-top: 6px; margin-bottom: 6px;">
+                <a href="{supabase_storage_url}" target="_blank" style="color: #0066cc; font-size: 0.82rem; font-weight: bold; text-decoration: underline;">
+                    🔗 Mở Thư Mục Storage trên Supabase &rarr;
+                </a>
+            </div>
+        """, unsafe_allow_html=True)
+    else:
+        st.markdown(f'<div style="background-color: #d1ecf1; border: 1px solid #bee5eb; padding: 8px; border-radius: 8px; text-align: center; font-size: 0.85rem; font-weight: bold; color: #0c5460; margin-bottom: 6px;">🗂️ File Storage: {storage_usage_str}</div>', unsafe_allow_html=True)
+
     st.markdown(f'<div style="background-color: #cce5ff; border: 1px solid #b8daff; padding: 8px; border-radius: 8px; text-align: center; font-size: 0.85rem; font-weight: bold; color: #004085; margin-bottom: 6px;">📊 Tổng bản ghi: {total_db_count}</div>', unsafe_allow_html=True)
     st.markdown('</div>', unsafe_allow_html=True)
 
