@@ -35,7 +35,8 @@ from database import (
     get_production_logs_by_date_range,
     get_total_production_count_db, 
     get_attendance_db,
-    load_app_settings_db
+    load_app_settings_db,
+    cleanup_orphan_storage_files
 )
 
 import nhap_san_luong
@@ -289,7 +290,6 @@ st.session_state.primary_color = db_settings.get("primary_color", "#ff4b4b")
 st.session_state.bg_color = db_settings.get("bg_color", "#ffffff")
 st.session_state.sidebar_bg = db_settings.get("sidebar_bg", "#f0f2f6")
 
-# Xử lý ép kiểu an toàn cho sidebar_opacity tránh lỗi TypeError
 val_opacity = db_settings.get("sidebar_opacity", 0.9)
 try:
     st.session_state.sidebar_opacity = float(val_opacity) if val_opacity is not None and str(val_opacity).strip() != "" else 0.9
@@ -446,7 +446,6 @@ def render_main_content(current_menu_name):
         else:
             st.markdown("Tại đây bạn có thể tạo tài khoản, đổi mật khẩu, xóa tài khoản và cấp quyền trực tiếp cho từng nhân sự:")
             
-            # --- FORM TẠO TÀI KHOẢN MỚI ---
             with st.expander("➕ Tạo Tài Khoản Nhân Sự Mới", expanded=False):
                 with st.form("create_new_account_form"):
                     c_new1, c_new2, c_new3 = st.columns(3)
@@ -503,7 +502,6 @@ def render_main_content(current_menu_name):
                 if res_roles and res_roles.data:
                     roles_df = pd.DataFrame(res_roles.data)
                     
-                    # --- FORM 1: CẬP NHẬT QUYỀN HẠN HÀNG LOẠT ---
                     with st.form("manage_accounts_form"):
                         edited_roles_df = st.data_editor(
                             roles_df,
@@ -537,7 +535,6 @@ def render_main_content(current_menu_name):
 
                     st.markdown("---")
                     
-                    # --- FORM 2: ĐỔI MẬT KHẨU NHANH (ĐỘC LẬP) ---
                     with st.form("change_password_form_standalone"):
                         st.markdown("##### 🔑 Đổi mật khẩu nhanh cho nhân sự")
                         all_account_names = roles_df["name"].tolist() if "name" in roles_df.columns else staff_list_names
@@ -562,7 +559,6 @@ def render_main_content(current_menu_name):
                             else:
                                 st.warning("⚠️ Vui lòng chọn nhân sự và nhập mật khẩu mới!")
 
-                    # --- FORM 3: XÓA TÀI KHOẢN (ĐỘC LẬP) ---
                     with st.expander("🗑️ Xóa Tài Khoản Nhân Sự", expanded=False):
                         with st.form("delete_account_form_standalone"):
                             all_account_names = roles_df["name"].tolist() if "name" in roles_df.columns else staff_list_names
@@ -598,7 +594,7 @@ def render_main_content(current_menu_name):
     elif current_menu_name == "🧹 Làm Sạch Dữ Liệu":
         col_cd_h1, col_cd_h2 = st.columns([3, 1])
         with col_cd_h1:
-            st.header("Làm Sạch Dữ Liệu")
+            st.header("🧹 Làm Sạch & Tối Ưu Dữ Liệu Hệ Thống")
         with col_cd_h2:
             if st.button("🔄 Làm mới dữ liệu", use_container_width=True, key="btn_refresh_cd"):
                 st.cache_data.clear()
@@ -607,13 +603,35 @@ def render_main_content(current_menu_name):
         if current_user_role != "Admin":
             st.warning("🔒 Tính năng làm sạch dữ liệu chỉ dành cho Admin.")
         else:
-            if st.button("🔥 Xóa Toàn Bộ Dữ Liệu Thùng Rác Vĩnh Viễn", use_container_width=True):
-                trash_df = get_production_logs_db(is_deleted=True, limit_rows=500)
-                if not trash_df.empty:
-                    from database import permanent_delete_db
-                    permanent_delete_db(trash_df["db_id"].tolist())
-                    st.success("✅ Đã làm sạch toàn bộ thùng rác!")
-                    st.rerun()
+            st.markdown("---")
+            
+            col_box1, col_box2 = st.columns(2)
+            with col_box1:
+                with st.container(border=True):
+                    st.markdown("##### 🗑️ Xóa Vĩnh Viễn Thùng Rác")
+                    st.caption("Dọn dẹp toàn bộ các bản ghi đã đưa vào thùng rác và tự động xóa vĩnh viễn tệp ảnh liên quan trên Cloud Storage.")
+                    if st.button("🔥 Làm Sạch Thùng Rác Vĩnh Viễn", use_container_width=True, type="primary", key="btn_clean_trash_all"):
+                        trash_df = get_production_logs_db(is_deleted=True, limit_rows=1000)
+                        if not trash_df.empty:
+                            from database import permanent_delete_db
+                            permanent_delete_db(trash_df["db_id"].tolist())
+                            st.success("✅ Đã dọn sạch toàn bộ thùng rác và giải phóng dung lượng storage thành công!")
+                            st.rerun()
+                        else:
+                            st.info("ℹ️ Thùng rác hiện đang trống.")
+
+            with col_box2:
+                with st.container(border=True):
+                    st.markdown("##### 🚀 Quét Toàn Bộ Ứng Dụng & Dọn Rác")
+                    st.caption("Tự động quét toàn bộ ứng dụng, tìm kiếm và loại bỏ triệt để các tệp hình ảnh mồ côi (không liên kết với bất kỳ dữ liệu nào).")
+                    if st.button("🔍 Chạy Quét & Làm Sạch Hệ Thống", use_container_width=True, key="btn_deep_system_scan"):
+                        with st.spinner("⏳ Đang quét toàn bộ hệ thống ứng dụng và kiểm tra tệp rác trên Cloud Storage..."):
+                            count, msg = cleanup_orphan_storage_files()
+                            st.cache_data.clear()
+                            if count > 0:
+                                st.success(f"✅ Quét và dọn dẹp hệ thống thành công! Đã loại bỏ **{count} tệp rác mồ côi** khỏi Cloud Storage.")
+                            else:
+                                st.info("✨ Hệ thống rất sạch sẽ! Không tìm thấy tệp rác mồ côi nào cần loại bỏ.")
     else:
         st.subheader(current_menu_name)
         st.info(f"Đang hiển thị nội dung cho mục: {current_menu_name}")
@@ -645,7 +663,7 @@ with st.sidebar:
 
     st.markdown('<div style="position: absolute; bottom: 2px; right: 10px; z-index: 9999999;">', unsafe_allow_html=True)
     with st.popover("⚙️"):
-        st.markdown("##### ⚙️ Cài Đặt Ảnh Đại Diện")
+        st.markdown("##### ⚙️️ Cài Đặt Ảnh Đại Diện")
         avatar_file = st.file_uploader("Tải ảnh mới", type=["png", "jpg", "jpeg"], key="avatar_uploader_popover_unique", label_visibility="collapsed")
         if avatar_file is not None:
             current_file_sig = f"{avatar_file.name}_{avatar_file.size}"
@@ -735,7 +753,6 @@ with st.sidebar:
     if st.session_state.radio_selection in dynamic_menu_items:
         current_index = dynamic_menu_items.index(st.session_state.radio_selection)
 
-    # --- TỐI ƯU HÓA: KHÔNG DÙNG st.rerun() THỦ CÔNG TRONG st.radio ---
     chosen_menu = st.radio(
         "📌 Danh Mục Nghiệp Vụ", 
         dynamic_menu_items, 
@@ -755,7 +772,7 @@ with st.sidebar:
             st.session_state.current_menu = "🎨 Cài Đặt Giao Diện"
         if st.button("🛡️ Quản Lý Tài Khoản & Phân Quyền", use_container_width=True):
             st.session_state.current_menu = "🛡️ Quản Lý Tài Khoản & Phân Quyền"
-        if st.button("🧹 Làm Sạch & Tối Ưu Dữ Liệu", use_container_width=True):
+        if st.button("🧹 Làm Sạch Dữ Liệu", use_container_width=True):
             st.session_state.current_menu = "🧹 Làm Sạch Dữ Liệu"
 
     st.markdown("---")
