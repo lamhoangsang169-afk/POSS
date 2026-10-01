@@ -206,7 +206,7 @@ def render_production_table_fragment(raw_input_df, current_user_role, user_perms
                         st.success("Đã chuyển các dòng đã chọn vào thùng rác thành công!")
                         st.rerun()
                     else:
-                        st.warning("⚠️️ Vui lòng tích chọn ít nhất một dòng cần xóa!")
+                        st.warning("⚠️ Vui lòng tích chọn ít nhất một dòng cần xóa!")
 
                 if submitted_delete_all:
                     if confirm_delete_all:
@@ -216,7 +216,7 @@ def render_production_table_fragment(raw_input_df, current_user_role, user_perms
                             st.success("Đã chuyển toàn bộ bản ghi đang hiển thị ở trang này vào thùng rác!")
                             st.rerun()
                     else:
-                        st.warning("⚠️ Vui lòng tích chọn xác nhận trước khi bấm xóa tất cả!")
+                        st.warning("⚠️️ Vui lòng tích chọn xác nhận trước khi bấm xóa tất cả!")
         else:
             for idx, row in paginated_df.iterrows():
                 display_stt = total_rows - (start_idx + paginated_df.index.get_loc(idx))
@@ -297,10 +297,11 @@ def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
         if not danh_sach_hang_muc: 
             danh_sach_hang_muc = ["Chưa có dữ liệu định mức"]
 
-        # Xử lý reset form an toàn TRƯỚC KHI tạo widget selectbox
+        # Xử lý reset form an toàn TRƯỚC KHI tạo widget
         if st.session_state.get("should_reset_form", False):
             st.session_state.widget_staff_select = "--- Vui lòng chọn nhân sự ---"
             st.session_state.widget_task_select = danh_sach_hang_muc[0]
+            st.session_state.record_img = None  # Reset mục tải hình ảnh về trống
             st.session_state.should_reset_form = False
 
         # Khởi tạo giá trị mặc định cho widget key nếu chưa có
