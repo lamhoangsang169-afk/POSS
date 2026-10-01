@@ -193,7 +193,6 @@ def render_production_table_fragment(raw_input_df, current_user_role, user_perms
                                             else:
                                                 st.caption("⚠️ Không tìm thấy ảnh")
                                             
-                                            # Bổ sung hiển thị số KB/MB bên dưới ảnh
                                             size_str = get_cached_image_size(u)
                                             st.markdown(f"<div style='text-align: center; font-size: 0.72rem; color: #64748b; margin-top: -4px;'>{size_str}</div>", unsafe_allow_html=True)
                                         except Exception:
@@ -253,7 +252,6 @@ def render_production_table_fragment(raw_input_df, current_user_role, user_perms
                                         else:
                                             st.caption("⚠️ Không tìm thấy ảnh")
                                         
-                                        # Bổ sung hiển thị số KB/MB bên dưới ảnh
                                         size_str = get_cached_image_size(u)
                                         st.markdown(f"<div style='text-align: center; font-size: 0.72rem; color: #64748b; margin-top: -4px;'>{size_str}</div>", unsafe_allow_html=True)
                                     except Exception:
@@ -287,11 +285,25 @@ def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
     elif not active_staff:
         st.warning(f"⚠️ Hiện tại chưa có nhân sự nào **Check-in (Vào ca)**. Vui lòng thực hiện Check-in trước khi nhập sản lượng!")
     else:
-        # Khởi tạo giá trị mặc định trong st.session_state nếu chưa có
-        if "selected_staff_val" not in st.session_state:
-            st.session_state.selected_staff_val = "--- Vui lòng chọn nhân sự ---"
-        if "selected_task_val" not in st.session_state:
-            st.session_state.selected_task_val = ""
+        # Khởi tạo giá trị mặc định cho widget key trong session_state
+        if "widget_staff_select" not in st.session_state:
+            st.session_state.widget_staff_select = "--- Vui lòng chọn nhân sự ---"
+
+        rules_df = st.session_state.get("rules_df", pd.DataFrame())
+        if rules_df.empty:
+            try:
+                rules_df = get_rules_db()
+                st.session_state["rules_df"] = rules_df
+            except Exception:
+                pass
+
+        raw_tasks = rules_df["Hạng Mục Công Việc"].tolist() if not rules_df.empty and "Hạng Mục Công Việc" in rules_df.columns else []
+        danh_sach_hang_muc = [str(t).strip() for t in raw_tasks if pd.notna(t) and str(t).strip() and str(t).strip().lower() not in ["nan", "none"]]
+        if not danh_sach_hang_muc: 
+            danh_sach_hang_muc = ["Chưa có dữ liệu định mức"]
+
+        if "widget_task_select" not in st.session_state or st.session_state.widget_task_select not in danh_sach_hang_muc:
+            st.session_state.widget_task_select = danh_sach_hang_muc[0]
 
         with st.form("entry_form"):
             f_col1, f_col2, f_col3 = st.columns(3)
@@ -299,33 +311,9 @@ def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
                 st.date_input("Ngày làm việc", now_vn.date(), disabled=True)
             with f_col2:
                 staff_options = ["--- Vui lòng chọn nhân sự ---"] + active_staff
-                
-                try:
-                    curr_staff_idx = staff_options.index(st.session_state.selected_staff_val)
-                except ValueError:
-                    curr_staff_idx = 0
-                    
-                nhan_su = st.selectbox("Nhân sự thực hiện", staff_options, index=curr_staff_idx, key="widget_staff_select")
+                nhan_su = st.selectbox("Nhân sự thực hiện", staff_options, key="widget_staff_select")
             with f_col3:
-                rules_df = st.session_state.get("rules_df", pd.DataFrame())
-                if rules_df.empty:
-                    try:
-                        rules_df = get_rules_db()
-                        st.session_state["rules_df"] = rules_df
-                    except Exception:
-                        pass
-
-                raw_tasks = rules_df["Hạng Mục Công Việc"].tolist() if not rules_df.empty and "Hạng Mục Công Việc" in rules_df.columns else []
-                danh_sach_hang_muc = [str(t).strip() for t in raw_tasks if pd.notna(t) and str(t).strip() and str(t).strip().lower() not in ["nan", "none"]]
-                if not danh_sach_hang_muc: 
-                    danh_sach_hang_muc = ["Chưa có dữ liệu định mức"]
-                
-                try:
-                    curr_task_idx = danh_sach_hang_muc.index(st.session_state.selected_task_val) if st.session_state.selected_task_val in danh_sach_hang_muc else 0
-                except ValueError:
-                    curr_task_idx = 0
-
-                hang_muc = st.selectbox("Hạng mục công việc", danh_sach_hang_muc, index=curr_task_idx, key="widget_task_select")
+                hang_muc = st.selectbox("Hạng mục công việc", danh_sach_hang_muc, key="widget_task_select")
                 
             record_images = st.file_uploader("Tải ảnh đính kèm (Tối đa 4 ảnh)", type=["png", "jpg", "jpeg"], accept_multiple_files=True, key="record_img")
                 
@@ -346,9 +334,9 @@ def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
                 
                 add_production_log_db(today_str, current_time_str, nhan_su, hang_muc, img_urls, don_vi, so_luong, he_so, tong_diem, ghi_chu)
                 
-                # --- RESET LẠI GIÁ TRỊ MẶC ĐỊNH SAU KHI GHI NHẬN THÀNH CÔNG ---
-                st.session_state.selected_staff_val = "--- Vui lòng chọn nhân sự ---"
-                st.session_state.selected_task_val = danh_sach_hang_muc[0] if danh_sach_hang_muc else ""
+                # --- RESET TRỰC TIẾP GIÁ TRỊ WIDGET VỀ MẶC ĐỊNH ---
+                st.session_state.widget_staff_select = "--- Vui lòng chọn nhân sự ---"
+                st.session_state.widget_task_select = danh_sach_hang_muc[0]
                 
                 st.success(f"✅ Ghi nhận thành công cho **{nhan_su}**!")
                 st.cache_data.clear()
