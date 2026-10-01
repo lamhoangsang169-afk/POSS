@@ -88,7 +88,7 @@ def get_detailed_storage_usage():
 
         storage_bytes = 0
         try:
-            files_img = supabase.storage.from_("production-images").list()
+            files_img = supabase.storage.from_("production_images").list()
             files_rep = supabase.storage.from_("reports-storage").list()
             total_files = (files_img if files_img else []) + (files_rep if files_rep else [])
             for f in total_files:
