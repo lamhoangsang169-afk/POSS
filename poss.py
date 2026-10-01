@@ -185,7 +185,7 @@ if not st.session_state.logged_in:
                     if not email_input or not password_admin:
                         st.error("⚠️ Vui lòng nhập đầy đủ Email và Mật khẩu!")
                     elif supabase is None:
-                        st.error("⚠️ Chưa kết nối được tới cơ sở dữ liệu!")
+                        st.error("⚠️️ Chưa kết nối được tới cơ sở dữ liệu!")
                     else:
                         try:
                             clean_email = email_input.strip()
@@ -328,7 +328,8 @@ st.markdown(f"""
 </style>
 """, unsafe_allow_html=True)
 
-# ==================== ĐỊNH NGHĨA HÀM ĐIỀU HƯỚNG NỘI DUNG CHÍNH ====================
+# ==================== ĐỊNH NGHĨA HÀM ĐIỀU HƯỚNG NỘI DUNG CHÍNH (ĐÃ TỐI ƯU MƯỢT MÀ) ====================
+@st.fragment
 def render_main_content(current_menu_name):
     menu_lower = current_menu_name.lower()
     
@@ -688,7 +689,7 @@ with st.sidebar:
 
     st.markdown('<div style="position: absolute; bottom: 2px; right: 10px; z-index: 9999999;">', unsafe_allow_html=True)
     with st.popover("⚙️"):
-        st.markdown("##### ⚙ Cài Đặt Ảnh Đại Diện")
+        st.markdown("##### ⚙️ Cài Đặt Ảnh Đại Diện")
         avatar_file = st.file_uploader("Tải ảnh mới", type=["png", "jpg", "jpeg"], key="avatar_uploader_popover_unique", label_visibility="collapsed")
         if avatar_file is not None:
             current_file_sig = f"{avatar_file.name}_{avatar_file.size}"
@@ -819,26 +820,22 @@ with st.sidebar:
         elif "GB" in storage_usage_str:
             storage_val_mb = float(storage_usage_str.split("GB")[0].strip()) * 1024.0
         
-        # Giới hạn gói là 1024 MB (1 GB)
         storage_percent = min(storage_val_mb / 1024.0, 1.0)
     except Exception:
         pass
 
-    storage_warning = storage_percent >= 0.8  # Ngưỡng cảnh báo 80%
+    storage_warning = storage_percent >= 0.8  
 
     st.markdown(f'<div style="background-color: #f8d7da; border: 1px solid #f5c6cb; padding: 8px; border-radius: 8px; text-align: center; font-size: 0.85rem; font-weight: bold; color: #721c24; margin-bottom: 6px;">🧠 RAM App: {ram_usage_str}</div>', unsafe_allow_html=True)
     st.markdown(f'<div style="background-color: #fff3cd; border: 1px solid #ffeeba; padding: 8px; border-radius: 8px; text-align: center; font-size: 0.85rem; font-weight: bold; color: #856404; margin-bottom: 6px;">💾 Database: {db_usage_str}</div>', unsafe_allow_html=True)
     
-    # Hiển thị khối File Storage kèm thông báo
     if storage_warning:
         st.markdown(f'<div style="background-color: #f8d7da; border: 2px solid #dc3545; padding: 8px; border-radius: 8px; text-align: center; font-size: 0.85rem; font-weight: bold; color: #dc3545; margin-bottom: 4px;">⚠️ File Storage: {storage_usage_str} (Đầy!)</div>', unsafe_allow_html=True)
     else:
         st.markdown(f'<div style="background-color: #d1ecf1; border: 1px solid #bee5eb; padding: 8px; border-radius: 8px; text-align: center; font-size: 0.85rem; font-weight: bold; color: #0c5460; margin-bottom: 4px;">🗂️ File Storage: {storage_usage_str}</div>', unsafe_allow_html=True)
     
-    # Thanh tiến độ trực quan (Progress Bar)
     st.progress(storage_percent)
 
-    # Nút dọn dẹp và Link Supabase khi chạm ngưỡng
     if storage_warning:
         if st.button("🧹 Xử Lý Làm Sạch Ngay", use_container_width=True, type="primary"):
             st.session_state.current_menu = "🧹 Làm Sạch Dữ Liệu"
