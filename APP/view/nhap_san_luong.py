@@ -81,7 +81,6 @@ def render_production_table_fragment(raw_input_df, current_user_role, user_perms
     with f_col3:
         enable_hour_filter = st.checkbox("Lọc theo Giờ", value=False, key="f_hour_live")
         if enable_hour_filter:
-            # Chia 2 cột nhỏ để 2 thanh giờ ngắn gọn nằm cạnh nhau
             t_col1, t_col2 = st.columns(2)
             with t_col1:
                 start_t = st.time_input("Từ", value=datetime.time(7, 30), label_visibility="collapsed", key="f_start_t_live")
@@ -285,10 +284,7 @@ def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
     elif not active_staff:
         st.warning(f"⚠️ Hiện tại chưa có nhân sự nào **Check-in (Vào ca)**. Vui lòng thực hiện Check-in trước khi nhập sản lượng!")
     else:
-        # Khởi tạo giá trị mặc định cho widget key trong session_state
-        if "widget_staff_select" not in st.session_state:
-            st.session_state.widget_staff_select = "--- Vui lòng chọn nhân sự ---"
-
+        # Lấy dữ liệu định mức để biết danh sách hạng mục
         rules_df = st.session_state.get("rules_df", pd.DataFrame())
         if rules_df.empty:
             try:
@@ -301,6 +297,16 @@ def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
         danh_sach_hang_muc = [str(t).strip() for t in raw_tasks if pd.notna(t) and str(t).strip() and str(t).strip().lower() not in ["nan", "none"]]
         if not danh_sach_hang_muc: 
             danh_sach_hang_muc = ["Chưa có dữ liệu định mức"]
+
+        # Xử lý reset form an toàn TRƯỚC KHI tạo widget selectbox
+        if st.session_state.get("should_reset_form", False):
+            st.session_state.widget_staff_select = "--- Vui lòng chọn nhân sự ---"
+            st.session_state.widget_task_select = danh_sach_hang_muc[0]
+            st.session_state.should_reset_form = False
+
+        # Khởi tạo giá trị mặc định cho widget key nếu chưa có
+        if "widget_staff_select" not in st.session_state:
+            st.session_state.widget_staff_select = "--- Vui lòng chọn nhân sự ---"
 
         if "widget_task_select" not in st.session_state or st.session_state.widget_task_select not in danh_sach_hang_muc:
             st.session_state.widget_task_select = danh_sach_hang_muc[0]
@@ -334,9 +340,8 @@ def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
                 
                 add_production_log_db(today_str, current_time_str, nhan_su, hang_muc, img_urls, don_vi, so_luong, he_so, tong_diem, ghi_chu)
                 
-                # --- RESET TRỰC TIẾP GIÁ TRỊ WIDGET VỀ MẶC ĐỊNH ---
-                st.session_state.widget_staff_select = "--- Vui lòng chọn nhân sự ---"
-                st.session_state.widget_task_select = danh_sach_hang_muc[0]
+                # --- ĐẶT CỜ ĐỂ RESET AN TOÀN VÀO LẦN CHẠY TIẾP THEO ---
+                st.session_state.should_reset_form = True
                 
                 st.success(f"✅ Ghi nhận thành công cho **{nhan_su}**!")
                 st.cache_data.clear()
