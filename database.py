@@ -1,5 +1,7 @@
 import time
 import datetime
+import io
+from PIL import Image
 import streamlit as st
 import pandas as pd
 from supabase import create_client, Client
@@ -256,28 +258,47 @@ def update_production_log_deleted_status(db_ids, is_deleted):
         st.error(f"Lỗi khi cập nhật trạng thái xóa: {e}")
         return None
 
-def upload_multiple_images_to_storage(uploaded_files):
+def upload_multiple_images_to_storage(uploaded_files, bucket_name="production_images", max_size=(1280, 720), quality=75):
+    """Nén tự động ảnh (giảm kích thước & chất lượng) trước khi tải lên Supabase Storage"""
     if not uploaded_files or supabase is None:
         return ""
     
     uploaded_urls = []
-    bucket_name = "production_images"
 
     for file in uploaded_files:
         try:
-            unique_filename = f"{int(time.time())}_{file.name.replace(' ', '_')}"
-            file_bytes = file.read()
+            # 1. Đọc tệp ảnh gốc
+            image_bytes = file.read()
+            img = Image.open(io.BytesIO(image_bytes))
+
+            # Chuyển đổi định dạng sang RGB nếu ảnh ở dạng RGBA / PNG trong suốt để lưu JPEG nén tối ưu
+            if img.mode in ("RGBA", "P"):
+                img = img.convert("RGB")
+
+            # 2. Thu nhỏ kích thước ảnh nếu vượt quá giới hạn max_size (giữ nguyên tỉ lệ)
+            img.thumbnail(max_size, Image.Resampling.LANCZOS)
+
+            # 3. Lưu ảnh vào bộ nhớ đệm (BytesIO) dưới dạng JPEG với mức chất lượng (quality) chỉ định
+            output_io = io.BytesIO()
+            img.save(output_io, format="JPEG", quality=quality, optimize=True)
+            compressed_file_bytes = output_io.getvalue()
+
+            # 4. Tạo tên tệp độc lập và tiến hành upload lên Supabase Storage
+            clean_filename = file.name.rsplit('.', 1)[0].replace(' ', '_')
+            unique_filename = f"{int(time.time())}_{clean_filename}.jpg"
             
             supabase.storage.from_(bucket_name).upload(
                 path=unique_filename,
-                file=file_bytes,
-                file_options={"content-type": file.type}
+                file=compressed_file_bytes,
+                file_options={"content-type": "image/jpeg"}
             )
             
+            # 5. Lấy URL công khai sau khi upload thành công
             public_url = supabase.storage.from_(bucket_name).get_public_url(unique_filename)
             uploaded_urls.append(public_url)
+            
         except Exception as e:
-            st.error(f"Lỗi upload ảnh {file.name}: {e}")
+            st.error(f"Lỗi nén và upload ảnh {file.name}: {e}")
             
     return ",".join(uploaded_urls)
 
@@ -484,7 +505,6 @@ def delete_storage_files_by_date_range(start_date, end_date):
     
     deleted_count = 0
     try:
-        # Lấy danh sách các bản ghi production_logs nằm trong khoảng thời gian và có lưu ảnh
         res = supabase.table("production_logs")\
             .select("hinh_anh_url")\
             .gte("ngay", start_date.strftime("%Y-%m-%d"))\
@@ -498,7 +518,6 @@ def delete_storage_files_by_date_range(start_date, end_date):
         for row in res.data:
             img_url = row.get("hinh_anh_url")
             if img_url:
-                # Trích xuất đường dẫn file bên trong bucket từ URL công khai của Supabase
                 for u in img_url.split(","):
                     u = u.strip()
                     if "production_images/" in u:
@@ -506,11 +525,9 @@ def delete_storage_files_by_date_range(start_date, end_date):
                         file_paths_to_delete.append(path_part)
 
         if file_paths_to_delete:
-            # Xóa các tệp trên Supabase Storage bucket 'production_images'
             supabase.storage.from_("production_images").remove(file_paths_to_delete)
             deleted_count = len(file_paths_to_delete)
             
-            # Cập nhật lại các bản ghi trong database thành không còn ảnh (tránh lỗi link hỏng)
             supabase.table("production_logs")\
                 .update({"hinh_anh_url": None})\
                 .gte("ngay", start_date.strftime("%Y-%m-%d"))\
