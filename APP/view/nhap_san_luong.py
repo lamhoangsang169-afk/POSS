@@ -64,7 +64,6 @@ def render_production_table_fragment(raw_input_df, current_user_role, user_perms
         st.markdown("<h3 style='color: #1e3a8a;'>Danh Sách Sản Lượng & Hình Ảnh</h3>", unsafe_allow_html=True)
     with col_title_2:
         if st.button("🔄 Làm mới dữ liệu", use_container_width=True, key="btn_refresh_input_frag"):
-            get_production_logs_db.clear()
             st.rerun()
 
     if raw_input_df.empty:
@@ -204,18 +203,16 @@ def render_production_table_fragment(raw_input_df, current_user_role, user_perms
                 if submitted_delete_selected:
                     if selected_ids_to_delete:
                         update_production_log_deleted_status(selected_ids_to_delete, True)
-                        get_production_logs_db.clear()
                         st.success("Đã chuyển các dòng đã chọn vào thùng rác thành công!")
                         st.rerun()
                     else:
-                        st.warning("⚠️ Vui lòng tích chọn ít nhất một dòng cần xóa!")
+                        st.warning("⚠️️ Vui lòng tích chọn ít nhất một dòng cần xóa!")
 
                 if submitted_delete_all:
                     if confirm_delete_all:
                         all_paginated_ids = paginated_df["db_id"].tolist()
                         if all_paginated_ids:
                             update_production_log_deleted_status(all_paginated_ids, True)
-                            get_production_logs_db.clear()
                             st.success("Đã chuyển toàn bộ bản ghi đang hiển thị ở trang này vào thùng rác!")
                             st.rerun()
                     else:
@@ -346,9 +343,6 @@ def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
                 st.session_state.should_reset_form = True
                 
                 st.success(f"✅ Ghi nhận thành công cho **{nhan_su}**!")
-                
-                # CHỈ XÓA CACHE RIÊNG CỦA HÀM DỮ LIỆU SẢN LƯỢNG (GIÚP TỐC ĐỘ CỰC NHANH VÀ TỰ CẬP NHẬT BẢNG)
-                get_production_logs_db.clear()
                 st.rerun()
 
     st.markdown("---")
