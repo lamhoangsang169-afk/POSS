@@ -639,21 +639,24 @@ def render_main_content(current_menu_name):
                     st.markdown("##### 📅 Xóa Ảnh Theo Khoảng Ngày")
                     st.caption("Chọn khoảng thời gian để xóa toàn bộ tệp hình ảnh trên Storage nhằm giải phóng bộ nhớ nhanh chóng.")
                     
-                    d_start = st.date_input("Từ ngày", datetime.date.today() - datetime.timedelta(days=30), key="del_img_start")
-                    d_end = st.date_input("Đến ngày", datetime.date.today(), key="del_img_end")
-                    
-                    if st.button("🧹 Xóa Ảnh Theo Khoảng Ngày", use_container_width=True, type="primary", key="btn_del_img_range"):
-                        if d_start > d_end:
-                            st.error("⚠️ Ngày bắt đầu không thể lớn hơn ngày kết thúc!")
-                        else:
-                            with st.spinner("⏳ Đang xóa tệp ảnh trên Cloud Storage..."):
-                                count_del, msg_del = delete_storage_files_by_date_range(d_start, d_end)
-                                st.cache_data.clear()
-                                if count_del > 0:
-                                    st.success(f"✅ {msg_del}")
-                                    st.rerun()
-                                else:
-                                    st.info(f"ℹ️️ {msg_del}")
+                    with st.form("form_delete_images_by_date"):
+                        d_start = st.date_input("Từ ngày", datetime.date.today() - datetime.timedelta(days=30), key="del_img_start")
+                        d_end = st.date_input("Đến ngày", datetime.date.today(), key="del_img_end")
+                        
+                        submitted_del_range = st.form_submit_button("🧹 Xóa Ảnh Theo Khoảng Ngày", use_container_width=True, type="primary")
+                        
+                        if submitted_del_range:
+                            if d_start > d_end:
+                                st.error("⚠️ Ngày bắt đầu không thể lớn hơn ngày kết thúc!")
+                            else:
+                                with st.spinner("⏳ Đang xóa tệp ảnh trên Cloud Storage..."):
+                                    count_del, msg_del = delete_storage_files_by_date_range(d_start, d_end)
+                                    st.cache_data.clear()
+                                    if count_del > 0:
+                                        st.success(f"✅ {msg_del}")
+                                        st.rerun()
+                                    else:
+                                        st.info(f"ℹ️ {msg_del}")
     else:
         st.subheader(current_menu_name)
         st.info(f"Đang hiển thị nội dung cho mục: {current_menu_name}")
