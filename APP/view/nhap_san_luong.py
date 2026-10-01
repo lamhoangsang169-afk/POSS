@@ -297,11 +297,15 @@ def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
         if not danh_sach_hang_muc: 
             danh_sach_hang_muc = ["Chưa có dữ liệu định mức"]
 
+        # Khởi tạo biến đếm phiên bản cho file_uploader key nếu chưa có
+        if "file_uploader_version" not in st.session_state:
+            st.session_state.file_uploader_version = 0
+
         # Xử lý reset form an toàn TRƯỚC KHI tạo widget
         if st.session_state.get("should_reset_form", False):
             st.session_state.widget_staff_select = "--- Vui lòng chọn nhân sự ---"
             st.session_state.widget_task_select = danh_sach_hang_muc[0]
-            st.session_state.record_img = None  # Reset mục tải hình ảnh về trống
+            st.session_state.file_uploader_version += 1  # Tăng phiên bản để làm sạch bộ tải ảnh
             st.session_state.should_reset_form = False
 
         # Khởi tạo giá trị mặc định cho widget key nếu chưa có
@@ -321,7 +325,9 @@ def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
             with f_col3:
                 hang_muc = st.selectbox("Hạng mục công việc", danh_sach_hang_muc, key="widget_task_select")
                 
-            record_images = st.file_uploader("Tải ảnh đính kèm (Tối đa 4 ảnh)", type=["png", "jpg", "jpeg"], accept_multiple_files=True, key="record_img")
+            # Sử dụng key động dựa theo version để tự động reset khung tải ảnh
+            uploader_key = f"record_img_{st.session_state.file_uploader_version}"
+            record_images = st.file_uploader("Tải ảnh đính kèm (Tối đa 4 ảnh)", type=["png", "jpg", "jpeg"], accept_multiple_files=True, key=uploader_key)
                 
             f_col4, f_col5 = st.columns(2)
             with f_col4: so_luong = st.number_input("Số lượng thực tế", min_value=0, value=0, step=1)
