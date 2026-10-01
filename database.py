@@ -325,6 +325,42 @@ def permanent_delete_db(db_ids):
         st.error(f"Lỗi khi xóa vĩnh viễn: {e}")
         return None
 
+def cleanup_orphan_storage_files():
+    """Quét toàn bộ ứng dụng: tìm và xóa các file rác/mồ côi trên Supabase Storage không được liên kết với Database"""
+    if supabase is None:
+        return 0, "Chưa kết nối Database"
+    cleaned_count = 0
+    try:
+        buckets = ["production_images", "reports-storage"]
+        # Lấy tất cả các URL ảnh đang được sử dụng trong production_logs
+        res_logs = supabase.table("production_logs").select("hinh_anh_url").eq("is_deleted", False).execute()
+        used_urls = set()
+        if res_logs.data:
+            for row in res_logs.data:
+                url_str = row.get("hinh_anh_url", "")
+                if url_str:
+                    for u in url_str.split(","):
+                        if u.strip():
+                            used_urls.add(u.strip())
+                            
+        for b_name in buckets:
+            files_list = supabase.storage.from_(b_name).list()
+            if files_list:
+                files_to_delete = []
+                for file_info in files_list:
+                    filename = file_info.get("name")
+                    if filename:
+                        is_used = any(filename in u or u.endswith(filename) for u in used_urls)
+                        if not is_used:
+                            files_to_delete.append(filename)
+                
+                if files_to_delete:
+                    supabase.storage.from_(b_name).remove(files_to_delete)
+                    cleaned_count += len(files_to_delete)
+        return cleaned_count, "Thành công"
+    except Exception as e:
+        return 0, str(e)
+
 def add_attendance_log_db(ngay, nhan_su, gio_vao):
     if supabase is None:
         return None
