@@ -36,7 +36,8 @@ from database import (
     get_total_production_count_db, 
     get_attendance_db,
     load_app_settings_db,
-    cleanup_orphan_storage_files
+    cleanup_orphan_storage_files,
+    delete_storage_files_by_date_range
 )
 
 import nhap_san_luong
@@ -605,7 +606,7 @@ def render_main_content(current_menu_name):
         else:
             st.markdown("---")
             
-            col_box1, col_box2 = st.columns(2)
+            col_box1, col_box2, col_box3 = st.columns(3)
             with col_box1:
                 with st.container(border=True):
                     st.markdown("##### 🗑️ Xóa Vĩnh Viễn Thùng Rác")
@@ -632,6 +633,27 @@ def render_main_content(current_menu_name):
                                 st.success(f"✅ Quét và dọn dẹp hệ thống thành công! Đã loại bỏ **{count} tệp rác mồ côi** khỏi Cloud Storage.")
                             else:
                                 st.info("✨ Hệ thống rất sạch sẽ! Không tìm thấy tệp rác mồ côi nào cần loại bỏ.")
+
+            with col_box3:
+                with st.container(border=True):
+                    st.markdown("##### 📅 Xóa Ảnh Theo Khoảng Ngày")
+                    st.caption("Chọn khoảng thời gian để xóa toàn bộ tệp hình ảnh trên Storage nhằm giải phóng bộ nhớ nhanh chóng.")
+                    
+                    d_start = st.date_input("Từ ngày", datetime.date.today() - datetime.timedelta(days=30), key="del_img_start")
+                    d_end = st.date_input("Đến ngày", datetime.date.today(), key="del_img_end")
+                    
+                    if st.button("🧹 Xóa Ảnh Theo Khoảng Ngày", use_container_width=True, type="primary", key="btn_del_img_range"):
+                        if d_start > d_end:
+                            st.error("⚠️ Ngày bắt đầu không thể lớn hơn ngày kết thúc!")
+                        else:
+                            with st.spinner("⏳ Đang xóa tệp ảnh trên Cloud Storage..."):
+                                count_del, msg_del = delete_storage_files_by_date_range(d_start, d_end)
+                                st.cache_data.clear()
+                                if count_del > 0:
+                                    st.success(f"✅ {msg_del}")
+                                    st.rerun()
+                                else:
+                                    st.info(f"ℹ️️ {msg_del}")
     else:
         st.subheader(current_menu_name)
         st.info(f"Đang hiển thị nội dung cho mục: {current_menu_name}")
