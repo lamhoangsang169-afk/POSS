@@ -185,7 +185,7 @@ if not st.session_state.logged_in:
                     if not email_input or not password_admin:
                         st.error("⚠️ Vui lòng nhập đầy đủ Email và Mật khẩu!")
                     elif supabase is None:
-                        st.error("⚠️️ Chưa kết nối được tới cơ sở dữ liệu!")
+                        st.error("⚠ Chưa kết nối được tới cơ sở dữ liệu!")
                     else:
                         try:
                             clean_email = email_input.strip()
@@ -620,7 +620,7 @@ def render_main_content(current_menu_name):
                             st.success("✅ Đã dọn sạch toàn bộ thùng rác và giải phóng dung lượng storage thành công!")
                             st.rerun()
                         else:
-                            st.info("ℹ️ Thùng rác hiện đang trống.")
+                            st.info("ℹ️️ Thùng rác hiện đang trống.")
 
             with col_box2:
                 with st.container(border=True):
@@ -835,6 +835,19 @@ with st.sidebar:
         st.markdown(f'<div style="background-color: #d1ecf1; border: 1px solid #bee5eb; padding: 8px; border-radius: 8px; text-align: center; font-size: 0.85rem; font-weight: bold; color: #0c5460; margin-bottom: 4px;">🗂️ File Storage: {storage_usage_str}</div>', unsafe_allow_html=True)
     
     st.progress(storage_percent)
+
+    # --- BỔ SUNG THANH HIỂN THỊ BĂNG THÔNG (EGRESS) TRỰC QUAN ---
+    bandwidth_used_gb = 5.265  # Giá trị lấy từ thống kê Egress trên dashboard Supabase của bạn
+    bandwidth_limit_gb = 5.0
+    bandwidth_percent = min(bandwidth_used_gb / bandwidth_limit_gb, 1.0)
+    bw_warning = bandwidth_used_gb >= bandwidth_limit_gb
+
+    if bw_warning:
+        st.markdown(f'<div style="background-color: #f8d7da; border: 2px solid #dc3545; padding: 8px; border-radius: 8px; text-align: center; font-size: 0.85rem; font-weight: bold; color: #dc3545; margin-top: 6px; margin-bottom: 4px;">📡 Băng thông: {bandwidth_used_gb:.3f} GB / 5 GB (Vượt hạn mức!)</div>', unsafe_allow_html=True)
+    else:
+        st.markdown(f'<div style="background-color: #d1ecf1; border: 1px solid #bee5eb; padding: 8px; border-radius: 8px; text-align: center; font-size: 0.85rem; font-weight: bold; color: #0c5460; margin-top: 6px; margin-bottom: 4px;">📡 Băng thông: {bandwidth_used_gb:.3f} GB / 5 GB</div>', unsafe_allow_html=True)
+    
+    st.progress(bandwidth_percent)
 
     if storage_warning:
         if st.button("🧹 Xử Lý Làm Sạch Ngay", use_container_width=True, type="primary"):
