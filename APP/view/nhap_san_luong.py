@@ -342,7 +342,7 @@ def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
                 elif not record_images:
                     st.warning("⚠️ Vui lòng đính kèm ít nhất 1 hình ảnh minh chứng trước khi gửi báo cáo sản lượng!")
                 else:
-                    # Chuẩn hóa và quét tìm hệ số điểm chính xác tuyệt đối (xử lý cả khoảng trắng thừa)
+                    # Chuẩn hóa và quét tìm hệ số điểm chính xác tuyệt đối (không phân biệt hoa/thường và khoảng trắng)
                     r_df = rules_df.copy() if not rules_df.empty else pd.DataFrame()
                     if not r_df.empty:
                         r_df.columns = [str(c).strip().lower().replace(" ", "_") for c in r_df.columns]
@@ -357,22 +357,25 @@ def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
                     don_vi = "Cái"
                     
                     if match_col and not r_df.empty:
-                        # Cắt khoảng trắng 2 đầu ở cả 2 vế để đảm bảo khớp 100%
-                        matched_row = r_df[r_df[match_col].astype(str).str.strip() == str(hang_muc).strip()]
+                        target_hang_muc = str(hang_muc).strip().lower()
+                        r_df["_clean_task"] = r_df[match_col].astype(str).str.strip().str.lower()
+                        
+                        matched_row = r_df[r_df["_clean_task"] == target_hang_muc]
                         if not matched_row.empty:
                             for hs_cand in ["he_so_diem", "he_so", "diem"]:
                                 if hs_cand in matched_row.columns:
-                                    try:
-                                        he_so = float(matched_row[hs_cand].values[0])
-                                    except:
-                                        pass
+                                    val_raw = matched_row[hs_cand].values[0]
+                                    if pd.notna(val_raw) and str(val_raw).strip() != "":
+                                        try:
+                                            he_so = float(val_raw)
+                                        except:
+                                            pass
                                     break
                             for dv_cand in ["don_vi", "unit"]:
                                 if dv_cand in matched_row.columns:
-                                    try:
-                                        don_vi = str(matched_row[dv_cand].values[0])
-                                    except:
-                                        pass
+                                    val_dv = matched_row[dv_cand].values[0]
+                                    if pd.notna(val_dv) and str(val_dv).strip() != "":
+                                        don_vi = str(val_dv)
                                     break
 
                     tong_diem = so_luong * he_so
