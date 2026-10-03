@@ -190,7 +190,7 @@ def render_production_table_fragment(raw_input_df, current_user_role, user_perms
                                                     st.image(u, use_container_width=True)
                                                 st.image(u, width=40)
                                             else:
-                                                st.caption("⚠️ Không tìm thấy ảnh")
+                                                st.caption("⚠️️ Không tìm thấy ảnh")
                                             
                                             size_str = get_cached_image_size(u)
                                             st.markdown(f"<div style='text-align: center; font-size: 0.72rem; color: #64748b; margin-top: -4px;'>{size_str}</div>", unsafe_allow_html=True)
@@ -342,44 +342,41 @@ def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
                 elif not record_images:
                     st.warning("⚠️ Vui lòng đính kèm ít nhất 1 hình ảnh minh chứng trước khi gửi báo cáo sản lượng!")
                 else:
-                    # Chuẩn hóa và quét tìm hệ số điểm chính xác tuyệt đối (không phân biệt hoa/thường và khoảng trắng)
-                    r_df = rules_df.copy() if not rules_df.empty else pd.DataFrame()
-                    if not r_df.empty:
-                        r_df.columns = [str(c).strip().lower().replace(" ", "_") for c in r_df.columns]
-                    
-                    match_col = None
-                    for c_candidate in ["hang_muc_cong_viec", "hang_muc", "ten_hang_muc"]:
-                        if c_candidate in r_df.columns:
-                            match_col = c_candidate
-                            break
-                    
                     he_so = 1.0
                     don_vi = "Cái"
                     
-                    if match_col and not r_df.empty:
-                        target_hang_muc = str(hang_muc).strip().lower()
-                        r_df["_clean_task"] = r_df[match_col].astype(str).str.strip().str.lower()
+                    if not rules_df.empty:
+                        # Dò tìm trực tiếp theo tên cột chuẩn hóa sẵn của get_rules_db()
+                        task_col = None
+                        for col in ["Hạng Mục Công Việc", "hang_muc_cong_viec", "hang_muc"]:
+                            if col in rules_df.columns:
+                                task_col = col
+                                break
                         
-                        matched_row = r_df[r_df["_clean_task"] == target_hang_muc]
-                        if not matched_row.empty:
-                            for hs_cand in ["he_so_diem", "he_so", "diem"]:
-                                if hs_cand in matched_row.columns:
-                                    val_raw = matched_row[hs_cand].values[0]
-                                    if pd.notna(val_raw) and str(val_raw).strip() != "":
-                                        try:
-                                            cleaned_val = str(val_raw).replace(",", ".").strip()
-                                            he_so = float(cleaned_val)
-                                        except Exception:
-                                            pass
-                                    break
-                            for dv_cand in ["don_vi", "unit"]:
-                                if dv_cand in matched_row.columns:
-                                    val_dv = matched_row[dv_cand].values[0]
-                                    if pd.notna(val_dv) and str(val_dv).strip() != "":
-                                        don_vi = str(val_dv)
-                                    break
+                        if task_col:
+                            target_val = str(hang_muc).strip().lower()
+                            matched = rules_df[rules_df[task_col].astype(str).str.strip().str.lower() == target_val]
+                            if not matched.empty:
+                                # Lấy hệ số điểm từ các tên cột khả dĩ
+                                for hs_col in ["Hệ Số Điểm", "he_so_diem", "he_so", "diem"]:
+                                    if hs_col in matched.columns:
+                                        val_raw = matched[hs_col].values[0]
+                                        if pd.notna(val_raw) and str(val_raw).strip() != "":
+                                            try:
+                                                cleaned_val = str(val_raw).replace(",", ".").strip()
+                                                he_so = float(cleaned_val)
+                                            except Exception:
+                                                pass
+                                        break
+                                # Lấy đơn vị
+                                for dv_col in ["Đơn Vị", "don_vi", "unit"]:
+                                    if dv_col in matched.columns:
+                                        val_dv = matched[dv_col].values[0]
+                                        if pd.notna(val_dv) and str(val_dv).strip() != "":
+                                            don_vi = str(val_dv)
+                                        break
 
-                    # Tính tổng điểm chính xác theo hệ số an toàn tuyệt đối
+                    # Tính tổng điểm chính xác tuyệt đối
                     tong_diem = float(so_luong) * float(he_so)
                     
                     img_urls = upload_multiple_images_to_storage(record_images) if record_images else ""
