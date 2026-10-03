@@ -34,7 +34,6 @@ def safe_supabase_call(query_func):
     except Exception as e:
         err_str = str(e)
         if "JWT expired" in err_str or "PGRST303" in err_str or "Unauthorized" in err_str:
-            # Xóa cache kết nối cũ, tạo lại client mới chứa token hợp lệ
             st.cache_resource.clear()
             supabase = init_supabase()
             try:
@@ -615,3 +614,65 @@ def delete_storage_files_by_date_range(start_date, end_date):
         return deleted_count, f"Đã xóa thành công {deleted_count} tệp ảnh."
     except Exception as e:
         return 0, f"Lỗi khi xóa ảnh theo ngày: {e}"
+
+def update_all_historical_production_scores_db():
+    """Quét toàn bộ bảng rules và cập nhật lại Tên hạng mục, Hệ số, Tổng điểm cho tất cả bản ghi production_logs"""
+    if supabase is None:
+        return False
+    try:
+        # 1. Lấy tất cả định mức hiện tại từ bảng rules
+        rules_res = supabase.table("rules").select("*").execute()
+        if not rules_res.data:
+            return False
+        
+        # Tạo từ điển tra cứu: khóa theo chữ thường (lowercase) để map linh hoạt
+        rule_map = {}
+        for r in rules_res.data:
+            # Hỗ trợ linh hoạt các tên cột có thể có trong bảng rules
+            h_muc_chuan = str(r.get("hang_muc_cong_viec") or r.get("hang_muc") or "").strip()
+            key_lowercase = h_muc_chuan.lower()
+            h_so = r.get("he_so_diem") if r.get("he_so_diem") is not None else r.get("he_so", 1.0)
+            
+            try:
+                he_so_float = float(str(h_so).replace(",", ".").strip())
+            except:
+                he_so_float = 1.0
+                
+            if key_lowercase:
+                rule_map[key_lowercase] = {
+                    "ten_chuan": h_muc_chuan,
+                    "he_so": he_so_float
+                }
+
+        # 2. Lấy toàn bộ lịch sử sản lượng chưa bị xóa
+        logs_res = supabase.table("production_logs").select("*").eq("is_deleted", False).execute()
+        if not logs_res.data:
+            return True
+
+        # 3. Duyệt qua từng bản ghi lịch sử, đối chiếu và cập nhật lại Tên, Hệ Số, Tổng Điểm mới
+        for log in logs_res.data:
+            log_id = log.get("id")
+            log_task = str(log.get("hang_muc_cong_viec", "")).strip().lower()
+            
+            try:
+                so_luong = float(str(log.get("so_luong", 0)).replace(",", ".").strip())
+            except:
+                so_luong = 0.0
+
+            if log_task in rule_map:
+                new_info = rule_map[log_task]
+                new_ten = new_info["ten_chuan"]
+                new_he_so = new_info["he_so"]
+                new_tong_diem = so_luong * new_he_so
+                
+                # Cập nhật đồng thời Tên mới, Hệ số điểm mới và Tổng điểm mới lên Database
+                supabase.table("production_logs").update({
+                    "hang_muc_cong_viec": new_ten,
+                    "he_so_diem": new_he_so,
+                    "tong_diem": new_tong_diem
+                }).eq("id", log_id).execute()
+                
+        return True
+    except Exception as e:
+        print(f"Lỗi đồng bộ điểm lịch sử: {e}")
+        return False
