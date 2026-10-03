@@ -64,6 +64,7 @@ def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
         tong_diem_val = row.get("Tổng Điểm", 0)
         ghi_chu_val = row.get("Ghi Chú", "Không có ghi chú")
         img_url = row.get("Hình Ảnh", "")
+        db_record_id = row.get("db_id")
 
         with st.container():
             col_info, col_img = st.columns([5, 1])
@@ -86,28 +87,30 @@ def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
                 else:
                     st.caption("Không ảnh")
 
-            # === TÍCH HỢP NÚT SỬA NHANH TRỰC TIẾP CHO TỪNG BẢN GHI ===
-            if current_user_role == "Admin" or user_perms.get("perm_edit", True):
-                with st.expander(f"✏️ Sửa nhanh bản ghi STT {display_stt}"):
-                    with st.form(key=f"edit_form_{row.get('db_id', idx)}"):
-                        all_rules_df = get_rules_db()
-                        task_list = all_rules_df["Hạng Mục Công Việc"].tolist() if not all_rules_df.empty and "Hạng Mục Công Việc" in all_rules_df.columns else [hang_muc_val]
-                        
-                        default_idx = task_list.index(hang_muc_val) if hang_muc_val in task_list else 0
-                        
-                        new_task = st.selectbox("Chọn lại hạng mục công việc", task_list, index=default_idx, key=f"edit_task_{row.get('db_id', idx)}")
-                        new_qty = st.number_input("Số lượng thực tế mới", min_value=0.0, value=float(so_luong_val), step=1.0, key=f"edit_qty_{row.get('db_id', idx)}")
-                        cur_note = ghi_chu_val if pd.notna(ghi_chu_val) else ""
-                        new_note = st.text_input("Ghi chú mới", value=cur_note, key=f"edit_note_{row.get('db_id', idx)}")
-                        
-                        submitted_edit = st.form_submit_button("💾 Lưu Cập Nhật", use_container_width=True)
-                        if submitted_edit:
-                            if update_production_log_record_db is not None:
-                                update_production_log_record_db(row.get('db_id'), new_task, new_qty, new_note)
+            # === KHUNG SỬA NHANH TRỰC TIẾP CHO TỪNG BẢN GHI ===
+            with st.expander(f"✏️ Sửa nhanh bản ghi STT {display_stt}"):
+                with st.form(key=f"edit_form_{db_record_id}_{idx}"):
+                    all_rules_df = get_rules_db()
+                    task_list = all_rules_df["Hạng Mục Công Việc"].tolist() if not all_rules_df.empty and "Hạng Mục Công Việc" in all_rules_df.columns else [hang_muc_val]
+                    
+                    default_idx = task_list.index(hang_muc_val) if hang_muc_val in task_list else 0
+                    
+                    new_task = st.selectbox("Chọn lại hạng mục công việc", task_list, index=default_idx, key=f"edit_task_{db_record_id}_{idx}")
+                    new_qty = st.number_input("Số lượng thực tế mới", min_value=0.0, value=float(so_luong_val), step=1.0, key=f"edit_qty_{db_record_id}_{idx}")
+                    cur_note = ghi_chu_val if pd.notna(ghi_chu_val) else ""
+                    new_note = st.text_input("Ghi chú mới", value=cur_note, key=f"edit_note_{db_record_id}_{idx}")
+                    
+                    submitted_edit = st.form_submit_button("💾 Lưu Cập Nhật", use_container_width=True)
+                    if submitted_edit:
+                        if update_production_log_record_db is not None:
+                            res = update_production_log_record_db(db_record_id, new_task, new_qty, new_note)
+                            if res is not None:
                                 st.success("✅ Cập nhật bản ghi thành công!")
                                 st.cache_data.clear()
                                 st.rerun()
                             else:
-                                st.error("⚠️ Không tìm thấy hàm cập nhật trong `database.py`!")
+                                st.error("❌ Lỗi khi cập nhật xuống Database!")
+                        else:
+                            st.error("⚠️ Không tìm thấy hàm cập nhật trong `database.py`!")
 
         st.markdown("---")
