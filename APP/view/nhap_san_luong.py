@@ -216,7 +216,7 @@ def render_production_table_fragment(raw_input_df, current_user_role, user_perms
                             st.success("Đã chuyển toàn bộ bản ghi đang hiển thị ở trang này vào thùng rác!")
                             st.rerun()
                     else:
-                        st.warning("⚠️️ Vui lòng tích chọn xác nhận trước khi bấm xóa tất cả!")
+                        st.warning("⚠️ Vui lòng tích chọn xác nhận trước khi bấm xóa tất cả!")
         else:
             for idx, row in paginated_df.iterrows():
                 display_stt = total_rows - (start_idx + paginated_df.index.get_loc(idx))
@@ -335,22 +335,29 @@ def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
                 
             submitted = st.form_submit_button("📊 Báo Cáo Sản Lượng", use_container_width=True)
 
-            if submitted and nhan_su != "--- Vui lòng chọn nhân sự ---" and hang_muc != "Chưa có dữ liệu định mức":
-                row_rule = rules_df[rules_df["Hạng Mục Công Việc"] == hang_muc] if not rules_df.empty else pd.DataFrame()
-                he_so = float(row_rule["Hệ Số Điểm"].values[0]) if not row_rule.empty and "Hệ Số Điểm" in row_rule.columns else 1.0
-                don_vi = str(row_rule["Đơn Vị"].values[0]) if not row_rule.empty and "Đơn Vị" in row_rule.columns else "Cái"
-                tong_diem = so_luong * he_so
-                
-                img_urls = upload_multiple_images_to_storage(record_images) if record_images else ""
-                current_time_str = datetime.datetime.now(VN_TIMEZONE).strftime("%H:%M:%S")
-                
-                add_production_log_db(today_str, current_time_str, nhan_su, hang_muc, img_urls, don_vi, so_luong, he_so, tong_diem, ghi_chu)
-                
-                # --- ĐẶT CỜ ĐỂ RESET AN TOÀN VÀO LẦN CHẠY TIẾP THEO ---
-                st.session_state.should_reset_form = True
-                
-                st.success(f"✅ Ghi nhận thành công cho **{nhan_su}**!")
-                st.rerun()
+            if submitted:
+                if nhan_su == "--- Vui lòng chọn nhân sự ---":
+                    st.warning("⚠️ Vui lòng chọn nhân sự thực hiện!")
+                elif hang_muc == "Chưa có dữ liệu định mức":
+                    st.warning("⚠️ Vui lòng chọn hạng mục công việc hợp lệ!")
+                elif not record_images:
+                    st.warning("⚠️ Vui lòng đính kèm ít nhất 1 hình ảnh minh chứng trước khi gửi báo cáo sản lượng!")
+                else:
+                    row_rule = rules_df[rules_df["Hạng Mục Công Việc"] == hang_muc] if not rules_df.empty else pd.DataFrame()
+                    he_so = float(row_rule["Hệ Số Điểm"].values[0]) if not row_rule.empty and "Hệ Số Điểm" in row_rule.columns else 1.0
+                    don_vi = str(row_rule["Đơn Vị"].values[0]) if not row_rule.empty and "Đơn Vị" in row_rule.columns else "Cái"
+                    tong_diem = so_luong * he_so
+                    
+                    img_urls = upload_multiple_images_to_storage(record_images) if record_images else ""
+                    current_time_str = datetime.datetime.now(VN_TIMEZONE).strftime("%H:%M:%S")
+                    
+                    add_production_log_db(today_str, current_time_str, nhan_su, hang_muc, img_urls, don_vi, so_luong, he_so, tong_diem, ghi_chu)
+                    
+                    # --- ĐẶT CỜ ĐỂ RESET AN TOÀN VÀO LẦN CHẠY TIẾP THEO ---
+                    st.session_state.should_reset_form = True
+                    
+                    st.success(f"✅ Ghi nhận thành công cho **{nhan_su}**!")
+                    st.rerun()
 
     st.markdown("---")
 
