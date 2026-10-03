@@ -129,6 +129,12 @@ def get_staff_list_db():
 @st.cache_data(ttl=600, show_spinner=False)
 def add_production_log_db(ngay, gio, nhan_su, hang_muc, anh, don_vi, so_luong, he_so, tong_diem, ghi_chu):
     try:
+        # Làm tròn điểm tổng khi thêm mới
+        try:
+            tong_diem = round(float(str(tong_diem).replace(",", ".").strip()), 2)
+        except:
+            pass
+
         data = {
             "ngay": ngay,
             "thoi_gian": gio,
@@ -625,10 +631,8 @@ def update_all_historical_production_scores_db():
         if not rules_res.data:
             return False
         
-        # Tạo từ điển tra cứu: khóa theo chữ thường (lowercase) để map linh hoạt
         rule_map = {}
         for r in rules_res.data:
-            # Hỗ trợ linh hoạt các tên cột có thể có trong bảng rules
             h_muc_chuan = str(r.get("hang_muc_cong_viec") or r.get("hang_muc") or "").strip()
             key_lowercase = h_muc_chuan.lower()
             h_so = r.get("he_so_diem") if r.get("he_so_diem") is not None else r.get("he_so", 1.0)
@@ -649,7 +653,7 @@ def update_all_historical_production_scores_db():
         if not logs_res.data:
             return True
 
-        # 3. Duyệt qua từng bản ghi lịch sử, đối chiếu và cập nhật lại Tên, Hệ Số, Tổng Điểm mới
+        # 3. Duyệt qua từng bản ghi lịch sử, đối chiếu và cập nhật lại Tên, Hệ Số, Tổng Điểm mới (làm tròn 2 chữ số)
         for log in logs_res.data:
             log_id = log.get("id")
             log_task = str(log.get("hang_muc_cong_viec", "")).strip().lower()
@@ -663,9 +667,8 @@ def update_all_historical_production_scores_db():
                 new_info = rule_map[log_task]
                 new_ten = new_info["ten_chuan"]
                 new_he_so = new_info["he_so"]
-                new_tong_diem = so_luong * new_he_so
+                new_tong_diem = round(so_luong * new_he_so, 2)
                 
-                # Cập nhật đồng thời Tên mới, Hệ số điểm mới và Tổng điểm mới lên Database
                 supabase.table("production_logs").update({
                     "hang_muc_cong_viec": new_ten,
                     "he_so_diem": new_he_so,
@@ -676,3 +679,51 @@ def update_all_historical_production_scores_db():
     except Exception as e:
         print(f"Lỗi đồng bộ điểm lịch sử: {e}")
         return False
+
+def update_production_log_record_db(db_id, hang_muc, so_luong, ghi_chu=""):
+    """Cập nhật chi tiết một bản ghi sản lượng trực tiếp và tự động tính lại hệ số, tổng điểm (làm tròn 2 chữ số)"""
+    if supabase is None:
+        return None
+    try:
+        rules_res = supabase.table("rules").select("*").execute()
+        he_so = 1.0
+        don_vi = "Cái"
+        
+        if rules_res and rules_res.data:
+            target_task = str(hang_muc).strip().lower()
+            for r in rules_res.data:
+                r_task = str(r.get("hang_muc_cong_viec") or r.get("hang_muc") or "").strip().lower()
+                if r_task == target_task:
+                    h_so_val = r.get("he_so_diem") if r.get("he_so_diem") is not None else r.get("he_so", 1.0)
+                    try:
+                        he_so = float(str(h_so_val).replace(",", ".").strip())
+                    except:
+                        he_so = 1.0
+                    d_vi_val = r.get("don_vi") or r.get("unit") or "Cái"
+                    don_vi = str(d_vi_val).strip()
+                    break
+        
+        try:
+            qty_float = float(str(so_luong).replace(",", ".").strip())
+        except:
+            qty_float = 0.0
+            
+        # Làm tròn tổng điểm đến 2 chữ số thập phân
+        tong_diem = round(qty_float * he_so, 2)
+        
+        data = {
+            "hang_muc_cong_viec": str(hang_muc).strip(),
+            "don_vi": don_vi,
+            "so_luong": qty_float,
+            "he_so_diem": he_so,
+            "tong_diem": tong_diem,
+            "ghi_chu": str(ghi_chu).strip() if pd.notna(ghi_chu) else ""
+        }
+        
+        def _query(client):
+            return client.table("production_logs").update(data).eq("id", db_id).execute()
+        res = safe_supabase_call(_query)
+        return res
+    except Exception as e:
+        st.error(f"Lỗi cập nhật bản ghi sản lượng: {e}")
+        return None
