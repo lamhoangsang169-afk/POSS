@@ -367,8 +367,9 @@ def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
                                     val_raw = matched_row[hs_cand].values[0]
                                     if pd.notna(val_raw) and str(val_raw).strip() != "":
                                         try:
-                                            he_so = float(val_raw)
-                                        except:
+                                            cleaned_val = str(val_raw).replace(",", ".").strip()
+                                            he_so = float(cleaned_val)
+                                        except Exception:
                                             pass
                                     break
                             for dv_cand in ["don_vi", "unit"]:
@@ -378,7 +379,8 @@ def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
                                         don_vi = str(val_dv)
                                     break
 
-                    tong_diem = so_luong * he_so
+                    # Tính tổng điểm chính xác theo hệ số an toàn tuyệt đối
+                    tong_diem = float(so_luong) * float(he_so)
                     
                     img_urls = upload_multiple_images_to_storage(record_images) if record_images else ""
                     current_time_str = datetime.datetime.now(VN_TIMEZONE).strftime("%H:%M:%S")
