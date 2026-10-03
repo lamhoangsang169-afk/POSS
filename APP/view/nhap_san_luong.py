@@ -64,6 +64,7 @@ def render_production_table_fragment(raw_input_df, current_user_role, user_perms
         st.markdown("<h3 style='color: #1e3a8a;'>Danh Sách Sản Lượng & Hình Ảnh</h3>", unsafe_allow_html=True)
     with col_title_2:
         if st.button("🔄 Làm mới dữ liệu", use_container_width=True, key="btn_refresh_input_frag"):
+            st.cache_data.clear()
             st.rerun()
 
     if raw_input_df.empty:
@@ -189,7 +190,7 @@ def render_production_table_fragment(raw_input_df, current_user_role, user_perms
                                                     st.image(u, use_container_width=True)
                                                 st.image(u, width=40)
                                             else:
-                                                st.caption("⚠️️ Không tìm thấy ảnh")
+                                                st.caption("⚠️ Không tìm thấy ảnh")
                                             
                                             size_str = get_cached_image_size(u)
                                             st.markdown(f"<div style='text-align: center; font-size: 0.72rem; color: #64748b; margin-top: -4px;'>{size_str}</div>", unsafe_allow_html=True)
@@ -283,14 +284,12 @@ def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
     elif not active_staff:
         st.warning(f"⚠️ Hiện tại chưa có nhân sự nào **Check-in (Vào ca)**. Vui lòng thực hiện Check-in trước khi nhập sản lượng!")
     else:
-        # Lấy dữ liệu định mức để biết danh sách hạng mục
-        rules_df = st.session_state.get("rules_df", pd.DataFrame())
-        if rules_df.empty:
-            try:
-                rules_df = get_rules_db()
-                st.session_state["rules_df"] = rules_df
-            except Exception:
-                pass
+        # Tải mới hoàn toàn bảng định mức trực tiếp từ database (bỏ qua cache cũ)
+        try:
+            rules_df = get_rules_db()
+            st.session_state["rules_df"] = rules_df
+        except Exception:
+            rules_df = st.session_state.get("rules_df", pd.DataFrame())
 
         raw_tasks = rules_df["Hạng Mục Công Việc"].tolist() if not rules_df.empty and "Hạng Mục Công Việc" in rules_df.columns else []
         danh_sach_hang_muc = [str(t).strip() for t in raw_tasks if pd.notna(t) and str(t).strip() and str(t).strip().lower() not in ["nan", "none"]]
@@ -343,7 +342,7 @@ def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
                 elif not record_images:
                     st.warning("⚠️ Vui lòng đính kèm ít nhất 1 hình ảnh minh chứng trước khi gửi báo cáo sản lượng!")
                 else:
-                    # Tự động chuẩn hóa và tìm kiếm hệ số điểm an toàn
+                    # Chuẩn hóa và quét tìm hệ số điểm chính xác tuyệt đối (xử lý cả khoảng trắng thừa)
                     r_df = rules_df.copy() if not rules_df.empty else pd.DataFrame()
                     if not r_df.empty:
                         r_df.columns = [str(c).strip().lower().replace(" ", "_") for c in r_df.columns]
@@ -358,6 +357,7 @@ def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
                     don_vi = "Cái"
                     
                     if match_col and not r_df.empty:
+                        # Cắt khoảng trắng 2 đầu ở cả 2 vế để đảm bảo khớp 100%
                         matched_row = r_df[r_df[match_col].astype(str).str.strip() == str(hang_muc).strip()]
                         if not matched_row.empty:
                             for hs_cand in ["he_so_diem", "he_so", "diem"]:
