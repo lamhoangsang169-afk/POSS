@@ -189,7 +189,7 @@ def render_production_table_fragment(raw_input_df, current_user_role, user_perms
                                                     st.image(u, use_container_width=True)
                                                 st.image(u, width=40)
                                             else:
-                                                st.caption("⚠️ Không tìm thấy ảnh")
+                                                st.caption("⚠️️ Không tìm thấy ảnh")
                                             
                                             size_str = get_cached_image_size(u)
                                             st.markdown(f"<div style='text-align: center; font-size: 0.72rem; color: #64748b; margin-top: -4px;'>{size_str}</div>", unsafe_allow_html=True)
@@ -343,9 +343,38 @@ def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
                 elif not record_images:
                     st.warning("⚠️ Vui lòng đính kèm ít nhất 1 hình ảnh minh chứng trước khi gửi báo cáo sản lượng!")
                 else:
-                    row_rule = rules_df[rules_df["Hạng Mục Công Việc"] == hang_muc] if not rules_df.empty else pd.DataFrame()
-                    he_so = float(row_rule["Hệ Số Điểm"].values[0]) if not row_rule.empty and "Hệ Số Điểm" in row_rule.columns else 1.0
-                    don_vi = str(row_rule["Đơn Vị"].values[0]) if not row_rule.empty and "Đơn Vị" in row_rule.columns else "Cái"
+                    # Tự động chuẩn hóa và tìm kiếm hệ số điểm an toàn
+                    r_df = rules_df.copy() if not rules_df.empty else pd.DataFrame()
+                    if not r_df.empty:
+                        r_df.columns = [str(c).strip().lower().replace(" ", "_") for c in r_df.columns]
+                    
+                    match_col = None
+                    for c_candidate in ["hang_muc_cong_viec", "hang_muc", "ten_hang_muc"]:
+                        if c_candidate in r_df.columns:
+                            match_col = c_candidate
+                            break
+                    
+                    he_so = 1.0
+                    don_vi = "Cái"
+                    
+                    if match_col and not r_df.empty:
+                        matched_row = r_df[r_df[match_col].astype(str).str.strip() == str(hang_muc).strip()]
+                        if not matched_row.empty:
+                            for hs_cand in ["he_so_diem", "he_so", "diem"]:
+                                if hs_cand in matched_row.columns:
+                                    try:
+                                        he_so = float(matched_row[hs_cand].values[0])
+                                    except:
+                                        pass
+                                    break
+                            for dv_cand in ["don_vi", "unit"]:
+                                if dv_cand in matched_row.columns:
+                                    try:
+                                        don_vi = str(matched_row[dv_cand].values[0])
+                                    except:
+                                        pass
+                                    break
+
                     tong_diem = so_luong * he_so
                     
                     img_urls = upload_multiple_images_to_storage(record_images) if record_images else ""
