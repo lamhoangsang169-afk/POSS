@@ -19,7 +19,6 @@ def load_module_from_path(module_name, file_path):
 db_path = os.path.join(root_project_dir, "database.py")
 db_module = load_module_from_path("database", db_path)
 
-# Lấy các hàm từ database.py
 get_production_logs_db = db_module.get_production_logs_db
 get_production_logs_by_date_range = db_module.get_production_logs_by_date_range
 get_rules_db = db_module.get_rules_db
@@ -53,7 +52,21 @@ def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
 
     st.success(f"📅 Khoảng ngày có: {len(df_logs)} bản ghi")
 
-    # Hiển thị danh sách bản ghi dưới dạng danh thiếp kèm nút sửa nhanh
+    # Khung chọn xóa hàng loạt nguyên bản
+    selected_db_ids = []
+    with st.container():
+        col_del_btn, col_del_all_chk = st.columns([1, 1])
+        with col_del_btn:
+            delete_selected_btn = st.button("🗑️ Xóa các dòng đã chọn", type="primary", use_container_width=True)
+        with col_del_all_chk:
+            select_all_page = st.checkbox("Xác nhận xóa tất cả trang này", key="chk_del_all_page_logs")
+
+        if select_all_page and not df_logs.empty and "db_id" in df_logs.columns:
+            selected_db_ids = df_logs["db_id"].tolist()
+
+        st.markdown("---")
+
+    # Hiển thị danh sách bản ghi giữ nguyên cấu trúc gốc, chỉ bổ sung thêm form sửa nhanh
     for idx, row in df_logs.iterrows():
         display_stt = row.get("STT", idx + 1)
         ngay_val = row.get("Ngày", "")
@@ -87,7 +100,12 @@ def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
                 else:
                     st.caption("Không ảnh")
 
-            # === KHUNG SỬA NHANH TRỰC TIẾP CHO TỪNG BẢN GHI ===
+            # Checkbox chọn xóa nguyên bản
+            is_checked = st.checkbox(f"Chọn xóa bản ghi STT {display_stt}", key=f"chk_log_{db_record_id}_{idx}")
+            if is_checked and db_record_id not in selected_db_ids:
+                selected_db_ids.append(db_record_id)
+
+            # === BỔ SUNG: Khung mở rộng Sửa nhanh bản ghi (giữ nguyên mọi cấu trúc khác) ===
             with st.expander(f"✏️ Sửa nhanh bản ghi STT {display_stt}"):
                 with st.form(key=f"edit_form_{db_record_id}_{idx}"):
                     all_rules_df = get_rules_db()
@@ -97,7 +115,7 @@ def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
                     
                     new_task = st.selectbox("Chọn lại hạng mục công việc", task_list, index=default_idx, key=f"edit_task_{db_record_id}_{idx}")
                     new_qty = st.number_input("Số lượng thực tế mới", min_value=0.0, value=float(so_luong_val), step=1.0, key=f"edit_qty_{db_record_id}_{idx}")
-                    cur_note = ghi_chu_val if pd.notna(ghi_chu_val) else ""
+                    cur_note = ghi_chu_val if pd.notna(ghi_chu_val) and str(ghi_chu_val).strip() != 'Không có ghi chú' else ""
                     new_note = st.text_input("Ghi chú mới", value=cur_note, key=f"edit_note_{db_record_id}_{idx}")
                     
                     submitted_edit = st.form_submit_button("💾 Lưu Cập Nhật", use_container_width=True)
@@ -114,3 +132,11 @@ def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
                             st.error("⚠️ Không tìm thấy hàm cập nhật trong `database.py`!")
 
         st.markdown("---")
+
+    # Xử lý sự kiện nút xóa hàng loạt nguyên bản
+    if delete_selected_btn and selected_db_ids:
+        with st.spinner("⏳ Đang chuyển các bản ghi vào thùng rác..."):
+            update_production_log_deleted_status(selected_db_ids, True)
+            st.cache_data.clear()
+            st.success("✅ Đã chuyển các bản ghi đã chọn vào thùng rác thành công!")
+            st.rerun()
