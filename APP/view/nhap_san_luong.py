@@ -177,25 +177,27 @@ def render_production_table_fragment(raw_input_df, current_user_role, user_perms
                         if img_url_val and isinstance(img_url_val, str) and img_url_val.strip():
                             urls = [u.strip() for u in img_url_val.split(",") if u.strip()]
                             if urls:
-                                sub_cols = st.columns(min(len(urls), 4), gap="small")
+                                num_cols = min(len(urls), 4)
+                                sub_cols = st.columns(num_cols, gap="small")
                                 for i, u in enumerate(urls):
-                                    with sub_cols[i]:
-                                        try:
-                                            if u.startswith("http://") or u.startswith("https://"):
-                                                with st.popover("🔍", help="Xem ảnh lớn"): 
-                                                    st.image(u, use_container_width=True)
-                                                st.image(u, width=40)
-                                            elif os.path.exists(u):
-                                                with st.popover("🔍", help="Xem ảnh lớn"): 
-                                                    st.image(u, use_container_width=True)
-                                                st.image(u, width=40)
-                                            else:
-                                                st.caption("⚠️️ Không tìm thấy ảnh")
-                                            
-                                            size_str = get_cached_image_size(u)
-                                            st.markdown(f"<div style='text-align: center; font-size: 0.72rem; color: #64748b; margin-top: -4px;'>{size_str}</div>", unsafe_allow_html=True)
-                                        except Exception:
-                                            st.caption("❌ Lỗi hiển thị")
+                                    if i < len(sub_cols):
+                                        with sub_cols[i]:
+                                            try:
+                                                if u.startswith("http://") or u.startswith("https://"):
+                                                    with st.popover("🔍", help="Xem ảnh lớn"): 
+                                                        st.image(u, use_container_width=True)
+                                                    st.image(u, width=40)
+                                                elif os.path.exists(u):
+                                                    with st.popover("🔍", help="Xem ảnh lớn"): 
+                                                        st.image(u, use_container_width=True)
+                                                    st.image(u, width=40)
+                                                else:
+                                                    st.caption("⚠️ Không tìm thấy ảnh")
+                                                
+                                                size_str = get_cached_image_size(u)
+                                                st.markdown(f"<div style='text-align: center; font-size: 0.72rem; color: #64748b; margin-top: -4px;'>{size_str}</div>", unsafe_allow_html=True)
+                                            except Exception:
+                                                st.caption("❌ Lỗi hiển thị")
                         else:
                             st.markdown("<small style='color: gray;'>Không ảnh</small>", unsafe_allow_html=True)
 
@@ -236,25 +238,27 @@ def render_production_table_fragment(raw_input_df, current_user_role, user_perms
                     if img_url_val and isinstance(img_url_val, str) and img_url_val.strip():
                         urls = [u.strip() for u in img_url_val.split(",") if u.strip()]
                         if urls:
-                            sub_cols = st.columns(min(len(urls), 4), gap="small")
+                            num_cols = min(len(urls), 4)
+                            sub_cols = st.columns(num_cols, gap="small")
                             for i, u in enumerate(urls):
-                                with sub_cols[i]:
-                                    try:
-                                        if u.startswith("http://") or u.startswith("https://"):
-                                            with st.popover("🔍", help="Xem ảnh lớn"): 
-                                                st.image(u, use_container_width=True)
-                                            st.image(u, width=40)
-                                        elif os.path.exists(u):
-                                            with st.popover("🔍", help="Xem ảnh lớn"): 
-                                                st.image(u, use_container_width=True)
-                                            st.image(u, width=40)
-                                        else:
-                                            st.caption("⚠️ Không tìm thấy ảnh")
-                                        
-                                        size_str = get_cached_image_size(u)
-                                        st.markdown(f"<div style='text-align: center; font-size: 0.72rem; color: #64748b; margin-top: -4px;'>{size_str}</div>", unsafe_allow_html=True)
-                                    except Exception:
-                                        st.caption("❌ Lỗi hiển thị")
+                                if i < len(sub_cols):
+                                    with sub_cols[i]:
+                                        try:
+                                            if u.startswith("http://") or u.startswith("https://"):
+                                                with st.popover("🔍", help="Xem ảnh lớn"): 
+                                                    st.image(u, use_container_width=True)
+                                                st.image(u, width=40)
+                                            elif os.path.exists(u):
+                                                with st.popover("🔍", help="Xem ảnh lớn"): 
+                                                    st.image(u, use_container_width=True)
+                                                st.image(u, width=40)
+                                            else:
+                                                st.caption("⚠️ Không tìm thấy ảnh")
+                                            
+                                            size_str = get_cached_image_size(u)
+                                            st.markdown(f"<div style='text-align: center; font-size: 0.72rem; color: #64748b; margin-top: -4px;'>{size_str}</div>", unsafe_allow_html=True)
+                                        except Exception:
+                                            st.caption("❌ Lỗi hiển thị")
                     else:
                         st.markdown("<small style='color: gray;'>Không ảnh</small>", unsafe_allow_html=True)
                 st.markdown("---")
@@ -367,7 +371,7 @@ def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
                                                 he_so = float(cleaned_val)
                                             except Exception:
                                                 pass
-                                        break
+                                            break
                                 # Lấy đơn vị
                                 for dv_col in ["Đơn Vị", "don_vi", "unit"]:
                                     if dv_col in matched.columns:
