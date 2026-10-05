@@ -1,0 +1,18 @@
+# Công tắc chuyển đổi (false = dùng Supabase cũ, true = dùng hệ thống mới)
+USE_NEW_DB = False
+USE_NEW_STORAGE = False
+
+# --- Cấu hình cũ: Supabase ---
+[supabase]
+url = "https://your-supabase-url.supabase.co"
+key = "your-supabase-anon-key"
+
+# --- Cấu hình mới chờ sẵn: Neon (Database) ---
+[neon]
+connection_string = "postgresql://neondb_owner:npg_myQXHEOg0vD7@ep-late-tooth-b31x3lsu-pooler.c-4.ap-southeast-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require"
+
+# --- Cấu hình mới chờ sẵn: Cloudinary (Storage) ---
+[cloudinary]
+cloud_name = "xrauiutr"
+api_key = "343896252444879"
+api_secret = "UooPwYgZoPh7KKThjJuPm2oftUM"
