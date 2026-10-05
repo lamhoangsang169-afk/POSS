@@ -129,6 +129,7 @@ def get_staff_list_db():
 @st.cache_data(ttl=600, show_spinner=False)
 def add_production_log_db(ngay, gio, nhan_su, hang_muc, anh, don_vi, so_luong, he_so, tong_diem, ghi_chu):
     try:
+        # Làm tròn điểm tổng khi thêm mới
         try:
             tong_diem = round(float(str(tong_diem).replace(",", ".").strip()), 2)
         except:
@@ -625,6 +626,7 @@ def update_all_historical_production_scores_db():
     if supabase is None:
         return False
     try:
+        # 1. Lấy tất cả định mức hiện tại từ bảng rules
         rules_res = supabase.table("rules").select("*").execute()
         if not rules_res.data:
             return False
@@ -646,10 +648,12 @@ def update_all_historical_production_scores_db():
                     "he_so": he_so_float
                 }
 
+        # 2. Lấy toàn bộ lịch sử sản lượng chưa bị xóa
         logs_res = supabase.table("production_logs").select("*").eq("is_deleted", False).execute()
         if not logs_res.data:
             return True
 
+        # 3. Duyệt qua từng bản ghi lịch sử, đối chiếu và cập nhật lại Tên, Hệ Số, Tổng Điểm mới (làm tròn 2 chữ số)
         for log in logs_res.data:
             log_id = log.get("id")
             log_task = str(log.get("hang_muc_cong_viec", "")).strip().lower()
@@ -704,6 +708,7 @@ def update_production_log_record_db(db_id, hang_muc, so_luong, ghi_chu=""):
         except:
             qty_float = 0.0
             
+        # Làm tròn tổng điểm đến 2 chữ số thập phân
         tong_diem = round(qty_float * he_so, 2)
         
         data = {
