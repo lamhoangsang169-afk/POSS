@@ -75,7 +75,7 @@ def get_app_memory_usage():
     except Exception:
         return "Ổn định"
 
-# ==================== HÀM TÍNH DUNG LƯỢNG ĐÃ ĐƯỢC TỐI ƯU CHỐNG TREO ====================
+# Hàm tính dung lượng Database và File Storage thực tế từ Supabase
 def get_detailed_storage_usage():
     if supabase is None:
         return "0 MB / 500 MB", "0 MB / 1 GB"
@@ -91,8 +91,21 @@ def get_detailed_storage_usage():
             db_used_str = f"{estimated_db_kb:.1f} KB"
         db_display = f"{db_used_str} / 500 MB"
 
-        # Sử dụng giá trị cố định an toàn thay vì gọi .list() trực tiếp tránh bị nghẽn mạng
-        storage_display = "55.00 MB / 1 GB"
+        storage_bytes = 0
+        try:
+            files_img = supabase.storage.from_("production_images").list()
+            files_rep = supabase.storage.from_("reports-storage").list()
+            total_files = (files_img if files_img else []) + (files_rep if files_rep else [])
+            for f in total_files:
+                storage_bytes += f.get("metadata", {}).get("size", 0)
+        except Exception:
+            pass
+
+        storage_mb = storage_bytes / (1024 * 1024)
+        if storage_mb >= 1024:
+            storage_display = f"{storage_mb / 1024:.2f} GB / 1 GB"
+        else:
+            storage_display = f"{storage_mb:.2f} MB / 1 GB"
             
         return db_display, storage_display
     except Exception:
@@ -454,7 +467,7 @@ def render_main_content(current_menu_name):
                         if not new_acc_name.strip() or not new_acc_pass:
                             st.error("⚠️ Vui lòng nhập đầy đủ tên nhân sự và mật khẩu!")
                         elif len(new_acc_pass) < 6:
-                            st.error("⚠ Mật khẩu phải có ít nhất 6 ký tự!")
+                            st.error("⚠️️ Mật khẩu phải có ít nhất 6 ký tự!")
                         else:
                             try:
                                 check_exist = supabase.table("user_accounts").select("*").eq("name", new_acc_name.strip()).execute()
