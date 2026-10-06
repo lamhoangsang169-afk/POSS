@@ -1,40 +1,22 @@
 # view/nhap_san_luong.py
-import os
-import sys
-import importlib.util
 import streamlit as st
 import pandas as pd
 import datetime
 import requests
 
-# ==================== NẠP MODULE ĐỘNG THEO ĐƯỜNG DẪN TUYỆT ĐỐI ====================
-current_file_dir = os.path.dirname(os.path.abspath(__file__))
-root_project_dir = os.path.dirname(os.path.dirname(current_file_dir))
+from database import (
+    get_production_logs_db, 
+    add_production_log_db, 
+    update_production_log_deleted_status,
+    upload_multiple_images_to_storage, 
+    get_attendance_db, 
+    get_rules_db,
+    update_production_log_record_db
+)
+import utils
 
-def load_module_from_path(module_name, file_path):
-    spec = importlib.util.spec_from_file_location(module_name, file_path)
-    module = importlib.util.module_from_spec(spec)
-    sys.modules[module_name] = module
-    spec.loader.exec_module(module)
-    return module
+VN_TIMEZONE = utils.VN_TIMEZONE
 
-db_path = os.path.join(root_project_dir, "database.py")
-utils_path = os.path.join(root_project_dir, "utils.py")
-
-db_module = load_module_from_path("database", db_path)
-utils_module = load_module_from_path("utils", utils_path)
-
-VN_TIMEZONE = utils_module.VN_TIMEZONE
-get_production_logs_db = db_module.get_production_logs_db
-add_production_log_db = db_module.add_production_log_db
-update_production_log_deleted_status = db_module.update_production_log_deleted_status
-upload_multiple_images_to_storage = db_module.upload_multiple_images_to_storage
-get_attendance_db = db_module.get_attendance_db
-get_rules_db = db_module.get_rules_db
-update_production_log_record_db = db_module.update_production_log_record_db
-
-
-# ==================== HÀM PHỤ TRỢ: LẤY DUNG LƯỢNG ẢNH AN TOÀN ====================
 @st.cache_data(ttl=3600, show_spinner=False)
 def get_cached_image_size(u):
     try:
@@ -45,17 +27,10 @@ def get_cached_image_size(u):
                 if length >= 1024 * 1024:
                     return f"~{length / (1024 * 1024):.1f} MB"
                 return f"~{max(1, int(length / 1024))} KB"
-        elif os.path.exists(u):
-            length = os.path.getsize(u)
-            if length >= 1024 * 1024:
-                return f"~{length / (1024 * 1024):.1f} MB"
-            return f"~{max(1, int(length / 1024))} KB"
     except Exception:
         pass
     return "~150 KB"
 
-
-# ==================== FRAGMENT LỌC TỨC THÌ & QUẢN LÝ BẢN GHI ====================
 @st.fragment
 def render_production_table_fragment(raw_input_df, current_user_role, user_perms):
     now_vn = datetime.datetime.now(VN_TIMEZONE)
@@ -72,7 +47,6 @@ def render_production_table_fragment(raw_input_df, current_user_role, user_perms
         st.info("Chưa có dữ liệu sản lượng.")
         return
 
-    # 6 CỘT BỐ CỤC BỘ LỌC
     f_col1, f_col2, f_col3, f_col4, f_col5, f_col6 = st.columns([1.1, 1.1, 1.4, 1.3, 1.3, 1.2])
     
     with f_col1:
@@ -94,7 +68,6 @@ def render_production_table_fragment(raw_input_df, current_user_role, user_perms
         all_staff_opts = ["Tất cả"] + sorted(raw_input_df["Nhân Sự"].dropna().unique().tolist())
         filter_staff = st.selectbox("Lọc theo Nhân Sự", all_staff_opts, key="f_staff_live")
 
-    # LỌC TRƯỚC DỮ LIỆU ĐỂ ĐỒNG BỘ DANH MỤC HẠNG MỤC
     df_pre_filter = raw_input_df.copy()
     df_pre_filter["Ngày_DT"] = pd.to_datetime(df_pre_filter["Ngày"], errors='coerce').dt.date
     df_pre_filter = df_pre_filter[(df_pre_filter["Ngày_DT"] >= start_filter_date) & (df_pre_filter["Ngày_DT"] <= end_filter_date)]
@@ -137,11 +110,6 @@ def render_production_table_fragment(raw_input_df, current_user_role, user_perms
     end_idx = start_idx + rows_per_page
     paginated_df = filtered_df.iloc[start_idx:end_idx]
 
-    if filter_task != "Tất cả":
-        total_qty_task = filtered_df["Số Lượng"].sum() if not filtered_df.empty else 0
-        unit_name = filtered_df["Đơn Vị"].values[0] if not filtered_df.empty and "Đơn Vị" in filtered_df.columns else "Cái"
-        st.markdown(f'<div style="background: rgba(59, 130, 246, 0.15); padding: 12px 18px; border-radius: 8px; border: 2px solid #3b82f6; margin-bottom: 15px; font-size: 1rem; font-weight: bold; text-align: center;">📊 Tổng số lượng của hạng mục <span style="color: #ff4b4b;">"{filter_task}"</span>: <span style="font-size: 1.2rem; color: #1d4ed8;">{total_qty_task:,.0f}</span> {unit_name}</div>', unsafe_allow_html=True)
-
     try:
         rules_df_curr = get_rules_db()
         raw_t_list = rules_df_curr["Hạng Mục Công Việc"].tolist() if not rules_df_curr.empty and "Hạng Mục Công Việc" in rules_df_curr.columns else []
@@ -151,7 +119,6 @@ def render_production_table_fragment(raw_input_df, current_user_role, user_perms
 
     if not paginated_df.empty:
         can_delete_data = (current_user_role == "Admin" or user_perms.get("perm_input", False))
-
         selected_ids_to_delete = []
 
         if can_delete_data:
@@ -190,7 +157,6 @@ def render_production_table_fragment(raw_input_df, current_user_role, user_perms
 
             st.markdown("---")
 
-        # HIỂN THỊ DANH SÁCH BẢN GHI VÀ FORM SỬA TRỰC TIẾP TỪNG DÒNG
         for idx, row in paginated_df.iterrows():
             display_stt = total_rows - (start_idx + paginated_df.index.get_loc(idx))
             record_id = row['db_id']
@@ -205,7 +171,6 @@ def render_production_table_fragment(raw_input_df, current_user_role, user_perms
                 </div>
                 """, unsafe_allow_html=True)
                 
-                # Trạng thái bật/tắt form sửa cho từng dòng cụ thể
                 edit_state_key = f"editing_{record_id}"
                 if edit_state_key not in st.session_state:
                     st.session_state[edit_state_key] = False
@@ -216,7 +181,6 @@ def render_production_table_fragment(raw_input_df, current_user_role, user_perms
                         st.session_state[edit_state_key] = not st.session_state[edit_state_key]
                         st.rerun()
 
-                # Nếu đang bật chế độ sửa của bản ghi này
                 if st.session_state[edit_state_key]:
                     with st.container():
                         st.markdown(f"<div style='background: rgba(239, 246, 255, 0.9); padding: 10px; border-radius: 6px; border: 1px solid #3b82f6; margin-top: 5px;'>", unsafe_allow_html=True)
@@ -271,21 +235,14 @@ def render_production_table_fragment(raw_input_df, current_user_role, user_perms
                                                 st.image(u, use_container_width=True)
                                             st.image(u, width=40)
                                         else:
-                                            st.caption("⚠️️ Không tìm thấy ảnh")
-                                        
-                                        size_str = get_cached_image_size(u)
-                                        st.markdown(f"<div style='text-align: center; font-size: 0.72rem; color: #64748b; margin-top: -4px;'>{size_str}</div>", unsafe_allow_html=True)
+                                            st.caption("⚠️ Không tìm thấy ảnh")
                                     except Exception:
                                         st.caption("❌ Lỗi hiển thị")
-                else:
-                    st.markdown("<small style='color: gray;'>Không ảnh</small>", unsafe_allow_html=True)
 
             st.markdown("---")
     else:
         st.info("Không tìm thấy bản ghi nào khớp bộ lọc.")
 
-
-# ==================== HÀM GỐC RENDER GIAO DIỆN CHÍNH ====================
 def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
     now_vn = datetime.datetime.now(VN_TIMEZONE)
     today_str = str(now_vn.date())
