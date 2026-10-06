@@ -126,7 +126,7 @@ def render_production_table_fragment(raw_input_df, current_user_role, user_perms
         all_staff_opts = ["Tất cả"] + sorted(raw_input_df["Nhân Sự"].dropna().unique().tolist())
         filter_staff = st.selectbox("Lọc theo Nhân Sự", all_staff_opts, key="f_staff_live")
 
-    # --- BƯỚC 1: LỌC TRƯỚC DỮ LIỆU ĐỂ ĐỒNG BỘ DANH MỤC HẠNG MỤC THEO NHÂN SỰ ---
+    # --- LỌC TRƯỚC DỮ LIỆU ĐỂ ĐỒNG BỘ DANH MỤC HẠNG MỤC ---
     df_pre_filter = raw_input_df.copy()
     df_pre_filter["Ngày_DT"] = pd.to_datetime(df_pre_filter["Ngày"], errors='coerce').dt.date
     df_pre_filter = df_pre_filter[(df_pre_filter["Ngày_DT"] >= start_filter_date) & (df_pre_filter["Ngày_DT"] <= end_filter_date)]
@@ -152,7 +152,7 @@ def render_production_table_fragment(raw_input_df, current_user_role, user_perms
     with f_col5:
         filter_task = st.selectbox("Lọc theo Hạng Mục", all_task_opts, key="f_task_live")
 
-    # --- BƯỚC 2: LỌC HOÀN CHỈNH ĐỂ HIỂN THỊ BẢNG ---
+    # --- LỌC HOÀN CHỈNH ĐỂ HIỂN THỊ BẢNG ---
     filtered_df = df_pre_filter.copy()
     if filter_task != "Tất cả": 
         filtered_df = filtered_df[filtered_df["Hạng Mục Công Việc"] == filter_task]
@@ -161,4 +161,122 @@ def render_production_table_fragment(raw_input_df, current_user_role, user_perms
     st.markdown(f"<div style='background: rgba(254, 243, 199, 0.6); padding: 8px 12px; border-radius: 6px; border: 1px solid #f59e0b; margin-bottom: 15px; font-weight: bold; color: #b45309;'>📅 Khoảng ngày có: {total_rows} bản ghi</div>", unsafe_allow_html=True)
 
     rows_per_page = 10
-    total_pages = max(1, (total_rows - 1)
+    total_pages = max(1, (total_rows - 1) // rows_per_page + 1)
+
+    with f_col6:
+        current_page = st.number_input(f"Trang hiển thị ({total_pages} tr | {total_rows} bản ghi)", min_value=1, max_value=total_pages, value=1, step=1, key="pagination_page_num_frag")
+
+    start_idx = (current_page - 1) * rows_per_page
+    end_idx = start_idx + rows_per_page
+    paginated_df = filtered_df.iloc[start_idx:end_idx]
+
+    if filter_task != "Tất cả":
+        total_qty_task = filtered_df["Số Lượng"].sum() if not filtered_df.empty else 0
+        unit_name = filtered_df["Đơn Vị"].values[0] if not filtered_df.empty and "Đơn Vị" in filtered_df.columns else "Cái"
+        st.markdown(f'<div style="background: rgba(59, 130, 246, 0.15); padding: 12px 18px; border-radius: 8px; border: 2px solid #3b82f6; margin-bottom: 15px; font-size: 1rem; font-weight: bold; text-align: center;">📊 Tổng số lượng của hạng mục <span style="color: #ff4b4b;">"{filter_task}"</span>: <span style="font-size: 1.2rem; color: #1d4ed8;">{total_qty_task:,.0f}</span> {unit_name}</div>', unsafe_allow_html=True)
+
+    # Lấy danh sách định mức để truyền vào hộp thoại sửa
+    try:
+        rules_df_curr = get_rules_db()
+        raw_t_list = rules_df_curr["Hạng Mục Công Việc"].tolist() if not rules_df_curr.empty and "Hạng Mục Công Việc" in rules_df_curr.columns else []
+        danh_sach_hang_muc_edit = [str(t).strip() for t in raw_t_list if pd.notna(t) and str(t).strip()]
+    except:
+        danh_sach_hang_muc_edit = [filter_task] if filter_task != "Tất cả" else []
+
+    if not paginated_df.empty:
+        can_delete_data = (current_user_role == "Admin" or user_perms.get("perm_input", False))
+
+        selected_ids_to_delete = []
+
+        # FORM XÓA RIÊNG BIỆT BÊN TRÊN
+        if can_delete_data:
+            with st.form("delete_production_form_frag"):
+                st.markdown("<div style='background: rgba(255, 255, 255, 0.7); padding: 10px; border-radius: 8px; border: 1px solid #cbd5e1; margin-bottom: 15px;'>", unsafe_allow_html=True)
+                col_btn_1, col_btn_2 = st.columns(2)
+                with col_btn_1:
+                    submitted_delete_selected = st.form_submit_button("🗑 Xóa các dòng đã chọn", use_container_width=True, type="primary")
+                with col_btn_2:
+                    confirm_delete_all = st.checkbox("Xác nhận xóa tất cả trang này", key="chk_confirm_delete_all_frag")
+                    submitted_delete_all = st.form_submit_button("🗑️ Xóa tất cả trang này", use_container_width=True)
+                st.markdown("</div>", unsafe_allow_html=True)
+
+                # Thu thập checkbox trong form xóa
+                for idx, row in paginated_df.iterrows():
+                    display_stt = total_rows - (start_idx + paginated_df.index.get_loc(idx))
+                    if st.checkbox(f"Chọn xóa bản ghi STT {display_stt} ({row['Nhân Sự']} - {row['Hạng Mục Công Việc']})", key=f"chk_f_{row['db_id']}"):
+                        selected_ids_to_delete.append(row['db_id'])
+
+                if submitted_delete_selected:
+                    if selected_ids_to_delete:
+                        update_production_log_deleted_status(selected_ids_to_delete, True)
+                        st.success("Đã chuyển các dòng đã chọn vào thùng rác thành công!")
+                        st.rerun()
+                    else:
+                        st.warning("⚠️ Vui lòng tích chọn ít nhất một dòng cần xóa!")
+
+                if submitted_delete_all:
+                    if confirm_delete_all:
+                        all_paginated_ids = paginated_df["db_id"].tolist()
+                        if all_paginated_ids:
+                            update_production_log_deleted_status(all_paginated_ids, True)
+                            st.success("Đã chuyển toàn bộ bản ghi đang hiển thị ở trang này vào thùng rác!")
+                            st.rerun()
+                    else:
+                        st.warning("⚠️ Vui lòng tích chọn xác nhận trước khi bấm xóa tất cả!")
+
+            st.markdown("---")
+
+        # HIỂN THỊ DANH SÁCH BẢN GHI VÀ NÚT SỬA BÊN NGOÀI FORM (ĐỂ HOẠT ĐỘNG CHÍNH XÁC)
+        for idx, row in paginated_df.iterrows():
+            display_stt = total_rows - (start_idx + paginated_df.index.get_loc(idx))
+            
+            row_c1, row_c2 = st.columns([4, 1])
+            with row_c1:
+                st.markdown(f"""
+                <div style="background: rgba(255,255,255,0.85); padding: 8px 10px; border-radius: 6px; border: 1px solid rgba(0,0,0,0.1); margin-bottom: 6px; font-size: 0.85rem;">
+                    <b>STT: {display_stt}</b> &nbsp;|&nbsp; 📅 {row['Ngày']} ⏰ {row['Thời Gian']} &nbsp;|&nbsp; 👤 <b>{row['Nhân Sự']}</b><br>
+                    📌 {row['Hạng Mục Công Việc']} &nbsp;|&nbsp; 📦 <b>{row['Số Lượng']} {row['Đơn Vị']}</b> (⭐ <b>{row['Tổng Điểm']}</b> điểm)<br>
+                    💬 <i>{row['Ghi Chú'] if pd.notna(row['Ghi Chú']) and str(row['Ghi Chú']).strip() else 'Không có ghi chú'}</i>
+                </div>
+                """, unsafe_allow_html=True)
+                
+                # Nút Sửa hiển thị độc lập ngay bên dưới mỗi bản ghi
+                if st.button(f"✏️ Sửa bản ghi STT {display_stt}", key=f"btn_edit_outside_{row['db_id']}"):
+                    show_edit_dialog(row, danh_sach_hang_muc_edit)
+                    
+            with row_c2:
+                img_url_val = row.get("Hình Ảnh", "")
+                if img_url_val and isinstance(img_url_val, str) and img_url_val.strip():
+                    urls = [u.strip() for u in img_url_val.split(",") if u.strip()]
+                    if urls:
+                        num_cols = min(len(urls), 4)
+                        sub_cols = st.columns(num_cols, gap="small")
+                        for i, u in enumerate(urls):
+                            if i < len(sub_cols):
+                                with sub_cols[i]:
+                                    try:
+                                        if u.startswith("http://") or u.startswith("https://"):
+                                            with st.popover("🔍", help="Xem ảnh lớn"): 
+                                                st.image(u, use_container_width=True)
+                                            st.image(u, width=40)
+                                        elif os.path.exists(u):
+                                            with st.popover("🔍", help="Xem ảnh lớn"): 
+                                                st.image(u, use_container_width=True)
+                                            st.image(u, width=40)
+                                        else:
+                                            st.caption("⚠️ Không tìm thấy ảnh")
+                                        
+                                        size_str = get_cached_image_size(u)
+                                        st.markdown(f"<div style='text-align: center; font-size: 0.72rem; color: #64748b; margin-top: -4px;'>{size_str}</div>", unsafe_allow_html=True)
+                                    except Exception:
+                                        st.caption("❌ Lỗi hiển thị")
+                else:
+                    st.markdown("<small style='color: gray;'>Không ảnh</small>", unsafe_allow_html=True)
+
+            st.markdown("---")
+    else:
+        st.info("Không tìm thấy bản ghi nào khớp bộ lọc.")
+
+
+# ==================== HÀM GỐC RENDER GIAO DIỆN CHÍNH ====================
+def render_nhap_san_luong
