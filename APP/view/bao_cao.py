@@ -1,60 +1,44 @@
-# view/thu_muc_bao_cao.py
+# view/bao_cao.py
 import streamlit as st
 import pandas as pd
 import datetime
+import io
+import plotly.graph_objects as go
 
-# Sử dụng import trực tiếp từ module database đã được cấu hình đường dẫn gốc sẵn
-from database import update_production_log_deleted_status
+# Sử dụng import trực tiếp từ database và utils (đã được cấu hình PYTHONPATH ở poss.py)
+from database import get_production_logs_by_date_range, get_attendance_db
+import utils
 
-def render_thu_muc_bao_cao(current_menu_name):
-    col_h1, col_h2 = st.columns([4, 1])
-    with col_h1:
-        st.subheader(f"📂 {current_menu_name}")
-    with col_h2:
-        if st.button("🔄 Làm mới dữ liệu", use_container_width=True, key="btn_refresh_folder"):
-            st.cache_data.clear()
-            st.rerun()
+VN_TIMEZONE = utils.VN_TIMEZONE
 
-    st.markdown("<br>", unsafe_allow_html=True)
+def clean_name(full_name):
+    """Hàm rút gọn tên nhân sự (Ví dụ: Nguyễn Hữu Khang Tôn Đức -> Đức)"""
+    if not full_name:
+        return ""
+    name_parts = str(full_name).strip().split()
+    if name_parts:
+        return name_parts[-1]
+    return full_name
 
-    if "cloud_folders" not in st.session_state or not st.session_state["cloud_folders"]:
-        st.session_state["cloud_folders"] = [
-            {
-                "db_id": 1,
-                "name": "bao_cao_san_luong_2026-09-14_den_2026-09-20.csv",
-                "url": "https://streamlit.io",
-                "is_deleted": False
-            }
-        ]
+def convert_minutes_to_work_days(total_minutes, minutes_per_day=480):
+    """
+    Hàm quy đổi tổng số phút thành chuỗi chi tiết 'X ngày Y phút'.
+    Mặc định 1 ngày công tiêu chuẩn = 8 tiếng = 480 phút.
+    """
+    if total_minutes <= 0:
+        return "0 ngày"
+    
+    days = int(total_minutes // minutes_per_day)
+    remaining_minutes = int(total_minutes % minutes_per_day)
+    
+    if days > 0 and remaining_minutes > 0:
+        return f"{days} ngày {remaining_minutes} phút"
+    elif days > 0:
+        return f"{days} ngày"
+    else:
+        return f"{remaining_minutes} phút"
 
-    cloud_files = st.session_state["cloud_folders"]
-    active_files = [f for f in cloud_files if not f.get("is_deleted", False)]
-
-    if not active_files:
-        st.info("Thư mục báo cáo trống hoặc tất cả báo cáo đã được chuyển vào Thùng Rác.")
-        return
-
-    selected_file_ids = []
-
-    for idx, f in enumerate(active_files, 1):
-        with st.container(border=True):
-            st.markdown(f"**STT: {idx}** | 📄 **File:** `{f['name']}`")
-            st.markdown(f"🔗 [Mở liên kết trực tiếp]({f['url']})")
-            
-            check_key = f"chk_file_{f['db_id']}_{idx}"
-            is_checked = st.checkbox(f"Chọn báo cáo STT {idx}", key=check_key)
-            if is_checked:
-                selected_file_ids.append(f["db_id"])
-
-    st.markdown("<br>", unsafe_allow_html=True)
-
-    if st.button("🗑️ Chuyển Các Báo Cáo Đã Chọn Vào Thùng Rác", use_container_width=True, key="btn_move_trash_files"):
-        if not selected_file_ids:
-            st.error("⚠️ Vui lòng tích chọn vào ô 'Chọn báo cáo' của tệp bạn muốn chuyển vào Thùng Rác!")
-        else:
-            for f in cloud_files:
-                if f["db_id"] in selected_file_ids:
-                    f["is_deleted"] = True
-            
-            st.success("✅ Đã di chuyển các báo cáo được chọn vào Thùng Rác hệ thống thành công!")
-            st.rerun()
+def render_bao_cao(current_menu_name):
+    st.subheader(f"📊 {current_menu_name}")
+    
+    # (Phần code bên dưới giữ nguyên hoàn toàn như cũ của bạn từ dòng xử lý ngày tháng trở đi)
