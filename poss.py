@@ -250,4 +250,51 @@ def get_user_permissions(identifier):
             return {
                 "role": row.get("role", "Staff"),
                 "perm_input": row.get("perm_input", False),
-                "perm_report": row.get("perm_report", False
+                "perm_report": row.get("perm_report", False),
+                "perm_attendance": row.get("perm_attendance", True),
+                "perm_rules": row.get("perm_rules", False)
+            }
+    except Exception:
+        pass
+    return default_perms
+
+user_perms = get_user_permissions(st.session_state.user_identifier)
+current_user_role = user_perms["role"]
+
+st.session_state.staff_list = get_staff_list_db()
+if "rules_df" not in st.session_state:
+    try:
+        st.session_state.rules_df = get_rules_db()
+    except Exception:
+        st.session_state.rules_df = pd.DataFrame()
+
+db_settings = load_app_settings_db()
+
+if not db_settings:
+    db_settings = {
+        "primary_color": "#ff4b4b",
+        "bg_color": "#ffffff",
+        "sidebar_bg": "#f0f2f6",
+        "sidebar_opacity": 0.9,
+        "text_color": "#31333F"
+    }
+    try:
+        save_app_settings_db(db_settings)
+    except Exception:
+        pass
+
+st.session_state.primary_color = db_settings.get("primary_color", "#ff4b4b")
+st.session_state.bg_color = db_settings.get("bg_color", "#ffffff")
+st.session_state.sidebar_bg = db_settings.get("sidebar_bg", "#f0f2f6")
+
+val_opacity = db_settings.get("sidebar_opacity", 0.9)
+try:
+    st.session_state.sidebar_opacity = float(val_opacity) if val_opacity is not None and str(val_opacity).strip() != "" else 0.9
+except Exception:
+    st.session_state.sidebar_opacity = 0.9
+
+st.session_state.text_color = db_settings.get("text_color", "#31333F")
+st.session_state.bg_image_base64 = db_settings.get("bg_image_base64", None)
+st.session_state.avatar_base64 = db_settings.get("avatar_base64", None)
+
+if "current_menu" not in st.session_
