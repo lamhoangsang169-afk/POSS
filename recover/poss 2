@@ -40,6 +40,10 @@ from database import (
     delete_storage_files_by_date_range
 )
 
+# Tích hợp module quản lý chuyển đổi linh hoạt (Storage & DB Manager)
+from storage_manager import upload_image
+from db_manager import get_database_connection
+
 import nhap_san_luong
 import cham_cong
 import bao_cao
@@ -328,7 +332,7 @@ st.markdown(f"""
 </style>
 """, unsafe_allow_html=True)
 
-# ==================== ĐỊNH NGHĨA HÀM ĐIỀU HƯỚNG NỘI DUNG CHÍNH (ĐÃ TỐI ƯU MƯỢT MÀ) ====================
+# ==================== ĐỊNH NGHĨA HÀM ĐIỀU HƯỚNG NỘI DUNG CHÍNH ====================
 @st.fragment
 def render_main_content(current_menu_name):
     menu_lower = current_menu_name.lower()
@@ -463,7 +467,7 @@ def render_main_content(current_menu_name):
                         if not new_acc_name.strip() or not new_acc_pass:
                             st.error("⚠️ Vui lòng nhập đầy đủ tên nhân sự và mật khẩu!")
                         elif len(new_acc_pass) < 6:
-                            st.error("⚠️ Mật khẩu phải có ít nhất 6 ký tự!")
+                            st.error("⚠️️ Mật khẩu phải có ít nhất 6 ký tự!")
                         else:
                             try:
                                 check_exist = supabase.table("user_accounts").select("*").eq("name", new_acc_name.strip()).execute()
@@ -620,7 +624,7 @@ def render_main_content(current_menu_name):
                             st.success("✅ Đã dọn sạch toàn bộ thùng rác và giải phóng dung lượng storage thành công!")
                             st.rerun()
                         else:
-                            st.info("ℹ️️ Thùng rác hiện đang trống.")
+                            st.info("ℹ Thùng rác hiện đang trống.")
 
             with col_box2:
                 with st.container(border=True):
@@ -869,4 +873,3 @@ with st.sidebar:
 
 # ==================== GỌI THỰC THI HIỂN THỊ NỘI DUNG ====================
 render_main_content(st.session_state.current_menu)
-
