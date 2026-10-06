@@ -1,39 +1,20 @@
 # view/nhap_san_luong.py
 import os
-import sys
-import importlib.util
 import streamlit as st
 import pandas as pd
 import datetime
 import requests
 
-# ==================== NẠP MODULE ĐỘNG THEO ĐƯỜNG DẪN TUYỆT ĐỐI ====================
-current_file_dir = os.path.dirname(os.path.abspath(__file__))
-root_project_dir = os.path.dirname(os.path.dirname(current_file_dir))
+from utils import VN_TIMEZONE
+from database import (
+    get_production_logs_db,
+    add_production_log_db,
+    update_production_log_deleted_status,
+    upload_multiple_images_to_storage,
+    get_attendance_db,
+    get_rules_db
+)
 
-def load_module_from_path(module_name, file_path):
-    spec = importlib.util.spec_from_file_location(module_name, file_path)
-    module = importlib.util.module_from_spec(spec)
-    sys.modules[module_name] = module
-    spec.loader.exec_module(module)
-    return module
-
-db_path = os.path.join(root_project_dir, "database.py")
-utils_path = os.path.join(root_project_dir, "utils.py")
-
-db_module = load_module_from_path("database", db_path)
-utils_module = load_module_from_path("utils", utils_path)
-
-VN_TIMEZONE = utils_module.VN_TIMEZONE
-get_production_logs_db = db_module.get_production_logs_db
-add_production_log_db = db_module.add_production_log_db
-update_production_log_deleted_status = db_module.update_production_log_deleted_status
-upload_multiple_images_to_storage = db_module.upload_multiple_images_to_storage
-get_attendance_db = db_module.get_attendance_db
-get_rules_db = db_module.get_rules_db
-
-
-# ==================== HÀM PHỤ TRỢ: LẤY DUNG LƯỢNG ẢNH AN TOÀN ====================
 @st.cache_data(ttl=3600, show_spinner=False)
 def get_cached_image_size(u):
     try:
@@ -53,8 +34,6 @@ def get_cached_image_size(u):
         pass
     return "~150 KB"
 
-
-# ==================== FRAGMENT LỌC TỨC THÌ & TỐI ƯU GIAO DIỆN GIỜ ====================
 @st.fragment
 def render_production_table_fragment(raw_input_df, current_user_role, user_perms):
     now_vn = datetime.datetime.now(VN_TIMEZONE)
@@ -71,7 +50,6 @@ def render_production_table_fragment(raw_input_df, current_user_role, user_perms
         st.info("Chưa có dữ liệu sản lượng.")
         return
 
-    # SẮP XẾP 6 CỘT BỐ CỤC BỘ LỌC
     f_col1, f_col2, f_col3, f_col4, f_col5, f_col6 = st.columns([1.1, 1.1, 1.4, 1.3, 1.3, 1.2])
     
     with f_col1:
@@ -93,7 +71,6 @@ def render_production_table_fragment(raw_input_df, current_user_role, user_perms
         all_staff_opts = ["Tất cả"] + sorted(raw_input_df["Nhân Sự"].dropna().unique().tolist())
         filter_staff = st.selectbox("Lọc theo Nhân Sự", all_staff_opts, key="f_staff_live")
 
-    # --- BƯỚC 1: LỌC TRƯỚC DỮ LIỆU ĐỂ ĐỒNG BỘ DANH MỤC HẠNG MỤC THEO NHÂN SỰ ---
     df_pre_filter = raw_input_df.copy()
     df_pre_filter["Ngày_DT"] = pd.to_datetime(df_pre_filter["Ngày"], errors='coerce').dt.date
     df_pre_filter = df_pre_filter[(df_pre_filter["Ngày_DT"] >= start_filter_date) & (df_pre_filter["Ngày_DT"] <= end_filter_date)]
@@ -119,7 +96,6 @@ def render_production_table_fragment(raw_input_df, current_user_role, user_perms
     with f_col5:
         filter_task = st.selectbox("Lọc theo Hạng Mục", all_task_opts, key="f_task_live")
 
-    # --- BƯỚC 2: LỌC HOÀN CHỈNH ĐỂ HIỂN THỊ BẢNG ---
     filtered_df = df_pre_filter.copy()
     if filter_task != "Tất cả": 
         filtered_df = filtered_df[filtered_df["Hạng Mục Công Việc"] == filter_task]
@@ -265,15 +241,12 @@ def render_production_table_fragment(raw_input_df, current_user_role, user_perms
     else:
         st.info("Không tìm thấy bản ghi nào khớp bộ lọc.")
 
-
-# ==================== HÀM GỐC RENDER GIAO DIỆN CHÍNH ====================
 def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
     now_vn = datetime.datetime.now(VN_TIMEZONE)
     today_str = str(now_vn.date())
     
     st.subheader(f"{current_menu_name} ({today_str})")
 
-    # ==================== PHẦN 1: FORM NHẬP SẢN LƯỢNG PHÍA TRÊN ====================
     is_admin = (current_user_role == "Admin" or user_perms.get("perm_input", False))
     
     att_df_check = get_attendance_db()
@@ -288,7 +261,6 @@ def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
     elif not active_staff:
         st.warning(f"⚠️ Hiện tại chưa có nhân sự nào **Check-in (Vào ca)**. Vui lòng thực hiện Check-in trước khi nhập sản lượng!")
     else:
-        # Tải mới hoàn toàn bảng định mức trực tiếp từ database (bỏ qua cache cũ)
         try:
             rules_df = get_rules_db()
             st.session_state["rules_df"] = rules_df
@@ -300,18 +272,15 @@ def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
         if not danh_sach_hang_muc: 
             danh_sach_hang_muc = ["Chưa có dữ liệu định mức"]
 
-        # Khởi tạo biến đếm phiên bản cho file_uploader key nếu chưa có
         if "file_uploader_version" not in st.session_state:
             st.session_state.file_uploader_version = 0
 
-        # Xử lý reset form an toàn TRƯỚC KHI tạo widget
         if st.session_state.get("should_reset_form", False):
             st.session_state.widget_staff_select = "--- Vui lòng chọn nhân sự ---"
             st.session_state.widget_task_select = danh_sach_hang_muc[0]
-            st.session_state.file_uploader_version += 1  # Tăng phiên bản để làm sạch bộ tải ảnh
+            st.session_state.file_uploader_version += 1
             st.session_state.should_reset_form = False
 
-        # Khởi tạo giá trị mặc định cho widget key nếu chưa có
         if "widget_staff_select" not in st.session_state:
             st.session_state.widget_staff_select = "--- Vui lòng chọn nhân sự ---"
 
@@ -328,7 +297,6 @@ def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
             with f_col3:
                 hang_muc = st.selectbox("Hạng mục công việc", danh_sach_hang_muc, key="widget_task_select")
                 
-            # Sử dụng key động dựa theo version để tự động reset khung tải ảnh
             uploader_key = f"record_img_{st.session_state.file_uploader_version}"
             record_images = st.file_uploader("Tải ảnh đính kèm (Tối đa 4 ảnh)", type=["png", "jpg", "jpeg"], accept_multiple_files=True, key=uploader_key)
                 
@@ -350,7 +318,6 @@ def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
                     don_vi = "Cái"
                     
                     if not rules_df.empty:
-                        # Dò tìm trực tiếp theo tên cột chuẩn hóa sẵn của get_rules_db()
                         task_col = None
                         for col in ["Hạng Mục Công Việc", "hang_muc_cong_viec", "hang_muc"]:
                             if col in rules_df.columns:
@@ -361,7 +328,6 @@ def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
                             target_val = str(hang_muc).strip().lower()
                             matched = rules_df[rules_df[task_col].astype(str).str.strip().str.lower() == target_val]
                             if not matched.empty:
-                                # Lấy hệ số điểm từ các tên cột khả dĩ
                                 for hs_col in ["Hệ Số Điểm", "he_so_diem", "he_so", "diem"]:
                                     if hs_col in matched.columns:
                                         val_raw = matched[hs_col].values[0]
@@ -372,7 +338,6 @@ def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
                                             except Exception:
                                                 pass
                                             break
-                                # Lấy đơn vị
                                 for dv_col in ["Đơn Vị", "don_vi", "unit"]:
                                     if dv_col in matched.columns:
                                         val_dv = matched[dv_col].values[0]
@@ -380,22 +345,16 @@ def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
                                             don_vi = str(val_dv)
                                         break
 
-                    # Tính tổng điểm chính xác tuyệt đối
                     tong_diem = float(so_luong) * float(he_so)
-                    
                     img_urls = upload_multiple_images_to_storage(record_images) if record_images else ""
                     current_time_str = datetime.datetime.now(VN_TIMEZONE).strftime("%H:%M:%S")
                     
                     add_production_log_db(today_str, current_time_str, nhan_su, hang_muc, img_urls, don_vi, so_luong, he_so, tong_diem, ghi_chu)
                     
-                    # --- ĐẶT CỜ ĐỂ RESET AN TOÀN VÀO LẦN CHẠY TIẾP THEO ---
                     st.session_state.should_reset_form = True
-                    
                     st.success(f"✅ Ghi nhận thành công cho **{nhan_su}**!")
                     st.rerun()
 
     st.markdown("---")
-
-    # ==================== GỌI KHỐI FRAGMENT LỌC TỨC THÌ ====================
     raw_input_df = get_production_logs_db(is_deleted=False, limit_rows=2000)
     render_production_table_fragment(raw_input_df, current_user_role, user_perms)
