@@ -98,12 +98,10 @@ def init_db_data():
     except Exception:
         pass
 
-# Gọi khởi tạo ngầm an toàn
 init_db_data()
 
 @st.cache_data(ttl=10, show_spinner=False)
 def get_staff_df_db():
-    """Lấy DataFrame nhân sự từ bảng user_accounts (Đồng bộ tập trung)"""
     if supabase is None:
         return pd.DataFrame(columns=["id", "name", "role"])
     try:
@@ -120,7 +118,6 @@ def get_staff_df_db():
     return pd.DataFrame(columns=["id", "name", "role"])
 
 def get_staff_list_db():
-    """Lấy danh sách tên nhân sự từ bảng user_accounts"""
     df = get_staff_df_db()
     if not df.empty and "name" in df.columns:
         return df["name"].dropna().tolist()
@@ -129,7 +126,6 @@ def get_staff_list_db():
 @st.cache_data(ttl=600, show_spinner=False)
 def add_production_log_db(ngay, gio, nhan_su, hang_muc, anh, don_vi, so_luong, he_so, tong_diem, ghi_chu):
     try:
-        # Làm tròn điểm tổng khi thêm mới
         try:
             tong_diem = round(float(str(tong_diem).replace(",", ".").strip()), 2)
         except:
@@ -244,7 +240,6 @@ def load_app_settings_db():
     return {}
 
 def save_app_settings_db(settings_dict):
-    """Lưu cài đặt giao diện/màu sắc vào Supabase để không bị mất khi F5"""
     if supabase is None:
         return None
     try:
@@ -257,54 +252,6 @@ def save_app_settings_db(settings_dict):
         return response
     except Exception as e:
         st.error(f"Lỗi khi lưu cài đặt ứng dụng: {e}")
-        return None
-
-@st.cache_data(ttl=10, show_spinner=False)
-def load_folders_db():
-    default_folders = [{
-        "folder_name": "📌 Quản Lý Nghiệp Vụ",
-        "items": [
-            {"id": "menu_1", "name": "1. Nhập Sản Lượng"},
-            {"id": "menu_2", "name": "2. Báo Cáo Thống Kê"},
-            {"id": "menu_3", "name": "3. Tham Chiếu Định Mức"},
-            {"id": "menu_4", "name": "4. Thùng Rác Sản Lượng"},
-            {"id": "menu_5", "name": "5. Thư Mục Báo Cáo"},
-            {"id": "menu_6", "name": "6. Quản Lý Lỗi"}
-        ]
-    }]
-    if supabase is None:
-        return default_folders
-    try:
-        def _query(client):
-            return client.table("app_folders").select("*").eq("id", 1).execute()
-        res = safe_supabase_call(_query)
-        if res and res.data and len(res.data) > 0:
-            folders_data = res.data[0].get("folders_json")
-            if folders_data and isinstance(folders_data, list):
-                items = folders_data[0].get("items", [])
-                if not any(str(item.get("name", "")).startswith("6.") for item in items):
-                    items.append({"id": "menu_6", "name": "6. Quản Lý Lỗi"})
-                    folders_data[0]["items"] = items
-                return folders_data
-    except Exception as e:
-        st.warning(f"⚠️ Không đọc được dữ liệu thư mục từ Database: {e}")
-    return default_folders
-
-def save_folders_db(folders_list):
-    if supabase is None:
-        st.error("⚠️ Chưa kết nối Supabase!")
-        return None
-    try:
-        payload = {"id": 1, "folders_json": folders_list}
-        def _query(client):
-            return client.table("app_folders").upsert(payload).execute()
-        response = safe_supabase_call(_query)
-        load_folders_db.clear()
-        st.cache_data.clear()
-        st.success("✅ Lưu cấu hình vào Supabase thành công!")
-        return response
-    except Exception as e:
-        st.error(f"❌ Lỗi khi lưu vào Supabase: {e}")
         return None
 
 def update_production_log_deleted_status(db_ids, is_deleted):
@@ -321,12 +268,10 @@ def update_production_log_deleted_status(db_ids, is_deleted):
         return None
 
 def upload_multiple_images_to_storage(uploaded_files, bucket_name="production_images", max_size=(800, 600), target_kb=50):
-    """Nén tự động ảnh sao cho dung lượng đạt xấp xỉ mục tiêu (mặc định ~50KB) trước khi tải lên"""
     if not uploaded_files or supabase is None:
         return ""
     
     uploaded_urls = []
-
     for file in uploaded_files:
         try:
             image_bytes = file.read()
@@ -336,7 +281,6 @@ def upload_multiple_images_to_storage(uploaded_files, bucket_name="production_im
                 img = img.convert("RGB")
 
             img.thumbnail(max_size, Image.Resampling.LANCZOS)
-
             quality = 85
             output_io = io.BytesIO()
             img.save(output_io, format="JPEG", quality=quality, optimize=True)
@@ -359,7 +303,6 @@ def upload_multiple_images_to_storage(uploaded_files, bucket_name="production_im
             
             public_url = supabase.storage.from_(bucket_name).get_public_url(unique_filename)
             uploaded_urls.append(public_url)
-            
         except Exception as e:
             st.error(f"Lỗi nén và upload ảnh {file.name}: {e}")
             
@@ -371,7 +314,6 @@ def delete_images_from_storage_by_urls(image_urls_str, bucket_name="production_i
     try:
         urls = [u.strip() for u in str(image_urls_str).split(",") if u.strip()]
         file_paths_to_delete = []
-        
         for url in urls:
             if "storage/v1/object/public/" in url:
                 parts = url.split(f"/storage/v1/object/public/{bucket_name}/")
@@ -383,7 +325,7 @@ def delete_images_from_storage_by_urls(image_urls_str, bucket_name="production_i
         if file_paths_to_delete:
             supabase.storage.from_(bucket_name).remove(file_paths_to_delete)
     except Exception as e:
-        print(f"Lỗi khi xóa ảnh trên Supabase Storage: {e}")
+        st.warning(f"⚠️ Lỗi khi xóa ảnh trên Supabase Storage: {e}")
 
 def permanent_delete_db(db_ids):
     if supabase is None or not db_ids:
@@ -622,11 +564,9 @@ def delete_storage_files_by_date_range(start_date, end_date):
         return 0, f"Lỗi khi xóa ảnh theo ngày: {e}"
 
 def update_all_historical_production_scores_db():
-    """Quét toàn bộ bảng rules và cập nhật lại Tên hạng mục, Hệ số, Tổng điểm cho tất cả bản ghi production_logs"""
     if supabase is None:
         return False
     try:
-        # 1. Lấy tất cả định mức hiện tại từ bảng rules
         rules_res = supabase.table("rules").select("*").execute()
         if not rules_res.data:
             return False
@@ -648,12 +588,10 @@ def update_all_historical_production_scores_db():
                     "he_so": he_so_float
                 }
 
-        # 2. Lấy toàn bộ lịch sử sản lượng chưa bị xóa
         logs_res = supabase.table("production_logs").select("*").eq("is_deleted", False).execute()
         if not logs_res.data:
             return True
 
-        # 3. Duyệt qua từng bản ghi lịch sử, đối chiếu và cập nhật lại Tên, Hệ Số, Tổng Điểm mới (làm tròn 2 chữ số)
         for log in logs_res.data:
             log_id = log.get("id")
             log_task = str(log.get("hang_muc_cong_viec", "")).strip().lower()
@@ -677,11 +615,10 @@ def update_all_historical_production_scores_db():
                 
         return True
     except Exception as e:
-        print(f"Lỗi đồng bộ điểm lịch sử: {e}")
+        st.error(f"⚠️ Lỗi đồng bộ điểm lịch sử: {e}")
         return False
 
 def update_production_log_record_db(db_id, hang_muc, so_luong, ghi_chu=""):
-    """Cập nhật chi tiết một bản ghi sản lượng trực tiếp và tự động tính lại hệ số, tổng điểm (làm tròn 2 chữ số)"""
     if supabase is None:
         return None
     try:
@@ -708,7 +645,6 @@ def update_production_log_record_db(db_id, hang_muc, so_luong, ghi_chu=""):
         except:
             qty_float = 0.0
             
-        # Làm tròn tổng điểm đến 2 chữ số thập phân
         tong_diem = round(qty_float * he_so, 2)
         
         data = {
