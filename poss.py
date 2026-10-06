@@ -39,11 +39,9 @@ from database import (
     delete_storage_files_by_date_range
 )
 
-# Tích hợp module quản lý chuyển đổi linh hoạt (Storage & DB Manager)
 from storage_manager import upload_image
 from db_manager import get_database_connection
 
-# Thay thế bằng import trực tiếp theo hướng dẫn
 from view import nhap_san_luong
 
 import cham_cong
@@ -53,7 +51,6 @@ import dinh_muc_cong_viec
 import quan_ly_loi
 import thung_rac
 
-# Cấu hình giao diện trang web Streamlit
 st.set_page_config(
     page_title="Hệ Thống Quản Lý POSS", 
     page_icon="logo.png", 
@@ -62,11 +59,9 @@ st.set_page_config(
 
 init_db_data()
 
-# Hàm mã hóa mật khẩu bảo mật
 def hash_password(password):
     return hashlib.sha256(password.encode()).hexdigest()
 
-# Hàm đo RAM tiến trình app thuần Python
 def get_app_memory_usage():
     try:
         import psutil
@@ -76,7 +71,6 @@ def get_app_memory_usage():
     except Exception:
         return "Ổn định"
 
-# Hàm tính dung lượng Database và File Storage thực tế từ Supabase
 def get_detailed_storage_usage():
     if supabase is None:
         return "0 MB / 500 MB", "0 MB / 1 GB"
@@ -112,7 +106,6 @@ def get_detailed_storage_usage():
     except Exception:
         return "0 MB / 500 MB", "0 MB / 1 GB"
 
-# ==================== CÁC HÀM CRUD BỔ SUNG ====================
 def save_staff_list_db(edited_df):
     if supabase is None:
         return
@@ -154,7 +147,6 @@ def save_app_settings_db(settings_dict):
     except Exception as e:
         st.error(f"Lỗi lưu cấu hình: {e}")
 
-# ==================== KIỂM TRA ĐĂNG NHẬP SESSION ====================
 if "logged_in" not in st.session_state:
     st.session_state.logged_in = False
 if "user_identifier" not in st.session_state:
@@ -243,7 +235,6 @@ if not st.session_state.logged_in:
         st.markdown("</div>", unsafe_allow_html=True)
     st.stop()
 
-# ==================== PHÂN QUYỀN TÀI KHOẢN ====================
 def get_user_permissions(identifier):
     default_perms = {"role": "Staff", "perm_input": False, "perm_report": False, "perm_attendance": True, "perm_rules": False}
     if not identifier or supabase is None:
@@ -269,7 +260,6 @@ def get_user_permissions(identifier):
 user_perms = get_user_permissions(st.session_state.user_identifier)
 current_user_role = user_perms["role"]
 
-# ==================== KHỞI TẠO & ĐỒNG BỘ CẤU HÌNH TỪ DATABASE ====================
 st.session_state.staff_list = get_staff_list_db()
 if "rules_df" not in st.session_state:
     try:
@@ -292,4 +282,19 @@ if not db_settings:
     except Exception:
         pass
 
-st.session_state.primary_color = db_settings.
+st.session_state.primary_color = db_settings.get("primary_color", "#ff4b4b")
+st.session_state.bg_color = db_settings.get("bg_color", "#ffffff")
+st.session_state.sidebar_bg = db_settings.get("sidebar_bg", "#f0f2f6")
+
+val_opacity = db_settings.get("sidebar_opacity", 0.9)
+try:
+    st.session_state.sidebar_opacity = float(val_opacity) if val_opacity is not None and str(val_opacity).strip() != "" else 0.9
+except Exception:
+    st.session_state.sidebar_opacity = 0.9
+
+st.session_state.text_color = db_settings.get("text_color", "#31333F")
+st.session_state.bg_image_base64 = db_settings.get("bg_image_base64", None)
+st.session_state.avatar_base64 = db_settings.get("avatar_base64", None)
+
+if "current_menu" not in st.session_state: 
+    st
