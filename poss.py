@@ -297,4 +297,5 @@ st.session_state.text_color = db_settings.get("text_color", "#31333F")
 st.session_state.bg_image_base64 = db_settings.get("bg_image_base64", None)
 st.session_state.avatar_base64 = db_settings.get("avatar_base64", None)
 
-if "current_menu" not in st.session_
+if "current_menu" not in st.session_state:
+    st.session_state.current_menu = "1. Nhập Sản Lượng"
