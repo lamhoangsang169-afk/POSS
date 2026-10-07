@@ -166,105 +166,101 @@ def render_production_table_fragment(raw_input_df, current_user_role, user_perms
         can_delete_data = (current_user_role == "Admin" or user_perms.get("perm_input", False))
 
         if can_delete_data:
-            with st.form("delete_production_form_frag"):
-                st.markdown("<div style='background: rgba(255, 255, 255, 0.7); padding: 10px; border-radius: 8px; border: 1px solid #cbd5e1; margin-bottom: 15px;'>", unsafe_allow_html=True)
+            # Dùng container thay cho st.form để tránh lỗi lồng ghép popover
+            with st.container(border=True):
                 col_btn_1, col_btn_2 = st.columns(2)
                 with col_btn_1:
-                    submitted_delete_selected = st.form_submit_button("🗑️ Xóa các dòng đã chọn", use_container_width=True, type="primary")
+                    clicked_delete_selected = st.button("🗑️ Xóa các dòng đã chọn", use_container_width=True, type="primary", key="btn_del_selected_action")
                 with col_btn_2:
                     confirm_delete_all = st.checkbox("Xác nhận xóa tất cả trang này", key="chk_confirm_delete_all_frag")
-                    submitted_delete_all = st.form_submit_button("🗑️ Xóa tất cả trang này", use_container_width=True)
-                st.markdown("</div>", unsafe_allow_html=True)
+                    clicked_delete_all = st.button("🗑️ Xóa tất cả trang này", use_container_width=True, key="btn_del_all_action")
 
-                selected_ids_to_delete = []
-                for idx, row in paginated_df.iterrows():
-                    display_stt = total_rows - (start_idx + paginated_df.index.get_loc(idx))
+            selected_ids_to_delete = []
+            for idx, row in paginated_df.iterrows():
+                display_stt = total_rows - (start_idx + paginated_df.index.get_loc(idx))
+                
+                row_c1, row_c2 = st.columns([4, 1])
+                with row_c1:
+                    st.markdown(f"""
+                    <div style="background: rgba(255,255,255,0.85); padding: 8px 10px; border-radius: 6px; border: 1px solid rgba(0,0,0,0.1); margin-bottom: 4px; font-size: 0.85rem;">
+                        <b>STT: {display_stt}</b> &nbsp;|&nbsp; 📅 {row['Ngày']} ⏰ {row['Thời Gian']} &nbsp;|&nbsp; 👤 <b>{row['Nhân Sự']}</b><br>
+                        📌 {row['Hạng Mục Công Việc']} &nbsp;|&nbsp; 📦 <b>{row['Số Lượng']} {row['Đơn Vị']}</b> (⭐ <b>{row['Tổng Điểm']}</b> điểm)<br>
+                        💬 <i>{row['Ghi Chú'] if pd.notna(row['Ghi Chú']) and str(row['Ghi Chú']).strip() else 'Không có ghi chú'}</i>
+                    </div>
+                    """, unsafe_allow_html=True)
                     
-                    row_c1, row_c2 = st.columns([4, 1])
-                    with row_c1:
-                        st.markdown(f"""
-                        <div style="background: rgba(255,255,255,0.85); padding: 8px 10px; border-radius: 6px; border: 1px solid rgba(0,0,0,0.1); margin-bottom: 4px; font-size: 0.85rem;">
-                            <b>STT: {display_stt}</b> &nbsp;|&nbsp; 📅 {row['Ngày']} ⏰ {row['Thời Gian']} &nbsp;|&nbsp; 👤 <b>{row['Nhân Sự']}</b><br>
-                            📌 {row['Hạng Mục Công Việc']} &nbsp;|&nbsp; 📦 <b>{row['Số Lượng']} {row['Đơn Vị']}</b> (⭐ <b>{row['Tổng Điểm']}</b> điểm)<br>
-                            💬 <i>{row['Ghi Chú'] if pd.notna(row['Ghi Chú']) and str(row['Ghi Chú']).strip() else 'Không có ghi chú'}</i>
-                        </div>
-                        """, unsafe_allow_html=True)
-                        
-                        # --- THÊM Ô CHỌN XÓA VÀ NÚT SỬA NẰM CẠNH NHAU ---
-                        sub_c1, sub_c2 = st.columns([1.2, 1])
-                        with sub_c1:
-                            if st.checkbox(f"Chọn xóa STT {display_stt}", key=f"chk_f_{row['db_id']}"):
-                                selected_ids_to_delete.append(row['db_id'])
-                        with sub_c2:
-                            pass # Nút sửa nằm ngoài form chính bên dưới để không bị xung đột form
+                    # --- BỐ TRÍ Ô CHỌN XÓA VÀ NÚT SỬA NẰM CẠNH NHAU ---
+                    sub_c1, sub_c2 = st.columns([1.2, 1])
+                    with sub_c1:
+                        if st.checkbox(f"Chọn xóa STT {display_stt}", key=f"chk_f_{row['db_id']}"):
+                            selected_ids_to_delete.append(row['db_id'])
+                    with sub_c2:
+                        with st.popover(f"✏️ Sửa bản ghi STT {display_stt}", use_container_width=True):
+                            st.markdown(f"##### ✏️ Chỉnh Sửa Bản Ghi STT {display_stt}")
+                            curr_task = row.get('Hạng Mục Công Việc', danh_sach_hang_muc[0])
+                            task_idx = danh_sach_hang_muc.index(curr_task) if curr_task in danh_sach_hang_muc else 0
                             
-                    with row_c2:
-                        img_url_val = row.get("Hình Ảnh", "")
-                        if img_url_val and isinstance(img_url_val, str) and img_url_val.strip():
-                            urls = [u.strip() for u in img_url_val.split(",") if u.strip()]
-                            if urls:
-                                num_cols = min(len(urls), 4)
-                                sub_cols = st.columns(num_cols, gap="small")
-                                for i, u in enumerate(urls):
-                                    if i < len(sub_cols):
-                                        with sub_cols[i]:
-                                            try:
-                                                if u.startswith("http://") or u.startswith("https://"):
-                                                    with st.popover("🔍", help="Xem ảnh lớn"): 
-                                                        st.image(u, use_container_width=True)
-                                                    st.image(u, width=40)
-                                                elif os.path.exists(u):
-                                                    with st.popover("🔍", help="Xem ảnh lớn"): 
-                                                        st.image(u, use_container_width=True)
-                                                    st.image(u, width=40)
-                                                else:
-                                                    st.caption("⚠️ Không tìm thấy ảnh")
-                                                
-                                                size_str = get_cached_image_size(u)
-                                                st.markdown(f"<div style='text-align: center; font-size: 0.72rem; color: #64748b; margin-top: -4px;'>{size_str}</div>", unsafe_allow_html=True)
-                                            except Exception:
-                                                st.caption("❌ Lỗi hiển thị")
-                        else:
-                            st.markdown("<small style='color: gray;'>Không ảnh</small>", unsafe_allow_html=True)
-
-                    # Hiển thị nút popover sửa bản ghi nằm ngay dưới phần thông tin (cạnh checkbox xóa)
-                    with st.popover(f"✏️ Sửa bản ghi STT {display_stt}", use_container_width=False):
-                        st.markdown(f"##### ✏️ Chỉnh Sửa Bản Ghi STT {display_stt}")
-                        curr_task = row.get('Hạng Mục Công Việc', danh_sach_hang_muc[0])
-                        task_idx = danh_sach_hang_muc.index(curr_task) if curr_task in danh_sach_hang_muc else 0
+                            edit_task = st.selectbox("Hạng mục công việc", danh_sach_hang_muc, index=task_idx, key=f"edit_task_{row['db_id']}")
+                            edit_qty = st.number_input("Số lượng", min_value=0, value=int(row['Số Lượng']) if pd.notna(row['Số Lượng']) else 0, step=1, key=f"edit_qty_{row['db_id']}")
+                            edit_note = st.text_input("Ghi chú", value=str(row['Ghi Chú']) if pd.notna(row['Ghi Chú']) and str(row['Ghi Chú']).lower() != 'nan' else "", key=f"edit_note_{row['db_id']}")
+                            
+                            if st.button("💾 Lưu Cập Nhật", key=f"btn_save_edit_{row['db_id']}", use_container_width=True):
+                                if update_production_log_record_db is not None:
+                                    update_production_log_record_db(row['db_id'], edit_task, edit_qty, edit_note)
+                                    st.cache_data.clear()
+                                    st.success("✅ Cập nhật bản ghi thành công!")
+                                    st.rerun()
+                                else:
+                                    st.error("❌ Không tìm thấy hàm cập nhật database.")
                         
-                        edit_task = st.selectbox("Hạng mục công việc", danh_sach_hang_muc, index=task_idx, key=f"edit_task_{row['db_id']}")
-                        edit_qty = st.number_input("Số lượng", min_value=0, value=int(row['Số Lượng']) if pd.notna(row['Số Lượng']) else 0, step=1, key=f"edit_qty_{row['db_id']}")
-                        edit_note = st.text_input("Ghi chú", value=str(row['Ghi Chú']) if pd.notna(row['Ghi Chú']) and str(row['Ghi Chú']).lower() != 'nan' else "", key=f"edit_note_{row['db_id']}")
-                        
-                        if st.button("💾 Lưu Cập Nhật", key=f"btn_save_edit_{row['db_id']}", use_container_width=True):
-                            if update_production_log_record_db is not None:
-                                update_production_log_record_db(row['db_id'], edit_task, edit_qty, edit_note)
-                                st.cache_data.clear()
-                                st.success("✅ Cập nhật bản ghi thành công!")
-                                st.rerun()
-                            else:
-                                st.error("❌ Không tìm thấy hàm cập nhật database.")
+                with row_c2:
+                    img_url_val = row.get("Hình Ảnh", "")
+                    if img_url_val and isinstance(img_url_val, str) and img_url_val.strip():
+                        urls = [u.strip() for u in img_url_val.split(",") if u.strip()]
+                        if urls:
+                            num_cols = min(len(urls), 4)
+                            sub_cols = st.columns(num_cols, gap="small")
+                            for i, u in enumerate(urls):
+                                if i < len(sub_cols):
+                                    with sub_cols[i]:
+                                        try:
+                                            if u.startswith("http://") or u.startswith("https://"):
+                                                with st.popover("🔍", help="Xem ảnh lớn"): 
+                                                    st.image(u, use_container_width=True)
+                                                st.image(u, width=40)
+                                            elif os.path.exists(u):
+                                                with st.popover("🔍", help="Xem ảnh lớn"): 
+                                                    st.image(u, use_container_width=True)
+                                                st.image(u, width=40)
+                                            else:
+                                                st.caption("⚠️ Không tìm thấy ảnh")
+                                            
+                                            size_str = get_cached_image_size(u)
+                                            st.markdown(f"<div style='text-align: center; font-size: 0.72rem; color: #64748b; margin-top: -4px;'>{size_str}</div>", unsafe_allow_html=True)
+                                        except Exception:
+                                            st.caption("❌ Lỗi hiển thị")
+                    else:
+                        st.markdown("<small style='color: gray;'>Không ảnh</small>", unsafe_allow_html=True)
 
-                    st.markdown("---")
+                st.markdown("---")
 
-                if submitted_delete_selected:
-                    if selected_ids_to_delete:
-                        update_production_log_deleted_status(selected_ids_to_delete, True)
-                        st.success("Đã chuyển các dòng đã chọn vào thùng rác thành công!")
+            if clicked_delete_selected:
+                if selected_ids_to_delete:
+                    update_production_log_deleted_status(selected_ids_to_delete, True)
+                    st.success("Đã chuyển các dòng đã chọn vào thùng rác thành công!")
+                    st.rerun()
+                else:
+                    st.warning("⚠️ Vui lòng tích chọn ít nhất một dòng cần xóa!")
+
+            if clicked_delete_all:
+                if confirm_delete_all:
+                    all_paginated_ids = paginated_df["db_id"].tolist()
+                    if all_paginated_ids:
+                        update_production_log_deleted_status(all_paginated_ids, True)
+                        st.success("Đã chuyển toàn bộ bản ghi đang hiển thị ở trang này vào thùng rác!")
                         st.rerun()
-                    else:
-                        st.warning("⚠️ Vui lòng tích chọn ít nhất một dòng cần xóa!")
-
-                if submitted_delete_all:
-                    if confirm_delete_all:
-                        all_paginated_ids = paginated_df["db_id"].tolist()
-                        if all_paginated_ids:
-                            update_production_log_deleted_status(all_paginated_ids, True)
-                            st.success("Đã chuyển toàn bộ bản ghi đang hiển thị ở trang này vào thùng rác!")
-                            st.rerun()
-                    else:
-                        st.warning("⚠️ Vui lòng tích chọn xác nhận trước khi bấm xóa tất cả!")
+                else:
+                    st.warning("⚠️ Vui lòng tích chọn xác nhận trước khi bấm xóa tất cả!")
         else:
             for idx, row in paginated_df.iterrows():
                 display_stt = total_rows - (start_idx + paginated_df.index.get_loc(idx))
