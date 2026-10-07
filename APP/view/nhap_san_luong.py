@@ -31,6 +31,7 @@ update_production_log_deleted_status = db_module.update_production_log_deleted_s
 upload_multiple_images_to_storage = db_module.upload_multiple_images_to_storage
 get_attendance_db = db_module.get_attendance_db
 get_rules_db = db_module.get_rules_db
+update_production_log_record_db = getattr(db_module, "update_production_log_record_db", None)
 
 
 # ==================== HÀM PHỤ TRỢ: LẤY DUNG LƯỢNG ẢNH AN TOÀN ====================
@@ -71,7 +72,6 @@ def render_production_table_fragment(raw_input_df, current_user_role, user_perms
         st.markdown("<h3 style='color: #1e3a8a;'>Danh Sách Sản Lượng & Hình Ảnh</h3>", unsafe_allow_html=True)
     with col_title_2:
         if st.button("🔄 Làm mới dữ liệu", use_container_width=True, key="btn_refresh_input_frag"):
-            # Ép buộc cập nhật lại ngày về hôm nay khi bấm nút làm mới
             st.session_state.f_start_live = today_date
             st.session_state.f_end_live = today_date
             st.cache_data.clear()
@@ -102,6 +102,16 @@ def render_production_table_fragment(raw_input_df, current_user_role, user_perms
     with f_col4:
         all_staff_opts = ["Tất cả"] + sorted(raw_input_df["Nhân Sự"].dropna().unique().tolist())
         filter_staff = st.selectbox("Lọc theo Nhân Sự", all_staff_opts, key="f_staff_live")
+
+    # --- LẤY DANH SÁCH HẠNG MỤC ĐỊNH MỨC CHO FORM SỬA ---
+    try:
+        rules_df = get_rules_db()
+    except Exception:
+        rules_df = pd.DataFrame()
+    raw_tasks = rules_df["Hạng Mục Công Việc"].tolist() if not rules_df.empty and "Hạng Mục Công Việc" in rules_df.columns else []
+    danh_sach_hang_muc = [str(t).strip() for t in raw_tasks if pd.notna(t) and str(t).strip() and str(t).strip().lower() not in ["nan", "none"]]
+    if not danh_sach_hang_muc: 
+        danh_sach_hang_muc = ["Chưa có dữ liệu định mức"]
 
     # --- BƯỚC 1: LỌC TRƯỚC DỮ LIỆU ĐỂ ĐỒNG BỘ DANH MỤC HẠNG MỤC THEO NHÂN SỰ ---
     df_pre_filter = raw_input_df.copy()
@@ -179,8 +189,14 @@ def render_production_table_fragment(raw_input_df, current_user_role, user_perms
                             💬 <i>{row['Ghi Chú'] if pd.notna(row['Ghi Chú']) and str(row['Ghi Chú']).strip() else 'Không có ghi chú'}</i>
                         </div>
                         """, unsafe_allow_html=True)
-                        if st.checkbox(f"Chọn xóa bản ghi STT {display_stt}", key=f"chk_f_{row['db_id']}"):
-                            selected_ids_to_delete.append(row['db_id'])
+                        
+                        # --- THÊM Ô CHỌN XÓA VÀ NÚT SỬA NẰM CẠNH NHAU ---
+                        sub_c1, sub_c2 = st.columns([1.2, 1])
+                        with sub_c1:
+                            if st.checkbox(f"Chọn xóa STT {display_stt}", key=f"chk_f_{row['db_id']}"):
+                                selected_ids_to_delete.append(row['db_id'])
+                        with sub_c2:
+                            pass # Nút sửa nằm ngoài form chính bên dưới để không bị xung đột form
                             
                     with row_c2:
                         img_url_val = row.get("Hình Ảnh", "")
@@ -210,6 +226,25 @@ def render_production_table_fragment(raw_input_df, current_user_role, user_perms
                                                 st.caption("❌ Lỗi hiển thị")
                         else:
                             st.markdown("<small style='color: gray;'>Không ảnh</small>", unsafe_allow_html=True)
+
+                    # Hiển thị nút popover sửa bản ghi nằm ngay dưới phần thông tin (cạnh checkbox xóa)
+                    with st.popover(f"✏️ Sửa bản ghi STT {display_stt}", use_container_width=False):
+                        st.markdown(f"##### ✏️ Chỉnh Sửa Bản Ghi STT {display_stt}")
+                        curr_task = row.get('Hạng Mục Công Việc', danh_sach_hang_muc[0])
+                        task_idx = danh_sach_hang_muc.index(curr_task) if curr_task in danh_sach_hang_muc else 0
+                        
+                        edit_task = st.selectbox("Hạng mục công việc", danh_sach_hang_muc, index=task_idx, key=f"edit_task_{row['db_id']}")
+                        edit_qty = st.number_input("Số lượng", min_value=0, value=int(row['Số Lượng']) if pd.notna(row['Số Lượng']) else 0, step=1, key=f"edit_qty_{row['db_id']}")
+                        edit_note = st.text_input("Ghi chú", value=str(row['Ghi Chú']) if pd.notna(row['Ghi Chú']) and str(row['Ghi Chú']).lower() != 'nan' else "", key=f"edit_note_{row['db_id']}")
+                        
+                        if st.button("💾 Lưu Cập Nhật", key=f"btn_save_edit_{row['db_id']}", use_container_width=True):
+                            if update_production_log_record_db is not None:
+                                update_production_log_record_db(row['db_id'], edit_task, edit_qty, edit_note)
+                                st.cache_data.clear()
+                                st.success("✅ Cập nhật bản ghi thành công!")
+                                st.rerun()
+                            else:
+                                st.error("❌ Không tìm thấy hàm cập nhật database.")
 
                     st.markdown("---")
 
@@ -298,7 +333,6 @@ def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
     elif not active_staff:
         st.warning(f"⚠️ Hiện tại chưa có nhân sự nào **Check-in (Vào ca)**. Vui lòng thực hiện Check-in trước khi nhập sản lượng!")
     else:
-        # Tải mới hoàn toàn bảng định mức trực tiếp từ database (bỏ qua cache cũ)
         try:
             rules_df = get_rules_db()
             st.session_state["rules_df"] = rules_df
@@ -310,18 +344,15 @@ def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
         if not danh_sach_hang_muc: 
             danh_sach_hang_muc = ["Chưa có dữ liệu định mức"]
 
-        # Khởi tạo biến đếm phiên bản cho file_uploader key nếu chưa có
         if "file_uploader_version" not in st.session_state:
             st.session_state.file_uploader_version = 0
 
-        # Xử lý reset form an toàn TRƯỚC KHI tạo widget
         if st.session_state.get("should_reset_form", False):
             st.session_state.widget_staff_select = "--- Vui lòng chọn nhân sự ---"
             st.session_state.widget_task_select = danh_sach_hang_muc[0]
-            st.session_state.file_uploader_version += 1  # Tăng phiên bản để làm sạch bộ tải ảnh
+            st.session_state.file_uploader_version += 1
             st.session_state.should_reset_form = False
 
-        # Khởi tạo giá trị mặc định cho widget key nếu chưa có
         if "widget_staff_select" not in st.session_state:
             st.session_state.widget_staff_select = "--- Vui lòng chọn nhân sự ---"
 
@@ -338,7 +369,6 @@ def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
             with f_col3:
                 hang_muc = st.selectbox("Hạng mục công việc", danh_sach_hang_muc, key="widget_task_select")
                 
-            # Sử dụng key động dựa theo version để tự động reset khung tải ảnh
             uploader_key = f"record_img_{st.session_state.file_uploader_version}"
             record_images = st.file_uploader("Tải ảnh đính kèm (Tối đa 4 ảnh)", type=["png", "jpg", "jpeg"], accept_multiple_files=True, key=uploader_key)
                 
@@ -360,7 +390,6 @@ def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
                     don_vi = "Cái"
                     
                     if not rules_df.empty:
-                        # Dò tìm trực tiếp theo tên cột chuẩn hóa sẵn của get_rules_db()
                         task_col = None
                         for col in ["Hạng Mục Công Việc", "hang_muc_cong_viec", "hang_muc"]:
                             if col in rules_df.columns:
@@ -371,7 +400,6 @@ def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
                             target_val = str(hang_muc).strip().lower()
                             matched = rules_df[rules_df[task_col].astype(str).str.strip().str.lower() == target_val]
                             if not matched.empty:
-                                # Lấy hệ số điểm từ các tên cột khả dĩ
                                 for hs_col in ["Hệ Số Điểm", "he_so_diem", "he_so", "diem"]:
                                     if hs_col in matched.columns:
                                         val_raw = matched[hs_col].values[0]
@@ -382,7 +410,6 @@ def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
                                             except Exception:
                                                 pass
                                             break
-                                # Lấy đơn vị
                                 for dv_col in ["Đơn Vị", "don_vi", "unit"]:
                                     if dv_col in matched.columns:
                                         val_dv = matched[dv_col].values[0]
@@ -390,22 +417,17 @@ def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
                                             don_vi = str(val_dv)
                                         break
 
-                    # Tính tổng điểm chính xác tuyệt đối
                     tong_diem = float(so_luong) * float(he_so)
                     
                     img_urls = upload_multiple_images_to_storage(record_images) if record_images else ""
                     current_time_str = datetime.datetime.now(VN_TIMEZONE).strftime("%H:%M:%S")
                     
                     add_production_log_db(today_str, current_time_str, nhan_su, hang_muc, img_urls, don_vi, so_luong, he_so, tong_diem, ghi_chu)
-                    
-                    # --- ĐẶT CỜ ĐỂ RESET AN TOÀN VÀO LẦN CHẠY TIẾP THEO ---
                     st.session_state.should_reset_form = True
-                    
                     st.success(f"✅ Ghi nhận thành công cho **{nhan_su}**!")
                     st.rerun()
 
     st.markdown("---")
 
-    # ==================== GỌI KHỐI FRAGMENT LỌC TỨC THÌ ====================
     raw_input_df = get_production_logs_db(is_deleted=False, limit_rows=2000)
     render_production_table_fragment(raw_input_df, current_user_role, user_perms)
