@@ -311,6 +311,11 @@ def render_nhap_san_luong(*args, **kwargs):
     
     st.subheader(f"{current_menu_name} ({today_str})")
 
+    # Hiển thị thông báo thành công lưu trong session nếu có (giữ lại sau khi rerun)
+    if "success_toast_msg" in st.session_state and st.session_state.success_toast_msg:
+        st.success(st.session_state.success_toast_msg)
+        st.session_state.success_toast_msg = None  # Xóa sau khi đã hiển thị xong
+
     is_admin = (current_user_role == "Admin" or user_perms.get("perm_input", False))
     
     att_df_check = get_attendance_db()
@@ -422,7 +427,8 @@ def render_nhap_san_luong(*args, **kwargs):
                         add_production_log_db(today_str, current_time_str, nhan_su, hang_muc, img_urls, don_vi, so_luong, he_so, tong_diem, ghi_chu)
                         
                     st.session_state.should_reset_form = True
-                    st.success(f"✅ Ghi nhận thành công báo cáo sản lượng cho nhân sự **{nhan_su}**! Dữ liệu và hình ảnh đã được lưu lên hệ thống.")
+                    # Lưu thông báo vào session để hiển thị sau khi trang được làm mới (rerun)
+                    st.session_state.success_toast_msg = f"✅ Ghi nhận thành công báo cáo sản lượng cho nhân sự **{nhan_su}**! Dữ liệu và hình ảnh đã được lưu lên hệ thống."
                     st.rerun()
 
     st.markdown("---")
