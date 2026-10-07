@@ -20,11 +20,34 @@ def load_module_from_path(module_name, file_path):
 db_path = os.path.join(root_project_dir, "database.py")
 db_module = load_module_from_path("database", db_path)
 
-# Nạp hàm cập nhật trạng thái xóa từ module database
-update_production_log_deleted_status = db_module.update_production_log_deleted_status
+# Lấy các hàm tương tác database từ database.py
+safe_supabase_call = getattr(db_module, "safe_supabase_call", None)
+
+def get_report_files_db():
+    """Lấy danh sách file báo cáo từ Supabase"""
+    if safe_supabase_call is None:
+        return []
+    try:
+        def _query(client):
+            return client.table("report_files").select("*").eq("is_deleted", False).order("id", desc=True).execute()
+        res = safe_supabase_call(_query)
+        return res.data if res and res.data else []
+    except Exception:
+        return []
+
+def delete_report_files_db(file_ids):
+    """Đánh dấu xóa các file báo cáo được chọn trên Supabase"""
+    if safe_supabase_call is None or not file_ids:
+        return
+    try:
+        def _query(client):
+            return client.table("report_files").update({"is_deleted": True}).in_("id", file_ids).execute()
+        safe_supabase_call(_query)
+    except Exception:
+        pass
 
 def render_thu_muc_bao_cao(current_menu_name):
-    # Tiêu đề nghiệp vụ và Nút làm mới căn lề chuẩn xác theo giao diện cũ của bạn
+    # Tiêu đề nghiệp vụ và Nút làm mới
     col_h1, col_h2 = st.columns([4, 1])
     with col_h1:
         st.subheader(f"📂 {current_menu_name}")
@@ -35,50 +58,39 @@ def render_thu_muc_bao_cao(current_menu_name):
 
     st.markdown("<br>", unsafe_allow_html=True)
 
-    # Khởi tạo dữ liệu file lưu vết mẫu trong Session State nếu hệ thống trống trải
-    if "cloud_folders" not in st.session_state or not st.session_state["cloud_folders"]:
-        st.session_state["cloud_folders"] = [
-            {
-                "db_id": 1,
-                "name": "bao_cao_san_luong_2026-09-14_den_2026-09-20.csv",
-                "url": "https://streamlit.io",
-                "is_deleted": False
-            }
-        ]
-
-    cloud_files = st.session_state["cloud_folders"]
-    active_files = [f for f in cloud_files if not f.get("is_deleted", False)]
+    # Lấy dữ liệu thực tế từ cơ sở dữ liệu Supabase
+    active_files = get_report_files_db()
 
     if not active_files:
         st.info("Thư mục báo cáo trống hoặc tất cả báo cáo đã được chuyển vào Thùng Rác.")
         return
 
-    # Danh sách lưu các ID được người dùng tích chọn
     selected_file_ids = []
 
-    # === THIẾT KẾ KHỐI CONTAINER CHỨA FILE GIỐNG BẢN CŨ CỦA BẠN ===
+    # === HIỂN THỊ DANH SÁCH FILE TỪ DATABASE ===
     for idx, f in enumerate(active_files, 1):
+        file_id = f.get("id")
+        file_name = f.get("name", "Báo cáo không tên")
+        file_url = f.get("url", "#")
+        
         with st.container(border=True):
-            st.markdown(f"**STT: {idx}** | 📄 **File:** `{f['name']}`")
-            st.markdown(f"🔗 [Mở liên kết trực tiếp]({f['url']})")
+            st.markdown(f"**STT: {idx}** | 📄 **File:** `{file_name}`")
+            st.markdown(f"🔗 [Mở liên kết trực tiếp]({file_url})")
             
             # Ô tích chọn nằm ngay phía dưới thông tin tệp
-            check_key = f"chk_file_{f['db_id']}_{idx}"
+            check_key = f"chk_file_{file_id}_{idx}"
             is_checked = st.checkbox(f"Chọn báo cáo STT {idx}", key=check_key)
             if is_checked:
-                selected_file_ids.append(f["db_id"])
+                selected_file_ids.append(file_id)
 
     st.markdown("<br>", unsafe_allow_html=True)
 
-    # === NÚT HÀNH ĐỘNG DƯỚI CÙNG TRẢI DÀI TOÀN BỘ CHIỀU RỘNG ===
+    # === NÚT HÀNH ĐỘNG DƯỚI CÙNG ===
     if st.button("🗑️ Chuyển Các Báo Cáo Đã Chọn Vào Thùng Rác", use_container_width=True, key="btn_move_trash_files"):
         if not selected_file_ids:
             st.error("⚠️ Vui lòng tích chọn vào ô 'Chọn báo cáo' của tệp bạn muốn chuyển vào Thùng Rác!")
         else:
-            # Tiến hành cập nhật trạng thái lưu vết trong bộ nhớ tạm
-            for f in cloud_files:
-                if f["db_id"] in selected_file_ids:
-                    f["is_deleted"] = True
-            
+            delete_report_files_db(selected_file_ids)
             st.success("✅ Đã di chuyển các báo cáo được chọn vào Thùng Rác hệ thống thành công!")
+            st.cache_data.clear()
             st.rerun()
