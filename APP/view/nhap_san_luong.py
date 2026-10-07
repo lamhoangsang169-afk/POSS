@@ -113,45 +113,4 @@ def render_production_table_fragment(raw_input_df, current_user_role, user_perms
     if not danh_sach_hang_muc: 
         danh_sach_hang_muc = ["Chưa có dữ liệu định mức"]
 
-    # --- BƯỚC 1: LỌC TRƯỚC DỮ LIỆU ĐỂ ĐỒNG BỘ DANH MỤC HẠNG MỤC THEO NHÂN SỰ ---
-    df_pre_filter = raw_input_df.copy()
-    df_pre_filter["Ngày_DT"] = pd.to_datetime(df_pre_filter["Ngày"], errors='coerce').dt.date
-    df_pre_filter = df_pre_filter[(df_pre_filter["Ngày_DT"] >= start_filter_date) & (df_pre_filter["Ngày_DT"] <= end_filter_date)]
-    
-    if filter_staff != "Tất cả": 
-        df_pre_filter = df_pre_filter[df_pre_filter["Nhân Sự"] == filter_staff]
-
-    if enable_hour_filter and start_t and end_t:
-        def check_time_pre(t_str):
-            try:
-                t_val = datetime.datetime.strptime(str(t_str).strip(), "%H:%M:%S").time()
-                return start_t <= t_val <= end_t
-            except:
-                return True
-        df_pre_filter = df_pre_filter[df_pre_filter["Thời Gian"].apply(check_time_pre)]
-
-    dynamic_tasks = sorted(df_pre_filter["Hạng Mục Công Việc"].dropna().unique().tolist()) if not df_pre_filter.empty else []
-    all_task_opts = ["Tất cả"] + dynamic_tasks
-
-    if st.session_state.get("f_task_live") not in all_task_opts:
-        st.session_state["f_task_live"] = "Tất cả"
-
-    with f_col5:
-        filter_task = st.selectbox("Lọc theo Hạng Mục", all_task_opts, key="f_task_live")
-
-    # --- BƯỚC 2: LỌC HOÀN CHỈNH ĐỂ HIỂN THỊ BẢNG ---
-    filtered_df = df_pre_filter.copy()
-    if filter_task != "Tất cả": 
-        filtered_df = filtered_df[filtered_df["Hạng Mục Công Việc"] == filter_task]
-        
-    total_rows = len(filtered_df)
-    st.markdown(f"<div style='background: rgba(254, 243, 199, 0.6); padding: 8px 12px; border-radius: 6px; border: 1px solid #f59e0b; margin-bottom: 15px; font-weight: bold; color: #b45309;'>📅 Khoảng ngày có: {total_rows} bản ghi</div>", unsafe_allow_html=True)
-
-    rows_per_page = 10
-    total_pages = max(1, (total_rows - 1) // rows_per_page + 1)
-
-    with f_col6:
-        current_page = st.number_input(f"Trang hiển thị ({total_pages} tr | {total_rows} bản ghi)", min_value=1, max_value=total_pages, value=1, step=1, key="pagination_page_num_frag")
-
-    start_idx = (current_page - 1) * rows_per_page
-    end_idx = start_idx + rows_
+    # --- BƯỚC 1: LỌC TRƯỚC DỮ
