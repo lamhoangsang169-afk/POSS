@@ -55,7 +55,7 @@ def render_bao_cao(current_menu_name):
     st.session_state.report_end_date = end_date
 
     if start_date > end_date:
-        st.error("⚠️️ Ngày bắt đầu không thể lớn hơn ngày kết thúc!")
+        st.error("⚠ Ngày bắt đầu không thể lớn hơn ngày kết thúc!")
         return
 
     st.markdown("---")
@@ -157,12 +157,13 @@ def render_bao_cao(current_menu_name):
         )
         
         if st.button("☁️ Xuất File & Lưu Cloud", use_container_width=True, key="btn_export_cloud_real"):
-            from database import supabase
+            from database import supabase, safe_supabase_call
             if supabase is not None:
                 try:
                     bucket_reports = "reports-storage"
                     unique_filename = f"baocao_{start_date}_{end_date}_{int(datetime.datetime.now().timestamp())}.xlsx"
                     
+                    # 1. Đẩy file lên Cloud Storage
                     supabase.storage.from_(bucket_reports).upload(
                         path=unique_filename,
                         file=excel_data,
@@ -171,17 +172,21 @@ def render_bao_cao(current_menu_name):
                     
                     public_report_url = supabase.storage.from_(bucket_reports).get_public_url(unique_filename)
                     
-                    if "cloud_folders" not in st.session_state:
-                        st.session_state["cloud_folders"] = []
+                    # 2. Lưu trực tiếp vào bảng 'report_files' trên Supabase để đồng bộ sang Thư Mục Báo Cáo
+                    def _insert_report_db(client):
+                        return client.table("report_files").insert({
+                            "name": unique_filename,
+                            "url": public_report_url,
+                            "is_deleted": False
+                        }).execute()
                     
-                    st.session_state["cloud_folders"].append({
-                        "db_id": len(st.session_state["cloud_folders"]) + 1,
-                        "name": unique_filename,
-                        "url": public_report_url,
-                        "is_deleted": False
-                    })
+                    res_db = safe_supabase_call(_insert_report_db)
                     
-                    st.success(f"✅ Đã lưu báo cáo lên Cloud thành công! Tên file: `{unique_filename}`")
+                    if res_db:
+                        st.success(f"✅ Đã lưu báo cáo lên Cloud và đồng bộ vào thư mục thành công! Tên file: `{unique_filename}`")
+                    else:
+                        st.warning(f"⚠️ Đã tải file lên Storage nhưng chưa ghi được vào bảng cơ sở dữ liệu. Tên file: `{unique_filename}`")
+                        
                 except Exception as e:
                     st.error(f"❌ Lỗi tải lên Cloud Storage: {e}")
             else:
