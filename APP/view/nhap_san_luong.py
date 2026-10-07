@@ -58,12 +58,22 @@ def get_cached_image_size(u):
 @st.fragment
 def render_production_table_fragment(raw_input_df, current_user_role, user_perms):
     now_vn = datetime.datetime.now(VN_TIMEZONE)
+    today_date = now_vn.date()
+    
+    # === TỰ ĐỘNG CẬP NHẬT NGÀY VỀ HÔM NAY NẾU LÀ NGÀY MỚI HOẶC BẤM LÀM MỚI ===
+    if "last_checked_date" not in st.session_state or st.session_state.last_checked_date != today_date:
+        st.session_state.last_checked_date = today_date
+        st.session_state.f_start_live = today_date
+        st.session_state.f_end_live = today_date
     
     col_title_1, col_title_2 = st.columns([3, 1])
     with col_title_1:
         st.markdown("<h3 style='color: #1e3a8a;'>Danh Sách Sản Lượng & Hình Ảnh</h3>", unsafe_allow_html=True)
     with col_title_2:
         if st.button("🔄 Làm mới dữ liệu", use_container_width=True, key="btn_refresh_input_frag"):
+            # Ép buộc cập nhật lại ngày về hôm nay khi bấm nút làm mới
+            st.session_state.f_start_live = today_date
+            st.session_state.f_end_live = today_date
             st.cache_data.clear()
             st.rerun()
 
@@ -75,9 +85,9 @@ def render_production_table_fragment(raw_input_df, current_user_role, user_perms
     f_col1, f_col2, f_col3, f_col4, f_col5, f_col6 = st.columns([1.1, 1.1, 1.4, 1.3, 1.3, 1.2])
     
     with f_col1:
-        start_filter_date = st.date_input("Từ ngày", value=now_vn.date(), key="f_start_live")
+        start_filter_date = st.date_input("Từ ngày", value=st.session_state.get("f_start_live", today_date), key="f_start_live")
     with f_col2:
-        end_filter_date = st.date_input("Đến ngày", value=now_vn.date(), key="f_end_live")
+        end_filter_date = st.date_input("Đến ngày", value=st.session_state.get("f_end_live", today_date), key="f_end_live")
     with f_col3:
         enable_hour_filter = st.checkbox("Lọc theo Giờ", value=False, key="f_hour_live")
         if enable_hour_filter:
