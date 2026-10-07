@@ -166,7 +166,6 @@ def render_production_table_fragment(raw_input_df, current_user_role, user_perms
         can_delete_data = (current_user_role == "Admin" or user_perms.get("perm_input", False))
 
         if can_delete_data:
-            # Dùng container thay cho st.form để tránh lỗi lồng ghép popover
             with st.container(border=True):
                 col_btn_1, col_btn_2 = st.columns(2)
                 with col_btn_1:
@@ -189,7 +188,6 @@ def render_production_table_fragment(raw_input_df, current_user_role, user_perms
                     </div>
                     """, unsafe_allow_html=True)
                     
-                    # --- BỐ TRÍ Ô CHỌN XÓA VÀ NÚT SỬA NẰM CẠNH NHAU ---
                     sub_c1, sub_c2 = st.columns([1.2, 1])
                     with sub_c1:
                         if st.checkbox(f"Chọn xóa STT {display_stt}", key=f"chk_f_{row['db_id']}"):
@@ -382,48 +380,39 @@ def render_nhap_san_luong(current_menu_name, current_user_role, user_perms):
                 elif not record_images:
                     st.warning("⚠️ Vui lòng đính kèm ít nhất 1 hình ảnh minh chứng trước khi gửi báo cáo sản lượng!")
                 else:
-                    he_so = 1.0
-                    don_vi = "Cái"
-                    
-                    if not rules_df.empty:
-                        task_col = None
-                        for col in ["Hạng Mục Công Việc", "hang_muc_cong_viec", "hang_muc"]:
-                            if col in rules_df.columns:
-                                task_col = col
-                                break
+                    # Bổ sung hiệu ứng xoay chờ trực quan cho điện thoại khi đang nén ảnh & gửi
+                    with st.spinner("⏳ Đang nén ảnh và gửi báo cáo lên hệ thống..."):
+                        he_so = 1.0
+                        don_vi = "Cái"
                         
-                        if task_col:
-                            target_val = str(hang_muc).strip().lower()
-                            matched = rules_df[rules_df[task_col].astype(str).str.strip().str.lower() == target_val]
-                            if not matched.empty:
-                                for hs_col in ["Hệ Số Điểm", "he_so_diem", "he_so", "diem"]:
-                                    if hs_col in matched.columns:
-                                        val_raw = matched[hs_col].values[0]
-                                        if pd.notna(val_raw) and str(val_raw).strip() != "":
-                                            try:
-                                                cleaned_val = str(val_raw).replace(",", ".").strip()
-                                                he_so = float(cleaned_val)
-                                            except Exception:
-                                                pass
+                        if not rules_df.empty:
+                            task_col = None
+                            for col in ["Hạng Mục Công Việc", "hang_muc_cong_viec", "hang_muc"]:
+                                if col in rules_df.columns:
+                                    task_col = col
+                                    break
+                            
+                            if task_col:
+                                target_val = str(hang_muc).strip().lower()
+                                matched = rules_df[rules_df[task_col].astype(str).str.strip().str.lower() == target_val]
+                                if not matched.empty:
+                                    for hs_col in ["Hệ Số Điểm", "he_so_diem", "he_so", "diem"]:
+                                        if hs_col in matched.columns:
+                                            val_raw = matched[hs_col].values[0]
+                                            if pd.notna(val_raw) and str(val_raw).strip() != "":
+                                                try:
+                                                    cleaned_val = str(val_raw).replace(",", ".").strip()
+                                                    he_so = float(cleaned_val)
+                                                except Exception:
+                                                    pass
+                                                break
+                                    for dv_col in ["Đơn Vị", "don_vi", "unit"]:
+                                        if dv_col in matched.columns:
+                                            val_dv = matched[dv_col].values[0]
+                                            if pd.notna(val_dv) and str(val_dv).strip() != "":
+                                                don_vi = str(val_dv)
                                             break
-                                for dv_col in ["Đơn Vị", "don_vi", "unit"]:
-                                    if dv_col in matched.columns:
-                                        val_dv = matched[dv_col].values[0]
-                                        if pd.notna(val_dv) and str(val_dv).strip() != "":
-                                            don_vi = str(val_dv)
-                                        break
 
-                    tong_diem = float(so_luong) * float(he_so)
-                    
-                    img_urls = upload_multiple_images_to_storage(record_images) if record_images else ""
-                    current_time_str = datetime.datetime.now(VN_TIMEZONE).strftime("%H:%M:%S")
-                    
-                    add_production_log_db(today_str, current_time_str, nhan_su, hang_muc, img_urls, don_vi, so_luong, he_so, tong_diem, ghi_chu)
-                    st.session_state.should_reset_form = True
-                    st.success(f"✅ Ghi nhận thành công cho **{nhan_su}**!")
-                    st.rerun()
-
-    st.markdown("---")
-
-    raw_input_df = get_production_logs_db(is_deleted=False, limit_rows=2000)
-    render_production_table_fragment(raw_input_df, current_user_role, user_perms)
+                        tong_diem = float(so_luong) * float(he_so)
+                        
+                        img_
