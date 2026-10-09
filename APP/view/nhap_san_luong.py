@@ -6,7 +6,6 @@ import pandas as pd
 import datetime
 import requests
 
-# Import trực tiếp các module từ hệ thống đã cấu hình sys.path
 from utils import VN_TIMEZONE
 from database import (
     get_production_logs_db,
@@ -91,4 +90,15 @@ def render_production_table_fragment(raw_input_df, current_user_role, user_perms
         rules_df = pd.DataFrame()
     raw_tasks = rules_df["Hạng Mục Công Việc"].tolist() if not rules_df.empty and "Hạng Mục Công Việc" in rules_df.columns else []
     danh_sach_hang_muc = [str(t).strip() for t in raw_tasks if pd.notna(t) and str(t).strip() and str(t).strip().lower() not in ["nan", "none"]]
-    if not danh_s
+    if not danh_sach_hang_muc: 
+        danh_sach_hang_muc = ["Chưa có dữ liệu định mức"]
+
+    df_pre_filter = raw_input_df.copy()
+    df_pre_filter["Ngày_DT"] = pd.to_datetime(df_pre_filter["Ngày"], errors='coerce').dt.date
+    df_pre_filter = df_pre_filter[(df_pre_filter["Ngày_DT"] >= start_filter_date) & (df_pre_filter["Ngày_DT"] <= end_filter_date)]
+    
+    if filter_staff != "Tất cả": 
+        df_pre_filter = df_pre_filter[df_pre_filter["Nhân Sự"] == filter_staff]
+
+    if enable_hour_filter and start_t and end_t:
+        def
