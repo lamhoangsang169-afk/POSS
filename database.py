@@ -6,21 +6,19 @@ import streamlit as st
 import pandas as pd
 from supabase import create_client, Client
 
-# Khởi tạo kết nối Supabase an toàn qua st.secrets (hoặc fallback nếu chưa cấu hình secrets)
+# Khởi tạo kết nối Supabase an toàn qua st.secrets
 @st.cache_resource
 def init_supabase():
     try:
-        url = st.secrets.get("SUPABASE_URL", "https://mnwyewgsxvpjwnpmgyhj.supabase.co")
-        key = st.secrets.get("SUPABASE_KEY", "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1ud3lld2dzeHZwanducG1neWhqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTA3MjMwNjgsImV4cCI6MjEwNjI5OTA2OH0.eeTU1a16zY5c4XHr7YobwRRJXstgkQjt3lyIosUMVQk")
+        url = st.secrets.get("SUPABASE_URL", "")
+        key = st.secrets.get("SUPABASE_KEY", "")
+        if not url or not key:
+            st.error("⚠️ Thiếu cấu hình SUPABASE_URL hoặc SUPABASE_KEY trong st.secrets!")
+            return None
         return create_client(url, key)
     except Exception as e:
-        try:
-            url = "https://mnwyewgsxvpjwnpmgyhj.supabase.co"
-            key = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1ud3lld2dzeHZwanducG1neWhqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTA3MjMwNjgsImV4cCI6MjEwNjI5OTA2OH0.eeTU1a16zY5c4XHr7YobwRRJXstgkQjt3lyIosUMVQk"
-            return create_client(url, key)
-        except Exception as ex:
-            st.error(f"Lỗi khởi tạo Supabase: {ex}")
-            return None
+        st.error(f"Lỗi khởi tạo Supabase: {e}")
+        return None
 
 supabase = init_supabase()
 
@@ -128,7 +126,7 @@ def add_production_log_db(ngay, gio, nhan_su, hang_muc, anh, don_vi, so_luong, h
     try:
         try:
             tong_diem = round(float(str(tong_diem).replace(",", ".").strip()), 2)
-        except:
+        except Exception:
             pass
 
         data = {
@@ -255,13 +253,13 @@ def save_app_settings_db(settings_dict):
         return None
 
 def update_production_log_deleted_status(db_ids, is_deleted):
+    """Cập nhật trạng thái xóa hàng loạt sử dụng .in_()"""
     if supabase is None or not db_ids:
         return None
     try:
-        for db_id in db_ids:
-            def _query(client):
-                return client.table("production_logs").update({"is_deleted": is_deleted}).eq("id", db_id).execute()
-            safe_supabase_call(_query)
+        def _query(client):
+            return client.table("production_logs").update({"is_deleted": is_deleted}).in_("id", db_ids).execute()
+        safe_supabase_call(_query)
         return True
     except Exception as e:
         st.error(f"Lỗi khi cập nhật trạng thái xóa: {e}")
@@ -308,19 +306,23 @@ def upload_multiple_images_to_storage(uploaded_files, bucket_name="production_im
             
     return ",".join(uploaded_urls)
 
-def delete_images_from_storage_by_urls(image_urls_str, bucket_name="production_images"):
-    if not image_urls_str or supabase is None:
+def delete_images_from_storage_by_urls(image_urls_list, bucket_name="production_images"):
+    """Xóa danh sách hình ảnh từ Storage"""
+    if not image_urls_list or supabase is None:
         return
     try:
-        urls = [u.strip() for u in str(image_urls_str).split(",") if u.strip()]
         file_paths_to_delete = []
-        for url in urls:
-            if "storage/v1/object/public/" in url:
-                parts = url.split(f"/storage/v1/object/public/{bucket_name}/")
-                if len(parts) > 1:
-                    file_paths_to_delete.append(parts[1])
-            elif "/" in url:
-                file_paths_to_delete.append(url.split("/")[-1])
+        for urls_str in image_urls_list:
+            if not urls_str:
+                continue
+            urls = [u.strip() for u in str(urls_str).split(",") if u.strip()]
+            for url in urls:
+                if "storage/v1/object/public/" in url:
+                    parts = url.split(f"/storage/v1/object/public/{bucket_name}/")
+                    if len(parts) > 1:
+                        file_paths_to_delete.append(parts[1])
+                elif "/" in url:
+                    file_paths_to_delete.append(url.split("/")[-1])
                 
         if file_paths_to_delete:
             supabase.storage.from_(bucket_name).remove(file_paths_to_delete)
@@ -328,22 +330,23 @@ def delete_images_from_storage_by_urls(image_urls_str, bucket_name="production_i
         st.warning(f"⚠️ Lỗi khi xóa ảnh trên Supabase Storage: {e}")
 
 def permanent_delete_db(db_ids):
+    """Xóa vĩnh viễn dữ liệu và ảnh liên quan hàng loạt"""
     if supabase is None or not db_ids:
         return None
     try:
-        for db_id in db_ids:
-            def _query_sel(client):
-                return client.table("production_logs").select("hinh_anh_url").eq("id", db_id).execute()
-            res = safe_supabase_call(_query_sel)
-            
-            if res and res.data and len(res.data) > 0:
-                img_url = res.data[0].get("hinh_anh_url", "")
-                if img_url:
-                    delete_images_from_storage_by_urls(img_url, bucket_name="production_images")
-            
-            def _query_del(client):
-                return client.table("production_logs").delete().eq("id", db_id).execute()
-            safe_supabase_call(_query_del)
+        # Lấy danh sách ảnh liên quan
+        def _query_sel(client):
+            return client.table("production_logs").select("hinh_anh_url").in_("id", db_ids).execute()
+        res = safe_supabase_call(_query_sel)
+        
+        if res and res.data:
+            urls_to_delete = [row.get("hinh_anh_url", "") for row in res.data if row.get("hinh_anh_url")]
+            delete_images_from_storage_by_urls(urls_to_delete, bucket_name="production_images")
+        
+        # Xóa các bản ghi khỏi database
+        def _query_del(client):
+            return client.table("production_logs").delete().in_("id", db_ids).execute()
+        safe_supabase_call(_query_del)
             
         st.cache_data.clear()
         return True
@@ -579,7 +582,7 @@ def update_all_historical_production_scores_db():
             
             try:
                 he_so_float = float(str(h_so).replace(",", ".").strip())
-            except:
+            except Exception:
                 he_so_float = 1.0
                 
             if key_lowercase:
@@ -598,7 +601,7 @@ def update_all_historical_production_scores_db():
             
             try:
                 so_luong = float(str(log.get("so_luong", 0)).replace(",", ".").strip())
-            except:
+            except Exception:
                 so_luong = 0.0
 
             if log_task in rule_map:
@@ -634,7 +637,7 @@ def update_production_log_record_db(db_id, hang_muc, so_luong, ghi_chu=""):
                     h_so_val = r.get("he_so_diem") if r.get("he_so_diem") is not None else r.get("he_so", 1.0)
                     try:
                         he_so = float(str(h_so_val).replace(",", ".").strip())
-                    except:
+                    except Exception:
                         he_so = 1.0
                     d_vi_val = r.get("don_vi") or r.get("unit") or "Cái"
                     don_vi = str(d_vi_val).strip()
@@ -642,7 +645,7 @@ def update_production_log_record_db(db_id, hang_muc, so_luong, ghi_chu=""):
         
         try:
             qty_float = float(str(so_luong).replace(",", ".").strip())
-        except:
+        except Exception:
             qty_float = 0.0
             
         tong_diem = round(qty_float * he_so, 2)
