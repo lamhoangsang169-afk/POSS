@@ -5,6 +5,7 @@ import pandas as pd
 import datetime
 import base64
 import hashlib
+import requests
 
 # ==================== CẤU HÌNH ĐƯỜNG DẪN HỆ THỐNG GỐC ====================
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -75,11 +76,13 @@ def get_app_memory_usage():
     except Exception:
         return "Ổn định"
 
-# Hàm tính dung lượng Database và File Storage thực tế từ Supabase
+# Hàm tính dung lượng Database, Storage và Băng thông (Egress) Dynamic
 def get_detailed_storage_usage():
     if supabase is None:
-        return "0 MB / 500 MB", "0 MB / 1 GB"
+        return "0 MB / 500 MB", "0 MB / 1 GB", 0.0
+
     try:
+        # 1. Tính toán dung lượng Database
         logs_count = len(supabase.table("production_logs").select("id", count="exact").execute().data)
         att_count = len(supabase.table("attendance").select("id", count="exact").execute().data)
         users_count = len(supabase.table("user_accounts").select("id", count="exact").execute().data)
@@ -91,6 +94,7 @@ def get_detailed_storage_usage():
             db_used_str = f"{estimated_db_kb:.1f} KB"
         db_display = f"{db_used_str} / 500 MB"
 
+        # 2. Tính toán dung lượng Storage
         storage_bytes = 0
         try:
             files_img = supabase.storage.from_("production_images").list()
@@ -106,10 +110,34 @@ def get_detailed_storage_usage():
             storage_display = f"{storage_mb / 1024:.2f} GB / 1 GB"
         else:
             storage_display = f"{storage_mb:.2f} MB / 1 GB"
-            
-        return db_display, storage_display
+
+        # 3. Lấy thông số Băng thông tiêu thụ (Egress) Dynamic
+        project_ref = st.secrets.get("SUPABASE_PROJECT_REF", "")
+        api_token = st.secrets.get("SUPABASE_ACCESS_TOKEN", "")
+        bandwidth_used_gb = 0.0
+
+        if project_ref and api_token:
+            try:
+                headers = {
+                    "Authorization": f"Bearer {api_token}",
+                    "Content-Type": "application/json"
+                }
+                res = requests.get(f"https://api.supabase.com/v1/projects/{project_ref}/usage", headers=headers, timeout=3.0)
+                if res.status_code == 200:
+                    egress_bytes = res.json().get("egress_bytes", 0)
+                    bandwidth_used_gb = egress_bytes / (1024 ** 3)
+            except Exception:
+                pass
+
+        # Fallback ước tính dựa trên Storage nếu chưa cấu hình Management API Token
+        if bandwidth_used_gb == 0.0 and storage_bytes > 0:
+            estimated_read_factor = 3.5
+            bandwidth_used_gb = round((storage_bytes * estimated_read_factor) / (1024 ** 3), 3)
+
+        return db_display, storage_display, bandwidth_used_gb
+
     except Exception:
-        return "0 MB / 500 MB", "0 MB / 1 GB"
+        return "0 MB / 500 MB", "0 MB / 1 GB", 0.0
 
 # ==================== CÁC HÀM CRUD BỔ SUNG ====================
 def save_staff_list_db(edited_df):
@@ -467,7 +495,7 @@ def render_main_content(current_menu_name):
                         if not new_acc_name.strip() or not new_acc_pass:
                             st.error("⚠️ Vui lòng nhập đầy đủ tên nhân sự và mật khẩu!")
                         elif len(new_acc_pass) < 6:
-                            st.error("⚠️️ Mật khẩu phải có ít nhất 6 ký tự!")
+                            st.error("⚠ Mật khẩu phải có ít nhất 6 ký tự!")
                         else:
                             try:
                                 check_exist = supabase.table("user_accounts").select("*").eq("name", new_acc_name.strip()).execute()
@@ -812,22 +840,20 @@ with st.sidebar:
         st.markdown('<div style="background-color: #f8d7da; border: 1px solid #f5c6cb; padding: 10px; border-radius: 8px; text-align: center; font-size: 0.9rem; font-weight: bold; color: #721c24; margin-bottom: 8px;">🔴 Chưa kết nối Supabase</div>', unsafe_allow_html=True)
 
     ram_usage_str = get_app_memory_usage()
-    db_usage_str, storage_usage_str = get_detailed_storage_usage()
+    db_usage_str, storage_usage_str, bandwidth_used_gb = get_detailed_storage_usage()
     total_db_count = get_total_production_count_db()
 
     # --- TÍNH TOÁN TỈ LỆ % DUNG LƯỢNG STORAGE ĐỂ HIỂN THỊ THANH TIẾN ĐỘ ---
     storage_val_mb = 0.0
-    storage_percent = 0.0
     try:
         if "MB" in storage_usage_str:
             storage_val_mb = float(storage_usage_str.split("MB")[0].strip())
         elif "GB" in storage_usage_str:
             storage_val_mb = float(storage_usage_str.split("GB")[0].strip()) * 1024.0
-        
-        storage_percent = min(storage_val_mb / 1024.0, 1.0)
     except Exception:
         pass
 
+    storage_percent = min(storage_val_mb / 1024.0, 1.0)
     storage_warning = storage_percent >= 0.8  
 
     st.markdown(f'<div style="background-color: #f8d7da; border: 1px solid #f5c6cb; padding: 8px; border-radius: 8px; text-align: center; font-size: 0.85rem; font-weight: bold; color: #721c24; margin-bottom: 6px;">🧠 RAM App: {ram_usage_str}</div>', unsafe_allow_html=True)
@@ -840,8 +866,7 @@ with st.sidebar:
     
     st.progress(storage_percent)
 
-    # --- BỔ SUNG THANH HIỂN THỊ BĂNG THÔNG (EGRESS) TRỰC QUAN ---
-    bandwidth_used_gb = 5.265  # Giá trị lấy từ thống kê Egress trên dashboard Supabase của bạn
+    # --- BỔ SUNG THANH HIỂN THỊ BĂNG THÔNG (EGRESS) DYNAMIC ---
     bandwidth_limit_gb = 5.0
     bandwidth_percent = min(bandwidth_used_gb / bandwidth_limit_gb, 1.0)
     bw_warning = bandwidth_used_gb >= bandwidth_limit_gb
