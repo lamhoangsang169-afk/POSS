@@ -1,38 +1,22 @@
 # view/nhap_san_luong.py
 import os
 import sys
-import importlib.util
 import streamlit as st
 import pandas as pd
 import datetime
 import requests
 
-# ==================== NẠP MODULE ĐỘNG THEO ĐƯỜNG DẪN TUYỆT ĐỐI ====================
-current_file_dir = os.path.dirname(os.path.abspath(__file__))
-root_project_dir = os.path.dirname(os.path.dirname(current_file_dir))
-
-def load_module_from_path(module_name, file_path):
-    spec = importlib.util.spec_from_file_location(module_name, file_path)
-    module = importlib.util.module_from_spec(spec)
-    sys.modules[module_name] = module
-    spec.loader.exec_module(module)
-    return module
-
-db_path = os.path.join(root_project_dir, "database.py")
-utils_path = os.path.join(root_project_dir, "utils.py")
-
-db_module = load_module_from_path("database", db_path)
-utils_module = load_module_from_path("utils", utils_path)
-
-VN_TIMEZONE = utils_module.VN_TIMEZONE
-get_production_logs_db = db_module.get_production_logs_db
-add_production_log_db = db_module.add_production_log_db
-update_production_log_deleted_status = db_module.update_production_log_deleted_status
-upload_multiple_images_to_storage = db_module.upload_multiple_images_to_storage
-get_attendance_db = db_module.get_attendance_db
-get_rules_db = db_module.get_rules_db
-update_production_log_record_db = getattr(db_module, "update_production_log_record_db", None)
-
+# Import trực tiếp các module từ hệ thống đã cấu hình sys.path
+from utils import VN_TIMEZONE
+from database import (
+    get_production_logs_db,
+    add_production_log_db,
+    update_production_log_deleted_status,
+    upload_multiple_images_to_storage,
+    get_attendance_db,
+    get_rules_db,
+    update_production_log_record_db
+)
 
 # ==================== HÀM PHỤ TRỢ: LẤY DUNG LƯỢNG ẢNH AN TOÀN ====================
 @st.cache_data(ttl=3600, show_spinner=False)
@@ -95,4 +79,16 @@ def render_production_table_fragment(raw_input_df, current_user_role, user_perms
             with t_col2:
                 end_t = st.time_input("Đến", value=datetime.time(17, 0), label_visibility="collapsed", key="f_end_t_live")
         else:
-            start_t,
+            start_t, end_t = None, None
+            
+    with f_col4:
+        all_staff_opts = ["Tất cả"] + sorted(raw_input_df["Nhân Sự"].dropna().unique().tolist())
+        filter_staff = st.selectbox("Lọc theo Nhân Sự", all_staff_opts, key="f_staff_live")
+
+    try:
+        rules_df = get_rules_db()
+    except Exception:
+        rules_df = pd.DataFrame()
+    raw_tasks = rules_df["Hạng Mục Công Việc"].tolist() if not rules_df.empty and "Hạng Mục Công Việc" in rules_df.columns else []
+    danh_sach_hang_muc = [str(t).strip() for t in raw_tasks if pd.notna(t) and str(t).strip() and str(t).strip().lower() not in ["nan", "none"]]
+    if not danh_s
