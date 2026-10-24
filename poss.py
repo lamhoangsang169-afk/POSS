@@ -25,9 +25,11 @@ from utils import (
     calculate_exact_minutes, 
     hex_to_rgba
 )
+# ĐÃ SỬA LỖI 5: Import trực tiếp save_app_settings_db và safe_supabase_call từ database
 from database import (
     supabase, 
     is_supabase_connected, 
+    safe_supabase_call,
     init_db_data,
     get_staff_df_db, 
     get_staff_list_db, 
@@ -37,6 +39,7 @@ from database import (
     get_total_production_count_db, 
     get_attendance_db,
     load_app_settings_db,
+    save_app_settings_db,
     cleanup_orphan_storage_files,
     delete_storage_files_by_date_range
 )
@@ -140,46 +143,71 @@ def get_detailed_storage_usage():
         return "0 MB / 500 MB", "0 MB / 1 GB", 0.0
 
 # ==================== CÁC HÀM CRUD BỔ SUNG ====================
+# ĐÃ SỬA LỖI 3: Đồng bộ trực tiếp với bảng user_accounts (giữ nguyên mật khẩu & quyền hạn cũ) và đồng bộ sang bảng staff nếu có
 def save_staff_list_db(edited_df):
     if supabase is None:
         return
     try:
-        res_old = supabase.table("staff").select("id, name").execute()
-        old_staffs = {row["id"]: row["name"] for row in res_old.data} if res_old.data else {}
+        res_old = safe_supabase_call(lambda client: client.table("user_accounts").select("id, name, role").execute())
+        old_staffs = {row["id"]: row for row in res_old.data} if res_old and res_old.data else {}
         old_ids = list(old_staffs.keys())
         
         current_ids_in_editor = []
         for _, row in edited_df.iterrows():
             name = str(row.get("name", "")).strip()
             row_id = row.get("id")
+            role_val = str(row.get("role", "Staff")).strip() if pd.notna(row.get("role")) and str(row.get("role")).strip() else "Staff"
+            
             if not name or name.lower() in ["nan", "none"]:
                 continue
+                
             if pd.notna(row_id) and int(row_id) in old_ids:
-                supabase.table("staff").update({"name": name}).eq("id", int(row_id)).execute()
-                current_ids_in_editor.append(int(row_id))
+                uid = int(row_id)
+                old_name = old_staffs[uid].get("name", "")
+                update_payload = {"name": name}
+                if "role" in edited_df.columns and pd.notna(row.get("role")):
+                    update_payload["role"] = role_val
+                safe_supabase_call(lambda client, u=uid, p=update_payload: client.table("user_accounts").update(p).eq("id", u).execute())
+                
+                # Đồng bộ cập nhật tên bên bảng staff (nếu tồn tại) để giữ tương thích ngược
+                if old_name and old_name != name:
+                    try:
+                        supabase.table("staff").update({"name": name}).eq("name", old_name).execute()
+                    except Exception:
+                        pass
+                current_ids_in_editor.append(uid)
             else:
-                res_ins = supabase.table("staff").insert({"name": name}).execute()
-                if res_ins.data:
+                new_user_payload = {
+                    "name": name,
+                    "password_hash": hash_password("123456"),
+                    "role": role_val if role_val in ["Admin", "Manager", "Staff"] else "Staff",
+                    "perm_input": True if role_val == "Admin" else False,
+                    "perm_report": True if role_val == "Admin" else False,
+                    "perm_attendance": True,
+                    "perm_rules": True if role_val == "Admin" else False
+                }
+                res_ins = safe_supabase_call(lambda client, p=new_user_payload: client.table("user_accounts").insert(p).execute())
+                if res_ins and res_ins.data:
                     current_ids_in_editor.append(res_ins.data[0]["id"])
+                try:
+                    supabase.table("staff").insert({"name": name}).execute()
+                except Exception:
+                    pass
                     
         ids_to_delete = [oid for oid in old_ids if oid not in current_ids_in_editor]
         for del_id in ids_to_delete:
-            supabase.table("staff").delete().eq("id", del_id).execute()
+            del_name = old_staffs[del_id].get("name", "")
+            safe_supabase_call(lambda client, d=del_id: client.table("user_accounts").delete().eq("id", d).execute())
+            if del_name:
+                try:
+                    supabase.table("staff").delete().eq("name", del_name).execute()
+                except Exception:
+                    pass
             
+        get_staff_df_db.clear()
         st.cache_data.clear()
     except Exception as e:
         st.error(f"Lỗi khi lưu nhân sự: {e}")
-
-def save_app_settings_db(settings_dict):
-    if supabase is None:
-        return
-    try:
-        payload = {"id": 1, **settings_dict}
-        supabase.table("app_settings").upsert(payload).execute()
-        load_app_settings_db.clear()
-        st.cache_data.clear()
-    except Exception as e:
-        st.error(f"Lỗi lưu cấu hình: {e}")
 
 # ==================== KIỂM TRA ĐĂNG NHẬP SESSION ====================
 if "logged_in" not in st.session_state:
@@ -453,7 +481,8 @@ def render_main_content(current_menu_name):
                     hide_index=True,
                     column_config={
                         "id": st.column_config.NumberColumn("ID", disabled=True),
-                        "name": st.column_config.TextColumn("Họ và tên nhân sự", required=True)
+                        "name": st.column_config.TextColumn("Họ và tên nhân sự", required=True),
+                        "role": None
                     }
                 )
                 
@@ -532,7 +561,7 @@ def render_main_content(current_menu_name):
                             "perm_rules": False
                         }).execute()
 
-                res_roles = supabase.table("user_accounts").select("*").execute() if supabase else None
+                res_roles = supabase.table("user_accounts").select("*").order("id", desc=False).execute() if supabase else None
                 if res_roles and res_roles.data:
                     roles_df = pd.DataFrame(res_roles.data)
                     
@@ -609,7 +638,10 @@ def render_main_content(current_menu_name):
                                 else:
                                     try:
                                         supabase.table("user_accounts").delete().eq("name", target_staff_del).execute()
-                                        supabase.table("staff").delete().eq("name", target_staff_del).execute()
+                                        try:
+                                            supabase.table("staff").delete().eq("name", target_staff_del).execute()
+                                        except Exception:
+                                            pass
                                         supabase.table("production_logs").delete().eq("nhan_su", target_staff_del).execute()
                                         supabase.table("attendance").delete().eq("nhan_su", target_staff_del).execute()
                                         supabase.table("error_logs").delete().eq("nhan_su", target_staff_del).execute()
