@@ -283,4 +283,108 @@ if not st.session_state.logged_in:
                                     st.success("✅ Đăng nhập thành công!")
                                     st.rerun()
                                 else:
-                                    st.error("❌ Mật khẩu
+                                    st.error("❌ Mật khẩu không chính xác!")
+                            else:
+                                st.error("❌ Tài khoản chưa được Quản trị viên cấp mật khẩu!")
+                        except Exception as e:
+                            st.error(f"❌ Lỗi đăng nhập: {e}")
+        st.markdown("</div>", unsafe_allow_html=True)
+    st.stop()
+
+# ==================== PHÂN QUYỀN TÀI KHOẢN ====================
+def get_user_permissions(identifier):
+    default_perms = {"role": "Staff", "perm_input": False, "perm_report": False, "perm_attendance": True, "perm_rules": False}
+    if not identifier or supabase is None:
+        return default_perms
+    clean_id = str(identifier).strip().lower()
+    if clean_id == "lamhoangsang169@gmail.com":
+        return {"role": "Admin", "perm_input": True, "perm_report": True, "perm_attendance": True, "perm_rules": True}
+    try:
+        res = safe_supabase_call(lambda client: client.table("user_accounts").select("*").eq("name", identifier).execute())
+        if res and res.data and len(res.data) > 0:
+            row = res.data[0]
+            return {
+                "role": row.get("role", "Staff") if pd.notna(row.get("role")) else "Staff",
+                "perm_input": bool(row.get("perm_input")) if pd.notna(row.get("perm_input")) else False,
+                "perm_report": bool(row.get("perm_report")) if pd.notna(row.get("perm_report")) else False,
+                "perm_attendance": bool(row.get("perm_attendance")) if pd.notna(row.get("perm_attendance")) else True,
+                "perm_rules": bool(row.get("perm_rules")) if pd.notna(row.get("perm_rules")) else False
+            }
+    except Exception:
+        pass
+    return default_perms
+
+user_perms = get_user_permissions(st.session_state.user_identifier)
+current_user_role = user_perms["role"]
+
+# ==================== KHỞI TẠO & ĐỒNG BỘ CẤU HÌNH TỪ DATABASE ====================
+st.session_state.staff_list = get_staff_list_db()
+if "rules_df" not in st.session_state:
+    try:
+        st.session_state.rules_df = get_rules_db()
+    except Exception:
+        st.session_state.rules_df = pd.DataFrame()
+
+db_settings = load_app_settings_db()
+
+if not db_settings:
+    db_settings = {
+        "primary_color": "#ff4b4b",
+        "bg_color": "#ffffff",
+        "sidebar_bg": "#f0f2f6",
+        "sidebar_opacity": 0.9,
+        "text_color": "#31333F"
+    }
+    try:
+        save_app_settings_db(db_settings)
+    except Exception:
+        pass
+
+st.session_state.primary_color = db_settings.get("primary_color", "#ff4b4b")
+st.session_state.bg_color = db_settings.get("bg_color", "#ffffff")
+st.session_state.sidebar_bg = db_settings.get("sidebar_bg", "#f0f2f6")
+
+val_opacity = db_settings.get("sidebar_opacity", 0.9)
+try:
+    st.session_state.sidebar_opacity = float(val_opacity) if val_opacity is not None and str(val_opacity).strip() != "" else 0.9
+except Exception:
+    st.session_state.sidebar_opacity = 0.9
+
+st.session_state.text_color = db_settings.get("text_color", "#31333F")
+st.session_state.bg_image_base64 = db_settings.get("bg_image_base64", None)
+st.session_state.avatar_base64 = db_settings.get("avatar_base64", None)
+
+if "current_menu" not in st.session_state: 
+    st.session_state.current_menu = "1. Nhập Sản Lượng"
+
+bg_style = f"background-color: {st.session_state.bg_color};"
+if st.session_state.bg_image_base64:
+    bg_style = f"background-image: url(data:image/jpeg;base64,{st.session_state.bg_image_base64}); background-size: cover; background-repeat: no-repeat; background-position: center; background-attachment: fixed;"
+
+sidebar_rgba = hex_to_rgba(st.session_state.sidebar_bg, st.session_state.sidebar_opacity)
+
+st.markdown(f"""
+<style>
+    .stApp {{ 
+        {bg_style} 
+        color: {st.session_state.text_color} !important; 
+        -webkit-print-color-adjust: exact;
+    }}
+    h1, h2, h3, h4, h5, h6, p, span, label, div {{
+        color: {st.session_state.text_color} !important;
+    }}
+    [data-testid="stSidebar"] {{ background-color: {sidebar_rgba} !important; backdrop-filter: blur(8px); }}
+    [data-testid="stSidebar"] > div:first-child {{ display: flex; flex-direction: column; height: 100vh; overflow-y: auto !important; padding: 0px !important; }}
+    .fixed-avatar-container {{ position: sticky; top: 0; z-index: 999999; background-color: {sidebar_rgba}; padding-top: 15px; padding-bottom: 15px; border-bottom: 2px solid {st.session_state.primary_color}; margin-bottom: 10px; text-align: center; flex-shrink: 0; backdrop-filter: blur(8px); }}
+    .avatar-wrapper {{ position: relative; width: 140px; height: 140px; margin: 0 auto; }}
+    .sidebar-scrollable-content {{ flex-grow: 1; padding-left: 1rem; padding-right: 1rem; padding-bottom: 50px; }}
+</style>
+""", unsafe_allow_html=True)
+
+# ==================== ĐỊNH NGHĨA HÀM ĐIỀU HƯỚNG NỘI DUNG CHÍNH ====================
+@st.fragment
+def render_main_content(current_menu_name):
+    menu_lower = current_menu_name.lower()
+    
+    if "nhập sản lượng" in menu_lower:
+        nhap_san_luong.render
