@@ -222,4 +222,210 @@ if "user_identifier" not in st.session_state:
     st.session_state.user_identifier = ""
 
 params = st.query_params
-if not
+if not st.session_state.logged_in and "auth_user" in params:
+    st.session_state.logged_in = True
+    st.session_state.user_identifier = params["auth_user"]
+
+if not st.session_state.logged_in:
+    st.markdown("<br><br>", unsafe_allow_html=True)
+    col_l1, col_l2, col_l3 = st.columns([1, 1.2, 1])
+    with col_l2:
+        st.markdown("""
+        <div style="background: rgba(255, 255, 255, 0.9); padding: 25px 30px 10px 30px; border-radius: 12px 12px 0 0; box-shadow: 0 8px 20px rgba(0,0,0,0.15); border: 1px solid #e2e8f0; border-bottom: none;">
+            <h2 style="text-align: center; color: #ff4b4b; margin-bottom: 0px;">🔐 HỆ THỐNG POSS</h2>
+            <p style="text-align: center; color: #64748b; font-size: 0.9rem; margin-top: 5px;">Đăng nhập hệ thống nội bộ</p>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        st.markdown("<div style='background: rgba(255, 255, 255, 0.9); padding: 20px 30px 30px 30px; border-radius: 0 0 12px 12px; box-shadow: 0 8px 20px rgba(0,0,0,0.15); border: 1px solid #e2e8f0; border-top: none;'>", unsafe_allow_html=True)
+        
+        tab_admin, tab_staff = st.tabs(["👑 Quản Trị Viên", "👤 Nhân Viên"])
+        
+        with tab_admin:
+            with st.form("login_admin_form"):
+                email_input = st.text_input("📧 Email Admin", placeholder="lamhoangsang169@gmail.com")
+                password_admin = st.text_input("🔑 Mật khẩu", type="password", placeholder="Nhập mật khẩu...", key="pw_admin")
+                remember_admin = st.checkbox("📌 Ghi nhớ đăng nhập", value=True, key="rem_admin")
+                
+                if st.form_submit_button("🚀 Đăng Nhập Quản Trị Viên", use_container_width=True):
+                    if not email_input or not password_admin:
+                        st.error("⚠️ Vui lòng nhập đầy đủ Email và Mật khẩu!")
+                    elif supabase is None:
+                        st.error("⚠ Chưa kết nối được tới cơ sở dữ liệu!")
+                    else:
+                        try:
+                            clean_email = email_input.strip()
+                            res = supabase.auth.sign_in_with_password({
+                                "email": clean_email,
+                                "password": password_admin.strip()
+                            })
+                            if res and res.user:
+                                st.session_state.logged_in = True
+                                st.session_state.user_identifier = res.user.email
+                                if remember_admin:
+                                    st.query_params["auth_user"] = res.user.email
+                                st.success("✅ Đăng nhập Admin thành công!")
+                                st.rerun()
+                            else:
+                                st.error("❌ Email hoặc mật khẩu Admin không chính xác!")
+                        except Exception as e:
+                            st.error(f"❌ Lỗi đăng nhập: {e}")
+            
+        with tab_staff:
+            with st.form("login_staff_form"):
+                staff_list_opt = ["--- Chọn họ và tên ---"] + get_staff_list_db()
+                login_name = st.selectbox("👤 Họ và tên nhân sự", staff_list_opt)
+                password_staff = st.text_input("🔑 Mật khẩu", type="password", placeholder="Nhập mật khẩu...", key="pw_staff")
+                remember_staff = st.checkbox("📌 Ghi nhớ đăng nhập", value=True, key="rem_staff")
+                
+                if st.form_submit_button("🚀 Đăng Nhập Nhân Viên", use_container_width=True):
+                    if login_name == "--- Chọn họ và tên ---" or not password_staff:
+                        st.error("⚠️ Vui lòng chọn họ tên và nhập mật khẩu!")
+                    elif supabase is None:
+                        st.error("⚠️ Chưa kết nối được tới cơ sở dữ liệu!")
+                    else:
+                        try:
+                            res = supabase.table("user_accounts").select("*").eq("name", login_name).execute()
+                            if res.data and len(res.data) > 0:
+                                user_record = res.data[0]
+                                if user_record["password_hash"] == hash_password(password_staff):
+                                    st.session_state.logged_in = True
+                                    st.session_state.user_identifier = login_name
+                                    if remember_staff:
+                                        st.query_params["auth_user"] = login_name
+                                    st.success("✅ Đăng nhập thành công!")
+                                    st.rerun()
+                                else:
+                                    st.error("❌ Mật khẩu không chính xác!")
+                            else:
+                                st.error("❌ Tài khoản chưa được Quản trị viên cấp mật khẩu!")
+                        except Exception as e:
+                            st.error(f"❌ Lỗi đăng nhập: {e}")
+        st.markdown("</div>", unsafe_allow_html=True)
+    st.stop()
+
+# ==================== PHÂN QUYỀN TÀI KHOẢN ====================
+def get_user_permissions(identifier):
+    default_perms = {"role": "Staff", "perm_input": False, "perm_report": False, "perm_attendance": True, "perm_rules": False}
+    if not identifier or supabase is None:
+        return default_perms
+    clean_id = str(identifier).strip().lower()
+    if clean_id == "lamhoangsang169@gmail.com":
+        return {"role": "Admin", "perm_input": True, "perm_report": True, "perm_attendance": True, "perm_rules": True}
+    try:
+        res = safe_supabase_call(lambda client: client.table("user_accounts").select("*").eq("name", identifier).execute())
+        if res and res.data and len(res.data) > 0:
+            row = res.data[0]
+            return {
+                "role": row.get("role", "Staff") if pd.notna(row.get("role")) else "Staff",
+                "perm_input": bool(row.get("perm_input")) if pd.notna(row.get("perm_input")) else False,
+                "perm_report": bool(row.get("perm_report")) if pd.notna(row.get("perm_report")) else False,
+                "perm_attendance": bool(row.get("perm_attendance")) if pd.notna(row.get("perm_attendance")) else True,
+                "perm_rules": bool(row.get("perm_rules")) if pd.notna(row.get("perm_rules")) else False
+            }
+    except Exception:
+        pass
+    return default_perms
+
+user_perms = get_user_permissions(st.session_state.user_identifier)
+current_user_role = user_perms["role"]
+
+# ==================== KHỞI TẠO & ĐỒNG BỘ CẤU HÌNH TỪ DATABASE ====================
+st.session_state.staff_list = get_staff_list_db()
+if "rules_df" not in st.session_state:
+    try:
+        st.session_state.rules_df = get_rules_db()
+    except Exception:
+        st.session_state.rules_df = pd.DataFrame()
+
+db_settings = load_app_settings_db()
+
+if not db_settings:
+    db_settings = {
+        "primary_color": "#ff4b4b",
+        "bg_color": "#ffffff",
+        "sidebar_bg": "#f0f2f6",
+        "sidebar_opacity": 0.9,
+        "text_color": "#31333F"
+    }
+    try:
+        save_app_settings_db(db_settings)
+    except Exception:
+        pass
+
+st.session_state.primary_color = db_settings.get("primary_color", "#ff4b4b")
+st.session_state.bg_color = db_settings.get("bg_color", "#ffffff")
+st.session_state.sidebar_bg = db_settings.get("sidebar_bg", "#f0f2f6")
+
+val_opacity = db_settings.get("sidebar_opacity", 0.9)
+try:
+    st.session_state.sidebar_opacity = float(val_opacity) if val_opacity is not None and str(val_opacity).strip() != "" else 0.9
+except Exception:
+    st.session_state.sidebar_opacity = 0.9
+
+st.session_state.text_color = db_settings.get("text_color", "#31333F")
+st.session_state.bg_image_base64 = db_settings.get("bg_image_base64", None)
+st.session_state.avatar_base64 = db_settings.get("avatar_base64", None)
+
+if "current_menu" not in st.session_state: 
+    st.session_state.current_menu = "1. Nhập Sản Lượng"
+
+bg_style = f"background-color: {st.session_state.bg_color};"
+if st.session_state.bg_image_base64:
+    bg_style = f"background-image: url(data:image/jpeg;base64,{st.session_state.bg_image_base64}); background-size: cover; background-repeat: no-repeat; background-position: center; background-attachment: fixed;"
+
+sidebar_rgba = hex_to_rgba(st.session_state.sidebar_bg, st.session_state.sidebar_opacity)
+
+st.markdown(f"""
+<style>
+    .stApp {{ 
+        {bg_style} 
+        color: {st.session_state.text_color} !important; 
+        -webkit-print-color-adjust: exact;
+    }}
+    h1, h2, h3, h4, h5, h6, p, span, label, div {{
+        color: {st.session_state.text_color} !important;
+    }}
+    [data-testid="stSidebar"] {{ background-color: {sidebar_rgba} !important; backdrop-filter: blur(8px); }}
+    [data-testid="stSidebar"] > div:first-child {{ display: flex; flex-direction: column; height: 100vh; overflow-y: auto !important; padding: 0px !important; }}
+    .fixed-avatar-container {{ position: sticky; top: 0; z-index: 999999; background-color: {sidebar_rgba}; padding-top: 15px; padding-bottom: 15px; border-bottom: 2px solid {st.session_state.primary_color}; margin-bottom: 10px; text-align: center; flex-shrink: 0; backdrop-filter: blur(8px); }}
+    .avatar-wrapper {{ position: relative; width: 140px; height: 140px; margin: 0 auto; }}
+    .sidebar-scrollable-content {{ flex-grow: 1; padding-left: 1rem; padding-right: 1rem; padding-bottom: 50px; }}
+</style>
+""", unsafe_allow_html=True)
+
+# ==================== ĐỊNH NGHĨA HÀM ĐIỀU HƯỚNG NỘI DUNG CHÍNH ====================
+@st.fragment
+def render_main_content(current_menu_name):
+    menu_lower = current_menu_name.lower()
+    
+    if "nhập sản lượng" in menu_lower:
+        if nhap_san_luong: nhap_san_luong.render_nhap_san_luong(current_menu_name, current_user_role, user_perms)
+        else: st.error("⚠️ Không tìm thấy module `nhap_san_luong`")
+    elif "chấm công" in menu_lower:
+        if cham_cong: cham_cong.render_cham_cong(current_menu_name, current_user_role)
+        else: st.error("⚠️ Không tìm thấy module `cham_cong`")
+    elif "thư mục báo cáo" in menu_lower:
+        if thu_muc_bao_cao: thu_muc_bao_cao.render_thu_muc_bao_cao(current_menu_name)
+        else: st.error("⚠️ Không tìm thấy module `thu_muc_bao_cao`")
+    elif "báo cáo" in menu_lower or "thống kê" in menu_lower:
+        if bao_cao: bao_cao.render_bao_cao(current_menu_name)
+        else: st.error("⚠️ Không tìm thấy module `bao_cao`")
+    elif "định mức" in menu_lower or "tham chiếu" in menu_lower:
+        if dinh_muc_cong_viec: dinh_muc_cong_viec.render_dinh_muc_cong_viec(current_menu_name, current_user_role, user_perms)
+        else: st.error("⚠️ Không tìm thấy module `dinh_muc_cong_viec`")
+    elif "quản lý lỗi" in menu_lower or "quan ly loi" in menu_lower or "lỗi" in menu_lower:
+        if quan_ly_loi: quan_ly_loi.render_quan_ly_loi(current_menu_name)
+        else: st.error("⚠️ Không tìm thấy module `quan_ly_loi`")
+    elif "thùng rác" in menu_lower:
+        if thung_rac: thung_rac.render_thung_rac(current_menu_name, current_user_role)
+        else: st.error("⚠️ Không tìm thấy module `thung_rac`")
+
+    # ==================== CÀI ĐẶT GIAO DIỆN ====================
+    elif current_menu_name == "🎨 Cài Đặt Giao Diện":
+        col_ui_h1, col_ui_h2 = st.columns([3, 1])
+        with col_ui_h1:
+            st.header("Cài Đặt Giao Diện & Nhân Sự")
+        with col_ui_h2:
+            if st.button("🔄 Làm mới dữ liệu", use_container_width=True, key="btn_refresh_ui"):
+                st.cache_data.
