@@ -1,37 +1,27 @@
 # view/nhap_san_luong.py
 import os
 import sys
-import importlib.util
 import streamlit as st
 import pandas as pd
 import datetime
 import requests
 
-# ==================== NẠP MODULE ĐỘNG THEO ĐƯỜNG DẪN TUYỆT ĐỐI ====================
+# ==================== ĐÃ SỬA LỖI 6: IMPORT TRỰC TIẾP CHUẨN XÁC, KHÔNG GHI ĐÈ SYS.MODULES ====================
 current_file_dir = os.path.dirname(os.path.abspath(__file__))
 root_project_dir = os.path.dirname(os.path.dirname(current_file_dir))
+if root_project_dir not in sys.path:
+    sys.path.insert(0, root_project_dir)
 
-def load_module_from_path(module_name, file_path):
-    spec = importlib.util.spec_from_file_location(module_name, file_path)
-    module = importlib.util.module_from_spec(spec)
-    sys.modules[module_name] = module
-    spec.loader.exec_module(module)
-    return module
-
-db_path = os.path.join(root_project_dir, "database.py")
-utils_path = os.path.join(root_project_dir, "utils.py")
-
-db_module = load_module_from_path("database", db_path)
-utils_module = load_module_from_path("utils", utils_path)
-
-VN_TIMEZONE = utils_module.VN_TIMEZONE
-get_production_logs_db = db_module.get_production_logs_db
-add_production_log_db = db_module.add_production_log_db
-update_production_log_deleted_status = db_module.update_production_log_deleted_status
-upload_multiple_images_to_storage = db_module.upload_multiple_images_to_storage
-get_attendance_db = db_module.get_attendance_db
-get_rules_db = db_module.get_rules_db
-update_production_log_record_db = getattr(db_module, "update_production_log_record_db", None)
+from utils import VN_TIMEZONE
+from database import (
+    get_production_logs_db,
+    add_production_log_db,
+    update_production_log_deleted_status,
+    upload_multiple_images_to_storage,
+    get_attendance_db,
+    get_rules_db,
+    update_production_log_record_db
+)
 
 
 # ==================== HÀM PHỤ TRỢ: LẤY DUNG LƯỢNG ẢNH AN TOÀN ====================
