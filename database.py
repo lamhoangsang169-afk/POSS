@@ -6,7 +6,7 @@ import streamlit as st
 import pandas as pd
 from supabase import create_client, Client
 
-# Khởi tạo kết nối Supabase an toàn qua st.secrets (hoặc fallback nếu chưa cấu hình secrets)
+# Khởi tạo kết nối Supabase an toàn qua st.secrets (hoặc fallback nếu chưa cấu hình secrets)[cite: 13]
 @st.cache_resource
 def init_supabase():
     try:
@@ -24,7 +24,7 @@ def init_supabase():
 
 supabase = init_supabase()
 
-# HÀM BỌC AN TOÀN: Tự động bắt lỗi JWT expired / PGRST303 và làm mới kết nối ngầm
+# HÀM BỌC AN TOÀN: Tự động bắt lỗi JWT expired / PGRST303 và làm mới kết nối ngầm[cite: 13]
 def safe_supabase_call(query_func):
     global supabase
     if supabase is None:
@@ -47,7 +47,7 @@ def safe_supabase_call(query_func):
 is_supabase_connected = supabase is not None
 
 def init_db_data():
-    """Đảm bảo các bảng cấu hình luôn có sẵn dòng id = 1 để F5 không bị mất dữ liệu"""
+    """Đảm bảo các bảng cấu hình luôn có sẵn dòng id = 1 để F5 không bị mất dữ liệu"""[cite: 13]
     if supabase is None:
         return
     try:
@@ -123,7 +123,6 @@ def get_staff_list_db():
         return df["name"].dropna().tolist()
     return []
 
-# ĐÃ SỬA LỖI 1: Gỡ bỏ @st.cache_data khỏi hàm INSERT để đảm bảo luôn ghi dữ liệu mới vào DB
 def add_production_log_db(ngay, gio, nhan_su, hang_muc, anh, don_vi, so_luong, he_so, tong_diem, ghi_chu):
     try:
         try:
@@ -162,7 +161,6 @@ def get_production_logs_db(is_deleted=False, limit_rows=1000):
         res = safe_supabase_call(_query)
         if res and res.data:
             df = pd.DataFrame(res.data)
-            # ĐÃ SỬA LỖI 4: Ánh xạ chuẩn cả "he_so_diem" và "he_so" sang "Hệ Số"
             rename_dict = {
                 "id": "db_id", "ngay": "Ngày", "thoi_gian": "Thời Gian",
                 "nhan_su": "Nhân Sự", "hang_muc_cong_viec": "Hạng Mục Công Việc",
@@ -189,7 +187,6 @@ def get_production_logs_by_date_range(start_date, end_date):
         res = safe_supabase_call(_query)
         if res and res.data:
             df = pd.DataFrame(res.data)
-            # ĐÃ SỬA LỖI 4: Ánh xạ chuẩn cả "he_so_diem" và "he_so" sang "Hệ Số"
             rename_dict = {
                 "id": "db_id", "ngay": "Ngày", "thoi_gian": "Thời Gian",
                 "nhan_su": "Nhân Sự", "hang_muc_cong_viec": "Hạng Mục Công Việc",
@@ -474,17 +471,23 @@ def get_error_logs_db(limit_rows=1000):
         res = safe_supabase_call(_query)
         if res and res.data:
             df = pd.DataFrame(res.data)
-            df = df.rename(columns={
+            rename_dict = {
                 "id": "db_id", "ngay": "Ngày", "nhan_su": "Nhân Sự",
                 "phan_loai_loi": "Phân Loại Lỗi", "so_luong": "Số Lượng",
                 "ghi_chu": "Ghi Chú", "so_anh_dinh_kem": "Số Ảnh Đính Kèm"
-            })
+            }
+            if "he_so_diem" in df.columns:
+                rename_dict["he_so_diem"] = "Hệ Số Điểm"
+            if "tong_diem" in df.columns:
+                rename_dict["tong_diem"] = "Tổng Điểm"
+            df = df.rename(columns=rename_dict)
             return df
     except Exception:
         pass
     return pd.DataFrame()
 
-def add_error_log_with_images_db(ngay, nhan_su, phan_loai_loi, so_luong, ghi_chu, images_base64_str):
+# Đã cập nhật hàm thêm lỗi hỗ trợ hệ số điểm và tổng điểm
+def add_error_log_with_images_db(ngay, nhan_su, phan_loai_loi, so_luong, ghi_chu, images_base64_str, he_so_diem=1.0, tong_diem=0.0):
     if supabase is None:
         return None
     try:
@@ -494,7 +497,9 @@ def add_error_log_with_images_db(ngay, nhan_su, phan_loai_loi, so_luong, ghi_chu
             "phan_loai_loi": phan_loai_loi,
             "so_luong": so_luong,
             "ghi_chu": ghi_chu,
-            "so_anh_dinh_kem": images_base64_str
+            "so_anh_dinh_kem": images_base64_str,
+            "he_so_diem": he_so_diem,
+            "tong_diem": tong_diem
         }
         def _query(client):
             return client.table("error_logs").insert(data).execute()
@@ -530,7 +535,6 @@ def save_error_categories_db(categories_list):
         def _query(client):
             return client.table("error_settings").upsert(data).execute()
         response = safe_supabase_call(_query)
-        # ĐÃ SỬA LỖI 2: Gọi đúng tên hàm get_error_categories_db.clear() thay vì load_error_categories_db
         get_error_categories_db.clear()
         st.cache_data.clear()
         return response
