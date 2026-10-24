@@ -355,7 +355,7 @@ def render_nhap_san_luong(*args, **kwargs):
             record_images = st.file_uploader("Tải ảnh đính kèm (Tối đa 4 ảnh)", type=["png", "jpg", "jpeg"], accept_multiple_files=True, key=uploader_key)
                 
             f_col4, f_col5 = st.columns(2)
-            with f_col4: so_luong = st.number_input("Số lượng thực tế", min_value=0.0, value=0.0, step=0.1, format="%.2f")
+            with f_col4: so_luong = st.number_input("Số lượng thực tế", min_value=0, value=0.0, step=0.1, format="%.2f")
             with f_col5: ghi_chu = st.text_input("Ghi chú", "")
                 
             submitted = st.form_submit_button("📊 Báo Cáo Sản Lượng", use_container_width=True)
