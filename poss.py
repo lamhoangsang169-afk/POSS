@@ -320,43 +320,4 @@ def get_user_permissions(identifier):
                 "role": row.get("role", "Staff") if pd.notna(row.get("role")) else "Staff",
                 "perm_input": bool(row.get("perm_input")) if pd.notna(row.get("perm_input")) else False,
                 "perm_report": bool(row.get("perm_report")) if pd.notna(row.get("perm_report")) else False,
-                "perm_attendance": bool(row.get("perm_attendance")) if pd.notna(row.get("perm_attendance")) else True,
-                "perm_rules": bool(row.get("perm_rules")) if pd.notna(row.get("perm_rules")) else False
-            }
-    except Exception:
-        pass
-    return default_perms
-
-user_perms = get_user_permissions(st.session_state.user_identifier)
-current_user_role = user_perms["role"]
-
-# ==================== KHỞI TẠO & ĐỒNG BỘ CẤU HÌNH TỪ DATABASE ====================
-st.session_state.staff_list = get_staff_list_db()
-if "rules_df" not in st.session_state:
-    try:
-        st.session_state.rules_df = get_rules_db()
-    except Exception:
-        st.session_state.rules_df = pd.DataFrame()
-
-db_settings = load_app_settings_db()
-
-if not db_settings:
-    db_settings = {
-        "primary_color": "#ff4b4b",
-        "bg_color": "#ffffff",
-        "sidebar_bg": "#f0f2f6",
-        "sidebar_opacity": 0.9,
-        "text_color": "#31333F"
-    }
-    try:
-        save_app_settings_db(db_settings)
-    except Exception:
-        pass
-
-st.session_state.primary_color = db_settings.get("primary_color", "#ff4b4b")
-st.session_state.bg_color = db_settings.get("bg_color", "#ffffff")
-st.session_state.sidebar_bg = db_settings.get("sidebar_bg", "#f0f2f6")
-
-val_opacity = db_settings.get("sidebar_opacity", 0.9)
-try:
-    st.session_state
+                "perm_attendance": bool(
