@@ -281,7 +281,9 @@ def render_quan_ly_loi(current_menu_name):
                                 db_id = val
                                 break
 
-                    stt_hien_thi = start_idx + idx + 1
+                    # ĐẢO NGƯỢC STT ĐẾM NGƯỢC TỪ TRÊN XUỐNG DƯỚI
+                    stt_hien_thi = total_records - (start_idx + idx)
+                    
                     ngay_val = row.get('Ngày', '')
                     nhan_su_val = row.get('Nhân Sự', '')
                     phan_loai_val = row.get('Phân Loại Lỗi', '')
