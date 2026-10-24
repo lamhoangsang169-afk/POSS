@@ -355,7 +355,15 @@ def render_nhap_san_luong(*args, **kwargs):
             record_images = st.file_uploader("Tải ảnh đính kèm (Tối đa 4 ảnh)", type=["png", "jpg", "jpeg"], accept_multiple_files=True, key=uploader_key)
                 
             f_col4, f_col5 = st.columns(2)
-            with f_col4: so_luong = st.number_input("Số lượng thực tế", value=None, step=0.1, placeholder="Nhập số lượng...", format="%.2f")
+            with f_col4: 
+    # Dùng text_input với giá trị mặc định là "0" để hiển thị số 0 sẵn
+    so_luong_str = st.text_input("Số lượng thực tế", value="0")
+    
+    # Tự động chuyển đổi chuỗi vừa nhập sang số thực để tính toán, tự động bắt lỗi nếu người dùng gõ chữ
+    try:
+        so_luong = float(str(so_luong_str).replace(",", ".").strip())
+    except:
+        so_luong = 0.0
             with f_col5: ghi_chu = st.text_input("Ghi chú", "")
                 
             submitted = st.form_submit_button("📊 Báo Cáo Sản Lượng", use_container_width=True)
