@@ -708,4 +708,164 @@ def render_main_content(current_menu_name):
                             all_account_names = roles_df["name"].tolist() if "name" in roles_df.columns else staff_list_names
                             col_d1, col_d2 = st.columns([2, 1])
                             with col_d1:
-                                target_staff_del = st.selectbox("Chọn nhân sự cần xóa tài khoản",
+                                target_staff_del = st.selectbox("Chọn nhân sự cần xóa tài khoản", ["--- Chọn nhân sự ---"] + all_account_names, key="select_del_staff_acc")
+                            with col_d2:
+                                st.markdown("<br>", unsafe_allow_html=True)
+                                btn_execute_delete = st.form_submit_button("🔥 Xóa Tài Khoản Này", use_container_width=True)
+
+                            if btn_execute_delete:
+                                if target_staff_del == "--- Chọn nhân sự ---":
+                                    st.warning("⚠️ Vui lòng chọn nhân sự cần xóa!")
+                                else:
+                                    try:
+                                        safe_supabase_call(lambda client: client.table("user_accounts").delete().eq("name", target_staff_del).execute())
+                                        try:
+                                            supabase.table("staff").delete().eq("name", target_staff_del).execute()
+                                        except Exception:
+                                            pass
+                                        safe_supabase_call(lambda client: client.table("production_logs").delete().eq("nhan_su", target_staff_del).execute())
+                                        safe_supabase_call(lambda client: client.table("attendance").delete().eq("nhan_su", target_staff_del).execute())
+                                        safe_supabase_call(lambda client: client.table("error_logs").delete().eq("nhan_su", target_staff_del).execute())
+                                        
+                                        if "editor_user_accounts_perms" in st.session_state:
+                                            del st.session_state["editor_user_accounts_perms"]
+                                        get_staff_df_db.clear()
+                                        st.cache_data.clear()
+                                        st.success(f"✅ Đã xóa thành công nhân sự **{target_staff_del}** cùng toàn bộ dữ liệu liên quan!")
+                                        st.rerun()
+                                    except Exception as e:
+                                        st.error(f"❌ Lỗi khi xóa nhân sự: {e}")
+                else:
+                    st.info("Chưa có tài khoản nhân sự nào trong hệ thống.")
+            except Exception as e:
+                st.error(f"Lỗi quản lý tài khoản: {e}")
+
+    # ==================== LÀM SẠCH DỮ LIỆU ====================
+    elif current_menu_name == "🧹 Làm Sạch Dữ Liệu":
+        col_cd_h1, col_cd_h2 = st.columns([3, 1])
+        with col_cd_h1:
+            st.header("🧹 Làm Sạch & Tối Ưu Dữ Liệu Hệ Thống")
+        with col_cd_h2:
+            if st.button("🔄 Làm mới dữ liệu", use_container_width=True, key="btn_refresh_cd"):
+                st.cache_data.clear()
+                st.rerun()
+
+        if current_user_role != "Admin":
+            st.warning("🔒 Tính năng làm sạch dữ liệu chỉ dành cho Admin.")
+        else:
+            st.markdown("---")
+            
+            col_box1, col_box2, col_box3 = st.columns(3)
+            with col_box1:
+                with st.container(border=True):
+                    st.markdown("##### 🗑️ Xóa Vĩnh Viễn Thùng Rác")
+                    st.caption("Dọn dẹp toàn bộ các bản ghi đã đưa vào thùng rác và tự động xóa vĩnh viễn tệp ảnh liên quan trên Cloud Storage.")
+                    if st.button("🔥 Làm Sạch Thùng Rác Vĩnh Viễn", use_container_width=True, type="primary", key="btn_clean_trash_all"):
+                        trash_df = get_production_logs_db(is_deleted=True, limit_rows=1000)
+                        if not trash_df.empty:
+                            from database import permanent_delete_db
+                            permanent_delete_db(trash_df["db_id"].tolist())
+                            st.success("✅ Đã dọn sạch toàn bộ thùng rác thành công!")
+                            st.rerun()
+                        else:
+                            st.info("ℹ Thùng rác hiện đang trống.")
+
+            with col_box2:
+                with st.container(border=True):
+                    st.markdown("##### 🚀 Quét Toàn Bộ Ứng Dụng & Dọn Rác")
+                    st.caption("Tự động quét toàn bộ ứng dụng, tìm kiếm và loại bỏ triệt để các tệp hình ảnh mồ côi.")
+                    if st.button("🔍 Chạy Quét & Làm Sạch Hệ Thống", use_container_width=True, key="btn_deep_system_scan"):
+                        with st.spinner("⏳ Đang quét toàn bộ hệ thống ứng dụng và kiểm tra tệp rác trên Cloud Storage..."):
+                            count, msg = cleanup_orphan_storage_files()
+                            st.cache_data.clear()
+                            if count > 0:
+                                st.success(f"✅ Quét và dọn dẹp hệ thống thành công! Đã loại bỏ **{count} tệp rác mồ côi**.")
+                            else:
+                                st.info("✨ Hệ thống rất sạch sẽ! Không tìm thấy tệp rác mồ côi nào.")
+
+            with col_box3:
+                with st.container(border=True):
+                    st.markdown("##### 📅 Xóa Ảnh Theo Khoảng Ngày")
+                    st.caption("Chọn khoảng thời gian để xóa toàn bộ tệp hình ảnh trên Storage.")
+                    
+                    with st.form("form_delete_images_by_date"):
+                        d_start = st.date_input("Từ ngày", datetime.date.today() - datetime.timedelta(days=30), key="del_img_start")
+                        d_end = st.date_input("Đến ngày", datetime.date.today(), key="del_img_end")
+                        
+                        submitted_del_range = st.form_submit_button("🧹 Xóa Ảnh Theo Khoảng Ngày", use_container_width=True, type="primary")
+                        
+                        if submitted_del_range:
+                            if d_start > d_end:
+                                st.error("⚠️ Ngày bắt đầu không thể lớn hơn ngày kết thúc!")
+                            else:
+                                with st.spinner("⏳ Đang xóa tệp ảnh trên Cloud Storage..."):
+                                    count_del, msg_del = delete_storage_files_by_date_range(d_start, d_end)
+                                    st.cache_data.clear()
+                                    if count_del > 0:
+                                        st.success(f"✅ {msg_del}")
+                                        st.rerun()
+                                    else:
+                                        st.info(f"ℹ️ {msg_del}")
+    else:
+        st.subheader(current_menu_name)
+        st.info(f"Đang hiển thị nội dung cho mục: {current_menu_name}")
+
+# ==================== THANH ĐIỀU HƯỚNG BÊN TRÁI (SIDEBAR) TỐI ƯU TỐC ĐỘ ====================
+with st.sidebar:
+    st.markdown('<div class="fixed-avatar-container">', unsafe_allow_html=True)
+    
+    has_custom_avatar = False
+    avatar_bytes_obj = None
+    if st.session_state.get("avatar_base64"):
+        try:
+            pure_b64 = st.session_state.avatar_base64.split(",")[1] if "," in st.session_state.avatar_base64 else st.session_state.avatar_base64
+            pure_b64 += "=" * (-len(pure_b64) % 4)
+            avatar_bytes_obj = base64.b64decode(pure_b64)
+            has_custom_avatar = True
+        except Exception:
+            pass
+
+    st.markdown('<div class="avatar-wrapper">', unsafe_allow_html=True)
+    if has_custom_avatar:
+        with st.popover(" ", use_container_width=False):
+            st.markdown("##### 🔍 Xem Ảnh Đại Diện Lớn")
+            st.image(avatar_bytes_obj, use_container_width=True)
+        encoded_img = base64.b64encode(avatar_bytes_obj).decode("utf-8")
+        st.markdown(f'<div style="cursor: pointer; text-align: center;"><img src="data:image/jpeg;base64,{encoded_img}" style="width:140px; height:140px; border-radius:50%; object-fit:cover; border:3px solid {st.session_state.primary_color}; box-shadow:0 4px 10px rgba(0,0,0,0.3);"></div>', unsafe_allow_html=True)
+    else:
+        st.markdown(f'<div style="width:140px; height:140px; border-radius:50%; background:#cbd5e1; display:flex; align-items:center; justify-content:center; font-size:50px; border:3px solid {st.session_state.primary_color}; box-shadow:0 4px 10px rgba(0,0,0,0.3); margin: 0 auto;">👤</div>', unsafe_allow_html=True)
+
+    st.markdown('<div style="position: absolute; bottom: 2px; right: 10px; z-index: 9999999;">', unsafe_allow_html=True)
+    with st.popover("⚙️"):
+        st.markdown("##### ⚙️ Cài Đặt Ảnh Đại Diện")
+        avatar_file = st.file_uploader("Tải ảnh mới", type=["png", "jpg", "jpeg"], key="avatar_uploader_popover_unique", label_visibility="collapsed")
+        if avatar_file is not None:
+            current_file_sig = f"{avatar_file.name}_{avatar_file.size}"
+            if st.session_state.get("last_processed_avatar") != current_file_sig:
+                compressed_avatar = compress_image_to_base64(avatar_file, max_size=(300, 300), quality=60)
+                if compressed_avatar:
+                    st.session_state.avatar_base64 = compressed_avatar
+                    st.session_state["last_processed_avatar"] = current_file_sig
+                    save_app_settings_db({
+                        "primary_color": st.session_state.primary_color, 
+                        "bg_color": st.session_state.bg_color,
+                        "sidebar_bg": st.session_state.sidebar_bg, 
+                        "sidebar_opacity": st.session_state.sidebar_opacity,
+                        "text_color": st.session_state.text_color, 
+                        "bg_image_base64": st.session_state.get("bg_image_base64"),
+                        "avatar_base64": st.session_state.avatar_base64
+                    })
+                    st.success("✅ Đã cập nhật ảnh đại diện thành công!")
+                    st.rerun()
+        if st.session_state.get("avatar_base64"):
+            st.markdown("---")
+            if st.button("🗑️ Xóa Ảnh Đại Diện", use_container_width=True, key="btn_remove_avatar_unique"):
+                st.session_state.avatar_base64 = None
+                st.session_state["last_processed_avatar"] = None
+                save_app_settings_db({
+                    "primary_color": st.session_state.primary_color, 
+                    "bg_color": st.session_state.bg_color,
+                    "sidebar_bg": st.session_state.sidebar_bg, 
+                    "sidebar_opacity": st.session_state.sidebar_opacity,
+                    "text_color": st.session_state.text_color, 
+                    "bg_image_base64": st.session_
