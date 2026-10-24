@@ -58,6 +58,18 @@ def render_bao_cao(current_menu_name):
         st.error("⚠ Ngày bắt đầu không thể lớn hơn ngày kết thúc!")
         return
 
+    # --- BỔ SUNG BỘ LỌC THEO GIỜ TRONG NGÀY ---
+    st.markdown("<br>", unsafe_allow_html=True)
+    enable_hour_filter_rep = st.checkbox("⏱️ Lọc theo khung giờ trong ngày (Áp dụng cho báo cáo sản lượng)", value=False, key="chk_hour_filter_report")
+    
+    start_t_rep, end_t_rep = None, None
+    if enable_hour_filter_rep:
+        t_col1, t_col2 = st.columns(2)
+        with t_col1:
+            start_t_rep = st.time_input("Từ giờ", value=datetime.time(7, 30), key="rep_start_time")
+        with t_col2:
+            end_t_rep = st.time_input("Đến giờ", value=datetime.time(17, 0), key="rep_end_time")
+
     st.markdown("---")
 
     with st.spinner("🔄 Đang xử lý và tổng hợp dữ liệu nâng cao..."):
@@ -66,6 +78,20 @@ def render_bao_cao(current_menu_name):
 
     if prod_df.empty:
         st.info("Chưa có dữ liệu sản lượng nào được ghi nhận trong khoảng thời gian này.")
+        return
+
+    # --- LỌC DỮ LIỆU THEO KHUNG GIỜ (NẾU ĐƯỢC KÍCH HOẠT) ---
+    if enable_hour_filter_rep and start_t_rep and end_t_rep and "Thời Gian" in prod_df.columns:
+        def check_time_report(t_str):
+            try:
+                t_val = datetime.datetime.strptime(str(t_str).strip(), "%H:%M:%S").time()
+                return start_t_rep <= t_val <= end_t_rep
+            except:
+                return True
+        prod_df = prod_df[prod_df["Thời Gian"].apply(check_time_report)]
+
+    if prod_df.empty:
+        st.warning("⚠️ Không có bản ghi sản lượng nào khớp với khoảng ngày và khung giờ bạn đã chọn.")
         return
 
     prod_df["Tổng Điểm"] = pd.to_numeric(prod_df["Tổng Điểm"], errors='coerce').fillna(0)
@@ -172,7 +198,7 @@ def render_bao_cao(current_menu_name):
                     
                     public_report_url = supabase.storage.from_(bucket_reports).get_public_url(unique_filename)
                     
-                    # 2. Lưu trực tiếp vào bảng 'report_files' trên Supabase (có bắt lỗi an toàn nếu chưa tạo bảng)
+                    # 2. Lưu trực tiếp vào bảng 'report_files' trên Supabase
                     def _insert_report_db(client):
                         return client.table("report_files").insert({
                             "name": unique_filename,
@@ -191,32 +217,3 @@ def render_bao_cao(current_menu_name):
                     st.error(f"❌ Lỗi tải lên Cloud Storage: {e}")
             else:
                 st.error("⚠️ Chưa kết nối cơ sở dữ liệu Supabase để lưu file lên Cloud!")
-        
-        st.markdown("<br>", unsafe_allow_html=True)
-        
-        short_labels = [clean_name(name) for name in summary_staff["Nhân Sự"]]
-        color_palette = ['#3b82f6', '#ef4444', '#10b981', '#f59e0b', '#8b5cf6']
-        
-        fig = go.Figure(data=[go.Pie(
-            labels=short_labels,
-            values=summary_staff["tong_diem_tich_luy"],
-            textinfo='percent',
-            textfont_size=15,
-            marker=dict(colors=color_palette, line=dict(color='#ffffff', width=2))
-        )])
-        fig.update_layout(
-            showlegend=False,
-            margin=dict(t=15, b=15, l=15, r=15),
-            height=280
-        )
-        st.plotly_chart(fig, use_container_width=True)
-        
-    with text_col:
-        st.markdown("### 📌 Chi Tiết Điểm Số & Tỷ Lệ")
-        st.markdown("<br>", unsafe_allow_html=True)
-        
-        color_markers = ["🔵", "🔴", "🟢", "🟡", "🟣"]
-        for idx, row in summary_staff.iterrows():
-            short_name = clean_name(row['Nhân Sự'])
-            marker = color_markers[idx % len(color_markers)]
-            st.info(f"{marker} **{short_name}**: {row['tong_diem_tich_luy']:,.1f} điểm ({row['ty_le_hieu_suat']}%)")
