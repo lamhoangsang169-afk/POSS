@@ -36,9 +36,11 @@ def show_image_dialog(img_url):
         st.rerun()
 
 def render_quan_ly_loi(current_menu_name):
-    # Luôn gán lại ngày bắt đầu và kết thúc bằng ngày thực tế (hôm nay) để tự động cập nhật theo ngày mới
-    st.session_state.loi_start_date = datetime.date.today()
-    st.session_state.loi_end_date = datetime.date.today()
+    # Khởi tạo session state cho ngày tháng an toàn (không bị reset gắt gao mỗi lần rerun)
+    if "loi_start_date" not in st.session_state:
+        st.session_state.loi_start_date = datetime.date.today()
+    if "loi_end_date" not in st.session_state:
+        st.session_state.loi_end_date = datetime.date.today()
 
     if "loi_filter_ns" not in st.session_state:
         st.session_state.loi_filter_ns = "Tất cả"
@@ -49,7 +51,7 @@ def render_quan_ly_loi(current_menu_name):
 
     col_h1, col_h2 = st.columns([3, 1])
     with col_h1:
-        st.header("6. Quản Lý Lỗi Sản Xuất")
+        st.header(f"🛠️ {current_menu_name}")
     with col_h2:
         if st.button("🔄 Làm mới dữ liệu", use_container_width=True, key="btn_refresh_loi"):
             st.cache_data.clear()
@@ -80,7 +82,7 @@ def render_quan_ly_loi(current_menu_name):
             
         col_s1, col_s2 = st.columns([1, 2])
         with col_s1:
-            so_luong_loi = st.number_input("Số lượng", min_value=0, value=0, step=1, key="num_so_luong_loi")
+            so_luong_loi = st.number_input("Số lượng", min_value=0.0, value=0.0, step=0.1, format="%.2f", key="num_so_luong_loi")
         with col_s2:
             ghi_chu_loi = st.text_input("Ghi chú", placeholder="Nhập ghi chú nguyên nhân / hướng khắc phục...", key="txt_ghi_chu_loi")
             
@@ -89,7 +91,7 @@ def render_quan_ly_loi(current_menu_name):
 
     if submitted:
         if nhan_su_phat_hien == "--- Vui lòng chọn nhân sự ---":
-            st.warning("⚠️️ Vui lòng chọn nhân sự liên quan!")
+            st.warning("⚠ Vui lòng chọn nhân sự liên quan!")
         elif so_luong_loi <= 0:
             st.warning("⚠️ Vui lòng nhập số lượng sản phẩm lỗi lớn hơn 0!")
         else:
@@ -223,22 +225,6 @@ def render_quan_ly_loi(current_menu_name):
             end_idx = start_idx + page_size
             page_df = filtered_df.iloc[start_idx:end_idx].reset_index(drop=True)
 
-            st.markdown(
-                """
-                <style>
-                    .log-card {
-                        background-color: #ffffff;
-                        border: 1px solid #e0e0e0;
-                        border-radius: 8px;
-                        padding: 12px 16px;
-                        margin-bottom: 10px;
-                        box-shadow: 0 1px 3px rgba(0,0,0,0.05);
-                    }
-                </style>
-                """, 
-                unsafe_allow_html=True
-            )
-
             with st.form("form_danh_sach_loi"):
                 st.markdown("---")
                 col_act1, col_act2 = st.columns([2, 2])
@@ -274,21 +260,20 @@ def render_quan_ly_loi(current_menu_name):
                             f"""
                             <div style="background: rgba(255,255,255,0.85); padding: 10px 14px; border-radius: 8px; border: 1px solid rgba(0,0,0,0.1); margin-bottom: 4px; font-size: 0.9rem;">
                                 <b>STT: {stt_hien_thi} (ID: {db_id if db_id else 'None'})</b> &nbsp;|&nbsp; 📅 <b>Ngày:</b> {ngay_val} &nbsp;|&nbsp; 👤 <b>Nhân sự:</b> {nhan_su_val}<br>
-                                📌 <b>Loại lỗi:</b> <span style="color: #d9534f; font-weight: bold;">{phan_loai_val}</span> &nbsp;|&nbsp; 📦 <b>Số lượng:</b> {so_luong_val} Cái<br>
+                                📌 <b>Loại lỗi:</b> <span style="color: #d9534f; font-weight: bold;">{phan_loai_val}</span> &nbsp;|&nbsp; 📦 <b>Số lượng:</b> {so_luong_val}<br>
                                 💬 <i>Ghi chú:</i> {ghi_chu_val if ghi_chu_val and str(ghi_chu_val).lower() != 'nan' else 'Không có ghi chú'}
                             </div>
                             """, 
                             unsafe_allow_html=True
                         )
                         
-                        # Cho phép tích chọn xóa kể cả khi ID là None (dùng bộ lọc thông tin dòng)
                         if st.checkbox(f"Chọn xóa bản ghi STT {stt_hien_thi}", key=f"chk_loi_item_{idx}"):
                             selected_items.append({
                                 "db_id": db_id,
                                 "ngay": str(ngay_val),
                                 "nhan_su": str(nhan_su_val),
                                 "phan_loai": str(phan_loai_val),
-                                "so_luong": int(so_luong_val) if pd.notna(so_luong_val) else 0
+                                "so_luong": float(so_luong_val) if pd.notna(so_luong_val) else 0.0
                             })
                             
                     with row_c2:
@@ -304,7 +289,6 @@ def render_quan_ly_loi(current_menu_name):
                                             else:
                                                 st.caption("⚠️ Không ảnh")
                                             
-                                            # Bổ sung hiển thị số KB/MB bên dưới ảnh
                                             size_str = get_cached_image_size(u)
                                             st.markdown(f"<div style='text-align: center; font-size: 0.72rem; color: #64748b; margin-top: -4px;'>{size_str}</div>", unsafe_allow_html=True)
                                         except Exception:
@@ -314,21 +298,20 @@ def render_quan_ly_loi(current_menu_name):
 
                     st.markdown("---")
 
-                # Xử lý sự kiện khi bấm nút xóa các dòng đã chọn (hỗ trợ cả bản ghi thiếu ID)
+                # Xử lý sự kiện khi bấm nút xóa các dòng đã chọn
                 if btn_del_selected:
                     if selected_items:
                         try:
                             for item in selected_items:
                                 if item["db_id"] is not None:
-                                    db.supabase.table("error_logs").delete().eq("id", int(item["db_id"])).execute()
+                                    db.safe_supabase_call(lambda client, did=int(item["db_id"]): client.table("error_logs").delete().eq("id", did).execute())
                                 else:
-                                    # Fallback xóa theo thông tin dòng nếu thiếu ID
-                                    db.supabase.table("error_logs").delete()\
-                                        .eq("ngay", item["ngay"])\
-                                        .eq("nhan_su", item["nhan_su"])\
-                                        .eq("phan_loai_loi", item["phan_loai"])\
-                                        .eq("so_luong", item["so_luong"])\
-                                        .execute()
+                                    db.safe_supabase_call(lambda client, it=item: client.table("error_logs").delete()\
+                                        .eq("ngay", it["ngay"])\
+                                        .eq("nhan_su", it["nhan_su"])\
+                                        .eq("phan_loai_loi", it["phan_loai"])\
+                                        .eq("so_luong", it["so_luong"])\
+                                        .execute())
                             st.cache_data.clear()
                             st.success(f"✅ Đã xóa thành công {len(selected_items)} bản ghi lỗi đã chọn!")
                             st.rerun()
@@ -349,21 +332,21 @@ def render_quan_ly_loi(current_menu_name):
                                             f_id = v
                                             break
                                 if f_id is not None:
-                                    db.supabase.table("error_logs").delete().eq("id", int(f_id)).execute()
+                                    db.safe_supabase_call(lambda client, fid=int(f_id): client.table("error_logs").delete().eq("id", fid).execute())
                                 else:
-                                    db.supabase.table("error_logs").delete()\
-                                        .eq("ngay", str(r.get("Ngày", "")))\
-                                        .eq("nhan_su", str(r.get("Nhân Sự", "")))\
-                                        .eq("phan_loai_loi", str(r.get("Phân Loại Lỗi", "")))\
-                                        .eq("so_luong", int(r.get("Số Lượng", 0)))\
-                                        .execute()
+                                    db.safe_supabase_call(lambda client, row_data=r: client.table("error_logs").delete()\
+                                        .eq("ngay", str(row_data.get("Ngày", "")))\
+                                        .eq("nhan_su", str(row_data.get("Nhân Sự", "")))\
+                                        .eq("phan_loai_loi", str(row_data.get("Phân Loại Lỗi", "")))\
+                                        .eq("so_luong", float(row_data.get("Số Lượng", 0)))\
+                                        .execute())
                             st.cache_data.clear()
                             st.success(f"✅ Đã xóa toàn bộ bản ghi trong trang này!")
                             st.rerun()
                         except Exception as e:
                             st.error(f"Lỗi khi xóa: {e}")
                     else:
-                        st.warning("⚠️️ Vui lòng tích vào ô 'Xác nhận xóa tất cả bản ghi trong trang này'!")
+                        st.warning("⚠ Vui lòng tích vào ô 'Xác nhận xóa tất cả bản ghi trong trang này'!")
         else:
             st.info("Không có bản ghi lỗi nào trong khoảng thời gian và bộ lọc đã chọn.")
     else:
