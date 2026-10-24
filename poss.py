@@ -32,7 +32,7 @@ def load_view_module(module_name):
         print(f"Không thể nạp module {module_name} từ {file_path}: {e}")
     return None
 
-# Nạp chính xác các tệp từ thư mục APP/view/[cite: 13]
+# Nạp chính xác các tệp từ thư mục APP/view/
 nhap_san_luong = load_view_module("nhap_san_luong")
 cham_cong = load_view_module("cham_cong")
 bao_cao = load_view_module("bao_cao")
@@ -388,4 +388,324 @@ st.markdown(f"""
     }}
     [data-testid="stSidebar"] {{ background-color: {sidebar_rgba} !important; backdrop-filter: blur(8px); }}
     [data-testid="stSidebar"] > div:first-child {{ display: flex; flex-direction: column; height: 100vh; overflow-y: auto !important; padding: 0px !important; }}
-    .fixed-avatar-container {{ position: sticky; top: 0; z-index: 999999; background-color: {sidebar_rgba}; padding-top: 15px; padding
+    .fixed-avatar-container {{ position: sticky; top: 0; z-index: 999999; background-color: {sidebar_rgba}; padding-top: 15px; padding-bottom: 15px; border-bottom: 2px solid {st.session_state.primary_color}; margin-bottom: 10px; text-align: center; flex-shrink: 0; backdrop-filter: blur(8px); }}
+    .avatar-wrapper {{ position: relative; width: 140px; height: 140px; margin: 0 auto; }}
+    .sidebar-scrollable-content {{ flex-grow: 1; padding-left: 1rem; padding-right: 1rem; padding-bottom: 50px; }}
+</style>
+""", unsafe_allow_html=True)
+
+# ==================== ĐỊNH NGHĨA HÀM ĐIỀU HƯỚNG NỘI DUNG CHÍNH ====================
+@st.fragment
+def render_main_content(current_menu_name):
+    menu_lower = current_menu_name.lower()
+    
+    if "nhập sản lượng" in menu_lower:
+        if nhap_san_luong: nhap_san_luong.render_nhap_san_luong(current_menu_name, current_user_role, user_perms)
+        else: st.error("⚠️ Không tìm thấy module `nhap_san_luong`")
+    elif "chấm công" in menu_lower:
+        if cham_cong: cham_cong.render_cham_cong(current_menu_name, current_user_role)
+        else: st.error("⚠️ Không tìm thấy module `cham_cong`")
+    elif "thư mục báo cáo" in menu_lower:
+        if thu_muc_bao_cao: thu_muc_bao_cao.render_thu_muc_bao_cao(current_menu_name)
+        else: st.error("⚠️ Không tìm thấy module `thu_muc_bao_cao`")
+    elif "báo cáo" in menu_lower or "thống kê" in menu_lower:
+        if bao_cao: bao_cao.render_bao_cao(current_menu_name)
+        else: st.error("⚠️ Không tìm thấy module `bao_cao`")
+    elif "định mức" in menu_lower or "tham chiếu" in menu_lower:
+        if dinh_muc_cong_viec: dinh_muc_cong_viec.render_dinh_muc_cong_viec(current_menu_name, current_user_role, user_perms)
+        else: st.error("⚠️ Không tìm thấy module `dinh_muc_cong_viec`")
+    elif "quản lý lỗi" in menu_lower or "quan ly loi" in menu_lower or "lỗi" in menu_lower:
+        if quan_ly_loi: quan_ly_loi.render_quan_ly_loi(current_menu_name)
+        else: st.error("⚠️ Không tìm thấy module `quan_ly_loi`")
+    elif "thùng rác" in menu_lower:
+        if thung_rac: thung_rac.render_thung_rac(current_menu_name, current_user_role)
+        else: st.error("⚠️ Không tìm thấy module `thung_rac`")
+
+    # ==================== CÀI ĐẶT GIAO DIỆN ====================
+    elif current_menu_name == "🎨 Cài Đặt Giao Diện":
+        col_ui_h1, col_ui_h2 = st.columns([3, 1])
+        with col_ui_h1:
+            st.header("Cài Đặt Giao Diện & Nhân Sự")
+        with col_ui_h2:
+            if st.button("🔄 Làm mới dữ liệu", use_container_width=True, key="btn_refresh_ui"):
+                st.cache_data.clear()
+                st.rerun()
+
+        if current_user_role != "Admin":
+            st.warning("🔒 Chỉ Quản trị viên mới được phép cài đặt giao diện và danh sách nhân sự!")
+        else:
+            st.markdown("### 🎨 Tùy Chỉnh Giao Diện Trực Tiếp")
+            
+            with st.form("settings_form"):
+                c_col1, c_col2 = st.columns(2)
+                with c_col1:
+                    picker_bg = st.color_picker("Màu nền ứng dụng", value=st.session_state.get("bg_color", "#ffffff"))
+                    picker_text = st.color_picker("Màu chữ", value=st.session_state.get("text_color", "#31333F"))
+                with c_col2:
+                    picker_primary = st.color_picker("Màu chủ đạo", value=st.session_state.get("primary_color", "#ff4b4b"))
+                    picker_sidebar = st.color_picker("Màu nền sidebar", value=st.session_state.get("sidebar_bg", "#f0f2f6"))
+                    
+                slider_opacity = st.slider("Độ mờ sidebar", 0.1, 1.0, float(st.session_state.get("sidebar_opacity", 0.9)), 0.05)
+                bg_file_upload = st.file_uploader("🖼️ Tải lên hình nền ứng dụng", type=["png", "jpg", "jpeg"], key="bg_uploader_direct")
+                
+                submitted_settings = st.form_submit_button("💾 Lưu Cài Đặt Giao Diện", use_container_width=True, type="primary")
+                if submitted_settings:
+                    bg_base64_to_save = st.session_state.get("bg_image_base64")
+                    if bg_file_upload is not None:
+                        compressed_bg = compress_image_to_base64(bg_file_upload, max_size=(1920, 1080), quality=80)
+                        if compressed_bg:
+                            bg_base64_to_save = compressed_bg
+                            st.session_state.bg_image_base64 = compressed_bg
+
+                    st.session_state.bg_color = picker_bg
+                    st.session_state.text_color = picker_text
+                    st.session_state.primary_color = picker_primary
+                    st.session_state.sidebar_bg = picker_sidebar
+                    st.session_state.sidebar_opacity = slider_opacity
+
+                    save_app_settings_db({
+                        "primary_color": picker_primary, 
+                        "bg_color": picker_bg,
+                        "sidebar_bg": picker_sidebar, 
+                        "sidebar_opacity": slider_opacity,
+                        "text_color": picker_text, 
+                        "bg_image_base64": bg_base64_to_save,
+                        "avatar_base64": st.session_state.get("avatar_base64")
+                    })
+                    st.success("✅ Đã lưu cài đặt giao diện vĩnh viễn lên cơ sở dữ liệu thành công!")
+                    st.rerun()
+
+            st.markdown("---")
+            st.subheader("👥 Quản Lý Danh Sách Nhân Sự")
+            
+            try:
+                staff_df = get_staff_df_db()
+                if staff_df is None or staff_df.empty:
+                    staff_df = pd.DataFrame(columns=["id", "name"])
+            except Exception as e:
+                st.error(f"Lỗi tải dữ liệu nhân sự: {e}")
+                staff_df = pd.DataFrame(columns=["id", "name"])
+            
+            with st.form("staff_form"):
+                edited_staff = st.data_editor(
+                    staff_df, 
+                    key="editor_staff_list_ui",
+                    num_rows="dynamic", 
+                    use_container_width=True, 
+                    hide_index=True,
+                    column_config={
+                        "id": st.column_config.NumberColumn("ID", disabled=True),
+                        "name": st.column_config.TextColumn("Họ và tên nhân sự", required=True),
+                        "role": None
+                    }
+                )
+                
+                submitted_staff = st.form_submit_button("💾 Lưu Nhân Sự", use_container_width=True)
+                if submitted_staff:
+                    save_staff_list_db(edited_staff)
+                    if "editor_staff_list_ui" in st.session_state:
+                        del st.session_state["editor_staff_list_ui"]
+                    st.cache_data.clear()
+                    st.session_state.staff_list = get_staff_list_db()
+                    st.success("✅ Đã cập nhật danh sách nhân sự thành công!")
+                    st.rerun()
+
+    # ==================== QUẢN LÝ TÀI KHOẢN & PHÂN QUYỀN ====================
+    elif current_menu_name == "🛡️ Quản Lý Tài Khoản & Phân Quyền":
+        col_mr_h1, col_mr_h2 = st.columns([3, 1])
+        with col_mr_h1:
+            st.header("🛡 Quản Lý Tài Khoản & Phân Quyền Chi Tiết")
+        with col_mr_h2:
+            if st.button("🔄 Làm mới dữ liệu", use_container_width=True, key="btn_refresh_mr"):
+                if "editor_user_accounts_perms" in st.session_state:
+                    del st.session_state["editor_user_accounts_perms"]
+                st.cache_data.clear()
+                st.rerun()
+
+        if current_user_role != "Admin":
+            st.warning("🔒 Chỉ Quản trị viên mới có quyền quản lý tài khoản và phân quyền!")
+        else:
+            st.markdown("Tại đây bạn có thể tạo tài khoản, đổi mật khẩu, xóa tài khoản và cấp quyền trực tiếp cho từng nhân sự:")
+            
+            with st.expander("➕ Tạo Tài Khoản Nhân Sự Mới", expanded=False):
+                with st.form("create_new_account_form"):
+                    c_new1, c_new2, c_new3 = st.columns(3)
+                    with c_new1:
+                        new_acc_name = st.text_input("Họ và tên nhân sự", placeholder="Nhập tên nhân sự...")
+                    with c_new2:
+                        new_acc_pass = st.text_input("Mật khẩu tài khoản", type="password", placeholder="Nhập mật khẩu (>=6 ký tự)...")
+                    with c_new3:
+                        new_acc_role = st.selectbox("Vai trò", options=["Staff", "Manager", "Admin"])
+                    
+                    submitted_new_acc = st.form_submit_button("🚀 Tạo Tài Khoản Mới", use_container_width=True)
+                    if submitted_new_acc:
+                        if not new_acc_name.strip() or not new_acc_pass:
+                            st.error("⚠️ Vui lòng nhập đầy đủ tên nhân sự và mật khẩu!")
+                        elif len(new_acc_pass) < 6:
+                            st.error("⚠ Mật khẩu phải có ít nhất 6 ký tự!")
+                        else:
+                            try:
+                                check_exist = safe_supabase_call(lambda client: client.table("user_accounts").select("*").eq("name", new_acc_name.strip()).execute())
+                                if check_exist and check_exist.data and len(check_exist.data) > 0:
+                                    st.error(f"❌ Tài khoản hoặc nhân sự '{new_acc_name.strip()}' đã tồn tại trong hệ thống!")
+                                else:
+                                    ins_payload = {
+                                        "name": new_acc_name.strip(),
+                                        "password_hash": hash_password(new_acc_pass),
+                                        "role": new_acc_role,
+                                        "perm_input": True if new_acc_role == "Admin" else False,
+                                        "perm_report": True if new_acc_role == "Admin" else False,
+                                        "perm_attendance": True,
+                                        "perm_rules": True if new_acc_role == "Admin" else False
+                                    }
+                                    safe_supabase_call(lambda client: client.table("user_accounts").insert(ins_payload).execute())
+                                    st.success(f"✅ Đã tạo thành công tài khoản cho **{new_acc_name.strip()}**!")
+                                    if "editor_user_accounts_perms" in st.session_state:
+                                        del st.session_state["editor_user_accounts_perms"]
+                                    get_staff_df_db.clear()
+                                    st.cache_data.clear()
+                                    st.rerun()
+                            except Exception as e:
+                                st.error(f"❌ Lỗi khi tạo tài khoản: {e}")
+
+            try:
+                staff_list_names = get_staff_list_db()
+                for s_name in staff_list_names:
+                    chk = safe_supabase_call(lambda client, sn=s_name: client.table("user_accounts").select("*").eq("name", sn).execute()) if supabase else None
+                    if chk and not chk.data:
+                        safe_supabase_call(lambda client, sn=s_name: client.table("user_accounts").insert({
+                            "name": sn,
+                            "password_hash": hash_password("123456"),
+                            "role": "Staff",
+                            "perm_input": False,
+                            "perm_report": False,
+                            "perm_attendance": True,
+                            "perm_rules": False
+                        }).execute())
+
+                res_roles = safe_supabase_call(lambda client: client.table("user_accounts").select("*").order("id", desc=False).execute()) if supabase else None
+                if res_roles and res_roles.data:
+                    roles_df = pd.DataFrame(res_roles.data)
+                    
+                    def _to_clean_bool(val, default_val=False):
+                        if pd.isna(val) or val is None:
+                            return default_val
+                        if isinstance(val, bool):
+                            return val
+                        if isinstance(val, (int, float)):
+                            return bool(int(val))
+                        s = str(val).strip().lower()
+                        if s in ["true", "1", "t", "yes", "y"]:
+                            return True
+                        if s in ["false", "0", "f", "no", "n", "nan", "none", ""]:
+                            return False
+                        return default_val
+
+                    perm_defaults = {
+                        "perm_input": False,
+                        "perm_report": False,
+                        "perm_attendance": True,
+                        "perm_rules": False
+                    }
+                    for p_col, def_val in perm_defaults.items():
+                        if p_col not in roles_df.columns:
+                            roles_df[p_col] = def_val
+                        else:
+                            roles_df[p_col] = roles_df[p_col].apply(lambda x, d=def_val: _to_clean_bool(x, d)).astype(bool)
+
+                    if "role" not in roles_df.columns:
+                        roles_df["role"] = "Staff"
+                    else:
+                        roles_df["role"] = roles_df["role"].fillna("Staff").astype(str)
+
+                    display_cols = ["id", "name", "role", "perm_input", "perm_report", "perm_attendance", "perm_rules"]
+                    existing_cols = [c for c in display_cols if c in roles_df.columns]
+                    roles_df_for_editor = roles_df[existing_cols].copy()
+
+                    with st.form("manage_accounts_form", clear_on_submit=False):
+                        edited_roles_df = st.data_editor(
+                            roles_df_for_editor,
+                            key="editor_user_accounts_perms",
+                            disabled=["id", "name"],
+                            column_config={
+                                "id": st.column_config.NumberColumn("ID", disabled=True),
+                                "name": st.column_config.TextColumn("Họ và tên nhân sự", disabled=True),
+                                "role": st.column_config.SelectboxColumn("Vai trò", options=["Admin", "Manager", "Staff"], required=True),
+                                "perm_input": st.column_config.CheckboxColumn("Nhập sản lượng", default=False),
+                                "perm_report": st.column_config.CheckboxColumn("Xem báo cáo", default=False),
+                                "perm_attendance": st.column_config.CheckboxColumn("Chấm công", default=True),
+                                "perm_rules": st.column_config.CheckboxColumn("Sửa định mức", default=False)
+                            },
+                            hide_index=True,
+                            use_container_width=True
+                        )
+                        
+                        if st.form_submit_button("💾 Lưu Cập Nhật Quyền Hạn Hàng Loạt", use_container_width=True, type="primary"):
+                            update_success_count = 0
+                            for _, row in edited_roles_df.iterrows():
+                                r_id = int(row["id"]) if "id" in row and pd.notna(row["id"]) else None
+                                r_name = str(row.get("name", "")).strip()
+                                update_payload = {
+                                    "role": str(row["role"]).strip() if pd.notna(row.get("role")) else "Staff",
+                                    "perm_input": _to_clean_bool(row.get("perm_input"), False),
+                                    "perm_report": _to_clean_bool(row.get("perm_report"), False),
+                                    "perm_attendance": _to_clean_bool(row.get("perm_attendance"), True),
+                                    "perm_rules": _to_clean_bool(row.get("perm_rules"), False)
+                                }
+                                
+                                res_upd = None
+                                if r_id is not None:
+                                    res_upd = safe_supabase_call(
+                                        lambda client, uid=r_id, p=update_payload: client.table("user_accounts").update(p).eq("id", uid).execute()
+                                    )
+                                if (not res_upd or not res_upd.data) and r_name:
+                                    res_upd = safe_supabase_call(
+                                        lambda client, uname=r_name, p=update_payload: client.table("user_accounts").update(p).eq("name", uname).execute()
+                                    )
+                                
+                                if res_upd and res_upd.data:
+                                    update_success_count += 1
+
+                            if "editor_user_accounts_perms" in st.session_state:
+                                del st.session_state["editor_user_accounts_perms"]
+                            get_staff_df_db.clear()
+                            st.cache_data.clear()
+                            
+                            if update_success_count > 0:
+                                st.success(f"✅ Đã cập nhật quyền hạn chi tiết thành công cho {update_success_count} nhân sự!")
+                                st.rerun()
+                            else:
+                                st.error("⚠️ Không thể ghi dữ liệu xuống bảng `user_accounts` trên Supabase!")
+
+                    st.markdown("---")
+                    
+                    with st.form("change_password_form_standalone"):
+                        st.markdown("##### 🔑 Đổi mật khẩu nhanh cho nhân sự")
+                        all_account_names = roles_df["name"].tolist() if "name" in roles_df.columns else staff_list_names
+                        col_p1, col_p2, col_p3 = st.columns([1.5, 1.5, 1])
+                        with col_p1:
+                            target_staff_pw = st.selectbox("Chọn nhân sự cần đổi mật khẩu", ["--- Chọn nhân sự ---"] + all_account_names)
+                        with col_p2:
+                            new_staff_pass = st.text_input("Mật khẩu mới", type="password", placeholder="Nhập mật khẩu mới...")
+                        with col_p3:
+                            st.markdown("<br>", unsafe_allow_html=True)
+                            btn_update_pw = st.form_submit_button("Cập Nhật Mật Khẩu", use_container_width=True)
+
+                        if btn_update_pw:
+                            if target_staff_pw != "--- Chọn nhân sự ---" and new_staff_pass:
+                                if len(new_staff_pass) >= 6:
+                                    safe_supabase_call(lambda client: client.table("user_accounts").update({
+                                        "password_hash": hash_password(new_staff_pass)
+                                    }).eq("name", target_staff_pw).execute())
+                                    st.success(f"✅ Đã đổi mật khẩu thành công cho **{target_staff_pw}**!")
+                                else:
+                                    st.error("⚠️ Mật khẩu phải có ít nhất 6 ký tự!")
+                            else:
+                                st.warning("⚠️ Vui lòng chọn nhân sự và nhập mật khẩu mới!")
+
+                    with st.expander("🗑️ Xóa Tài Khoản Nhân Sự", expanded=False):
+                        with st.form("delete_account_form_standalone"):
+                            all_account_names = roles_df["name"].tolist() if "name" in roles_df.columns else staff_list_names
+                            col_d1, col_d2 = st.columns([2, 1])
+                            with col_d1:
+                                target_staff_del = st.selectbox("Chọn nhân sự cần xóa tài khoản",
