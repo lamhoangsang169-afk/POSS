@@ -356,8 +356,8 @@ def render_nhap_san_luong(*args, **kwargs):
                 
             f_col4, f_col5 = st.columns(2)
             with f_col4:
-    try: so_luong = float(st.text_input("Số lượng thực tế", value="0").replace(",", "."))
-    except: so_luong = 0.0
+                try: so_luong = float(st.text_input("Số lượng thực tế", value="0").replace(",", "."))
+                except: so_luong = 0.0
   
             with f_col5: ghi_chu = st.text_input("Ghi chú", "")
                 
