@@ -45,10 +45,12 @@ def render_bao_cao(current_menu_name):
     if "report_end_date" not in st.session_state:
         st.session_state.report_end_date = datetime.date.today()
 
-    col_date_1, col_date_2 = st.columns(2)
-    with col_date_1:
+    # Bố cục 3 cột gọn gàng chung một hàng ngang (Từ ngày, Đến ngày, Lọc theo giờ)
+    f_col1, f_col2, f_col3 = st.columns([1.1, 1.1, 1.4])
+    
+    with f_col1:
         start_date = st.date_input("Từ ngày", value=st.session_state.report_start_date, key="widget_report_start")
-    with col_date_2:
+    with f_col2:
         end_date = st.date_input("Đến ngày", value=st.session_state.report_end_date, key="widget_report_end")
         
     st.session_state.report_start_date = start_date
@@ -58,20 +60,16 @@ def render_bao_cao(current_menu_name):
         st.error("⚠ Ngày bắt đầu không thể lớn hơn ngày kết thúc!")
         return
 
-    st.markdown("<br>", unsafe_allow_html=True)
-    
-    # Gom nhóm bố cục gọn gàng cho checkbox lọc giờ và ô chọn Từ giờ - Đến giờ
-    chk_col, time_col_1, time_col_2 = st.columns([2.2, 1, 1])
-    with chk_col:
-        st.markdown("<br>", unsafe_allow_html=True)
-        enable_hour_filter_rep = st.checkbox("⏱️ Lọc theo khung giờ trong ngày", value=False, key="chk_hour_filter_report")
-    
-    start_t_rep, end_t_rep = None, None
-    if enable_hour_filter_rep:
-        with time_col_1:
-            start_t_rep = st.time_input("Từ giờ", value=datetime.time(7, 30), key="rep_start_time")
-        with time_col_2:
-            end_t_rep = st.time_input("Đến giờ", value=datetime.time(17, 0), key="rep_end_time")
+    with f_col3:
+        enable_hour_filter_rep = st.checkbox("Lọc theo Giờ", value=False, key="chk_hour_filter_report")
+        if enable_hour_filter_rep:
+            t_col1, t_col2 = st.columns(2)
+            with t_col1:
+                start_t_rep = st.time_input("Từ", value=datetime.time(7, 30), label_visibility="collapsed", key="rep_start_time")
+            with t_col2:
+                end_t_rep = st.time_input("Đến", value=datetime.time(17, 0), label_visibility="collapsed", key="rep_end_time")
+        else:
+            start_t_rep, end_t_rep = None, None
 
     st.markdown("---")
 
@@ -192,7 +190,6 @@ def render_bao_cao(current_menu_name):
                     bucket_reports = "reports-storage"
                     unique_filename = f"baocao_{start_date}_{end_date}_{int(datetime.datetime.now().timestamp())}.xlsx"
                     
-                    # 1. Đẩy file lên Cloud Storage
                     supabase.storage.from_(bucket_reports).upload(
                         path=unique_filename,
                         file=excel_data,
@@ -201,7 +198,6 @@ def render_bao_cao(current_menu_name):
                     
                     public_report_url = supabase.storage.from_(bucket_reports).get_public_url(unique_filename)
                     
-                    # 2. Lưu trực tiếp vào bảng 'report_files' trên Supabase
                     def _insert_report_db(client):
                         return client.table("report_files").insert({
                             "name": unique_filename,
