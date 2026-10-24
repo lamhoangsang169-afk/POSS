@@ -274,9 +274,9 @@ def render_quan_ly_loi(current_menu_name):
 
                 for idx, row in page_df.iterrows():
                     db_id = None
-                    for col_name in page_df.columns:
-                        if 'id' in str(col_name).lower():
-                            val = row.get(col_name)
+                    for key_candidate in ["db_id", "id"]:
+                        if key_candidate in page_df.columns:
+                            val = row.get(key_candidate)
                             if pd.notna(val) and str(val).strip() != "" and str(val).lower() != "none":
                                 db_id = val
                                 break
@@ -320,8 +320,7 @@ def render_quan_ly_loi(current_menu_name):
                                 "db_id": db_id,
                                 "ngay": str(ngay_val),
                                 "nhan_su": str(nhan_su_val),
-                                "phan_loai": str(phan_loai_val),
-                                "so_luong": float(so_luong_val) if pd.notna(so_luong_val) else 0.0
+                                "phan_loai": str(phan_loai_val)
                             })
                             
                     with row_c2:
@@ -350,14 +349,14 @@ def render_quan_ly_loi(current_menu_name):
                     if selected_items:
                         try:
                             for item in selected_items:
-                                if item["db_id"] is not None:
-                                    db.safe_supabase_call(lambda client, did=int(item["db_id"]): client.table("error_logs").delete().eq("id", did).execute())
+                                curr_id = item.get("db_id")
+                                if curr_id is not None and str(curr_id).strip() != "" and str(curr_id).lower() != "none":
+                                    db.safe_supabase_call(lambda client, did=int(float(curr_id)): client.table("error_logs").delete().eq("id", did).execute())
                                 else:
                                     db.safe_supabase_call(lambda client, it=item: client.table("error_logs").delete()
-                                        .eq("ngay", it["ngay"])
-                                        .eq("nhan_su", it["nhan_su"])
-                                        .eq("phan_loai_loi", it["phan_loai"])
-                                        .eq("so_luong", it["so_luong"])
+                                        .eq("ngay", str(it["ngay"]))
+                                        .eq("nhan_su", str(it["nhan_su"]))
+                                        .eq("phan_loai_loi", str(it["phan_loai"]))
                                         .execute())
                             st.cache_data.clear()
                             st.success(f"✅ Đã xóa thành công {len(selected_items)} bản ghi lỗi đã chọn!")
@@ -372,20 +371,19 @@ def render_quan_ly_loi(current_menu_name):
                         try:
                             for _, r in page_df.iterrows():
                                 f_id = None
-                                for c_name in page_df.columns:
-                                    if 'id' in str(c_name).lower():
-                                        v = r.get(c_name)
+                                for key_candidate in ["db_id", "id"]:
+                                    if key_candidate in page_df.columns:
+                                        v = r.get(key_candidate)
                                         if pd.notna(v) and str(v).strip() != "" and str(v).lower() != "none":
                                             f_id = v
                                             break
                                 if f_id is not None:
-                                    db.safe_supabase_call(lambda client, fid=int(f_id): client.table("error_logs").delete().eq("id", fid).execute())
+                                    db.safe_supabase_call(lambda client, fid=int(float(f_id)): client.table("error_logs").delete().eq("id", fid).execute())
                                 else:
                                     db.safe_supabase_call(lambda client, row_data=r: client.table("error_logs").delete()
-                                        .eq("ngay", str(row_data.get("Ngày", "")) )
-                                        .eq("nhan_su", str(row_data.get("Nhân Sự", "")) )
-                                        .eq("phan_loai_loi", str(row_data.get("Phân Loại Lỗi", "")) )
-                                        .eq("so_luong", float(row_data.get("Số Lượng", 0)) )
+                                        .eq("ngay", str(row_data.get("Ngày", "")))
+                                        .eq("nhan_su", str(row_data.get("Nhân Sự", "")))
+                                        .eq("phan_loai_loi", str(row_data.get("Phân Loại Lỗi", "")))
                                         .execute())
                             st.cache_data.clear()
                             st.success(f"✅ Đã xóa toàn bộ bản ghi trong trang này!")
