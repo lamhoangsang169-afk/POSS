@@ -36,7 +36,6 @@ def show_image_dialog(img_url):
         st.rerun()
 
 def render_quan_ly_loi(current_menu_name):
-    # Khởi tạo session state cho ngày tháng an toàn
     if "loi_start_date" not in st.session_state:
         st.session_state.loi_start_date = datetime.date.today()
     if "loi_end_date" not in st.session_state:
@@ -59,7 +58,6 @@ def render_quan_ly_loi(current_menu_name):
 
     st.markdown("### ⚠️ Khai Báo Lỗi Phát Sinh")
     
-    # Tải danh mục loại lỗi gốc từ Database Supabase cho form khai báo
     raw_cats = db.get_error_categories_db()
     ds_loai_loi_hien_tai = list(raw_cats) if isinstance(raw_cats, (list, tuple)) else ["Sản phẩm hỏng", "Lỗi nguyên vật liệu", "Lỗi thao tác", "Lỗi máy móc / thiết bị", "Khác"]
 
@@ -88,7 +86,6 @@ def render_quan_ly_loi(current_menu_name):
         with col_s3:
             ghi_chu_loi = st.text_input("Ghi chú", placeholder="Nhập ghi chú nguyên nhân / hướng khắc phục...", key="txt_ghi_chu_loi")
             
-        # Hiển thị tạm tính tổng điểm lỗi trực quan trong form
         tong_diem_tam_tinh = so_luong_loi * he_so_diem
         st.markdown(f"📊 **Tạm tính tổng điểm lỗi:** `{so_luong_loi} × {he_so_diem} = **{tong_diem_tam_tinh:,.2f} điểm**`")
             
@@ -123,7 +120,6 @@ def render_quan_ly_loi(current_menu_name):
                 st.success("✅ Đã ghi nhận báo cáo lỗi, tính điểm và lưu lên hệ thống thành công!")
                 st.rerun()
 
-    # ==================== PHẦN TÙY CHỈNH DANH MỤC LỖI ====================
     with st.expander("⚙️ Tùy Chỉnh Danh Mục Loại Lỗi (Thêm/Bớt)", expanded=False):
         current_cats = list(db.get_error_categories_db())
         
@@ -362,4 +358,43 @@ def render_quan_ly_loi(current_menu_name):
                                         .eq("nhan_su", it["nhan_su"])
                                         .eq("phan_loai_loi", it["phan_loai"])
                                         .eq("so_luong", it["so_luong"])
-                                        .
+                                        .execute())
+                            st.cache_data.clear()
+                            st.success(f"✅ Đã xóa thành công {len(selected_items)} bản ghi lỗi đã chọn!")
+                            st.rerun()
+                        except Exception as e:
+                            st.error(f"Lỗi khi xóa bản ghi: {e}")
+                    else:
+                        st.warning("⚠️ Vui lòng tích chọn ít nhất một dòng ở danh sách bên dưới để xóa!")
+
+                if btn_del_all:
+                    if confirm_del_all:
+                        try:
+                            for _, r in page_df.iterrows():
+                                f_id = None
+                                for c_name in page_df.columns:
+                                    if 'id' in str(c_name).lower():
+                                        v = r.get(c_name)
+                                        if pd.notna(v) and str(v).strip() != "" and str(v).lower() != "none":
+                                            f_id = v
+                                            break
+                                if f_id is not None:
+                                    db.safe_supabase_call(lambda client, fid=int(f_id): client.table("error_logs").delete().eq("id", fid).execute())
+                                else:
+                                    db.safe_supabase_call(lambda client, row_data=r: client.table("error_logs").delete()
+                                        .eq("ngay", str(row_data.get("Ngày", "")) )
+                                        .eq("nhan_su", str(row_data.get("Nhân Sự", "")) )
+                                        .eq("phan_loai_loi", str(row_data.get("Phân Loại Lỗi", "")) )
+                                        .eq("so_luong", float(row_data.get("Số Lượng", 0)) )
+                                        .execute())
+                            st.cache_data.clear()
+                            st.success(f"✅ Đã xóa toàn bộ bản ghi trong trang này!")
+                            st.rerun()
+                        except Exception as e:
+                            st.error(f"Lỗi khi xóa: {e}")
+                    else:
+                        st.warning("⚠ Vui lòng tích vào ô 'Xác nhận xóa tất cả bản ghi trong trang này'!")
+        else:
+            st.info("Không có bản ghi lỗi nào trong khoảng thời gian và bộ lọc đã chọn.")
+    else:
+        st.info("Chưa có bản ghi lỗi nào trong hệ thống.")
