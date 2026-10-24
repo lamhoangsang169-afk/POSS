@@ -307,15 +307,15 @@ def get_user_permissions(identifier):
     if clean_id == "lamhoangsang169@gmail.com":
         return {"role": "Admin", "perm_input": True, "perm_report": True, "perm_attendance": True, "perm_rules": True}
     try:
-        res = supabase.table("user_accounts").select("*").eq("name", identifier).execute()
-        if res.data and len(res.data) > 0:
+        res = safe_supabase_call(lambda client: client.table("user_accounts").select("*").eq("name", identifier).execute())
+        if res and res.data and len(res.data) > 0:
             row = res.data[0]
             return {
-                "role": row.get("role", "Staff"),
-                "perm_input": row.get("perm_input", False),
-                "perm_report": row.get("perm_report", False),
-                "perm_attendance": row.get("perm_attendance", True),
-                "perm_rules": row.get("perm_rules", False)
+                "role": row.get("role", "Staff") if pd.notna(row.get("role")) else "Staff",
+                "perm_input": bool(row.get("perm_input")) if pd.notna(row.get("perm_input")) else False,
+                "perm_report": bool(row.get("perm_report")) if pd.notna(row.get("perm_report")) else False,
+                "perm_attendance": bool(row.get("perm_attendance")) if pd.notna(row.get("perm_attendance")) else True,
+                "perm_rules": bool(row.get("perm_rules")) if pd.notna(row.get("perm_rules")) else False
             }
     except Exception:
         pass
@@ -476,6 +476,7 @@ def render_main_content(current_menu_name):
             with st.form("staff_form"):
                 edited_staff = st.data_editor(
                     staff_df, 
+                    key="editor_staff_list_ui",
                     num_rows="dynamic", 
                     use_container_width=True, 
                     hide_index=True,
@@ -489,6 +490,8 @@ def render_main_content(current_menu_name):
                 submitted_staff = st.form_submit_button("💾 Lưu Nhân Sự", use_container_width=True)
                 if submitted_staff:
                     save_staff_list_db(edited_staff)
+                    if "editor_staff_list_ui" in st.session_state:
+                        del st.session_state["editor_staff_list_ui"]
                     st.cache_data.clear()
                     st.session_state.staff_list = get_staff_list_db()
                     st.success("✅ Đã cập nhật danh sách nhân sự thành công!")
@@ -501,6 +504,8 @@ def render_main_content(current_menu_name):
             st.header("🛡 Quản Lý Tài Khoản & Phân Quyền Chi Tiết")
         with col_mr_h2:
             if st.button("🔄 Làm mới dữ liệu", use_container_width=True, key="btn_refresh_mr"):
+                if "editor_user_accounts_perms" in st.session_state:
+                    del st.session_state["editor_user_accounts_perms"]
                 st.cache_data.clear()
                 st.rerun()
 
@@ -527,11 +532,11 @@ def render_main_content(current_menu_name):
                             st.error("⚠ Mật khẩu phải có ít nhất 6 ký tự!")
                         else:
                             try:
-                                check_exist = supabase.table("user_accounts").select("*").eq("name", new_acc_name.strip()).execute()
-                                if check_exist.data and len(check_exist.data) > 0:
+                                check_exist = safe_supabase_call(lambda client: client.table("user_accounts").select("*").eq("name", new_acc_name.strip()).execute())
+                                if check_exist and check_exist.data and len(check_exist.data) > 0:
                                     st.error(f"❌ Tài khoản hoặc nhân sự '{new_acc_name.strip()}' đã tồn tại trong hệ thống!")
                                 else:
-                                    supabase.table("user_accounts").insert({
+                                    ins_payload = {
                                         "name": new_acc_name.strip(),
                                         "password_hash": hash_password(new_acc_pass),
                                         "role": new_acc_role,
@@ -539,8 +544,12 @@ def render_main_content(current_menu_name):
                                         "perm_report": True if new_acc_role == "Admin" else False,
                                         "perm_attendance": True,
                                         "perm_rules": True if new_acc_role == "Admin" else False
-                                    }).execute()
+                                    }
+                                    safe_supabase_call(lambda client: client.table("user_accounts").insert(ins_payload).execute())
                                     st.success(f"✅ Đã tạo thành công tài khoản cho **{new_acc_name.strip()}**!")
+                                    if "editor_user_accounts_perms" in st.session_state:
+                                        del st.session_state["editor_user_accounts_perms"]
+                                    get_staff_df_db.clear()
                                     st.cache_data.clear()
                                     st.rerun()
                             except Exception as e:
@@ -549,52 +558,112 @@ def render_main_content(current_menu_name):
             try:
                 staff_list_names = get_staff_list_db()
                 for s_name in staff_list_names:
-                    chk = supabase.table("user_accounts").select("*").eq("name", s_name).execute() if supabase else None
+                    chk = safe_supabase_call(lambda client, sn=s_name: client.table("user_accounts").select("*").eq("name", sn).execute()) if supabase else None
                     if chk and not chk.data:
-                        supabase.table("user_accounts").insert({
-                            "name": s_name,
+                        safe_supabase_call(lambda client, sn=s_name: client.table("user_accounts").insert({
+                            "name": sn,
                             "password_hash": hash_password("123456"),
                             "role": "Staff",
                             "perm_input": False,
                             "perm_report": False,
                             "perm_attendance": True,
                             "perm_rules": False
-                        }).execute()
+                        }).execute())
 
-                res_roles = supabase.table("user_accounts").select("*").order("id", desc=False).execute() if supabase else None
+                res_roles = safe_supabase_call(lambda client: client.table("user_accounts").select("*").order("id", desc=False).execute()) if supabase else None
                 if res_roles and res_roles.data:
                     roles_df = pd.DataFrame(res_roles.data)
                     
-                    with st.form("manage_accounts_form"):
+                    # Chuẩn hóa kiểu bool cho các cột quyền để tránh lỗi NaN/None khiến st.data_editor quay về trạng thái cũ
+                    def _to_clean_bool(val, default_val=False):
+                        if pd.isna(val) or val is None:
+                            return default_val
+                        if isinstance(val, bool):
+                            return val
+                        if isinstance(val, (int, float)):
+                            return bool(int(val))
+                        s = str(val).strip().lower()
+                        if s in ["true", "1", "t", "yes", "y"]:
+                            return True
+                        if s in ["false", "0", "f", "no", "n", "nan", "none", ""]:
+                            return False
+                        return default_val
+
+                    perm_defaults = {
+                        "perm_input": False,
+                        "perm_report": False,
+                        "perm_attendance": True,
+                        "perm_rules": False
+                    }
+                    for p_col, def_val in perm_defaults.items():
+                        if p_col not in roles_df.columns:
+                            roles_df[p_col] = def_val
+                        else:
+                            roles_df[p_col] = roles_df[p_col].apply(lambda x, d=def_val: _to_clean_bool(x, d)).astype(bool)
+
+                    if "role" not in roles_df.columns:
+                        roles_df["role"] = "Staff"
+                    else:
+                        roles_df["role"] = roles_df["role"].fillna("Staff").astype(str)
+
+                    display_cols = ["id", "name", "role", "perm_input", "perm_report", "perm_attendance", "perm_rules"]
+                    existing_cols = [c for c in display_cols if c in roles_df.columns]
+                    roles_df_for_editor = roles_df[existing_cols].copy()
+
+                    with st.form("manage_accounts_form", clear_on_submit=False):
                         edited_roles_df = st.data_editor(
-                            roles_df,
+                            roles_df_for_editor,
+                            key="editor_user_accounts_perms",
+                            disabled=["id", "name"],
                             column_config={
                                 "id": st.column_config.NumberColumn("ID", disabled=True),
                                 "name": st.column_config.TextColumn("Họ và tên nhân sự", disabled=True),
-                                "password_hash": None,
                                 "role": st.column_config.SelectboxColumn("Vai trò", options=["Admin", "Manager", "Staff"], required=True),
-                                "perm_input": st.column_config.CheckboxColumn("Nhập sản lượng"),
-                                "perm_report": st.column_config.CheckboxColumn("Xem báo cáo"),
-                                "perm_attendance": st.column_config.CheckboxColumn("Chấm công"),
-                                "perm_rules": st.column_config.CheckboxColumn("Sửa định mức")
+                                "perm_input": st.column_config.CheckboxColumn("Nhập sản lượng", default=False),
+                                "perm_report": st.column_config.CheckboxColumn("Xem báo cáo", default=False),
+                                "perm_attendance": st.column_config.CheckboxColumn("Chấm công", default=True),
+                                "perm_rules": st.column_config.CheckboxColumn("Sửa định mức", default=False)
                             },
                             hide_index=True,
                             use_container_width=True
                         )
                         
-                        if st.form_submit_button("💾 Lưu Cập Nhật Quyền Hạn Hàng Loạt", use_container_width=True):
+                        if st.form_submit_button("💾 Lưu Cập Nhật Quyền Hạn Hàng Loạt", use_container_width=True, type="primary"):
+                            update_success_count = 0
                             for _, row in edited_roles_df.iterrows():
-                                r_id = row["id"]
-                                supabase.table("user_accounts").update({
-                                    "role": row["role"],
-                                    "perm_input": bool(row["perm_input"]),
-                                    "perm_report": bool(row["perm_report"]),
-                                    "perm_attendance": bool(row["perm_attendance"]),
-                                    "perm_rules": bool(row["perm_rules"])
-                                }).eq("id", r_id).execute()
+                                r_id = int(row["id"]) if "id" in row and pd.notna(row["id"]) else None
+                                r_name = str(row.get("name", "")).strip()
+                                update_payload = {
+                                    "role": str(row["role"]).strip() if pd.notna(row.get("role")) else "Staff",
+                                    "perm_input": _to_clean_bool(row.get("perm_input"), False),
+                                    "perm_report": _to_clean_bool(row.get("perm_report"), False),
+                                    "perm_attendance": _to_clean_bool(row.get("perm_attendance"), True),
+                                    "perm_rules": _to_clean_bool(row.get("perm_rules"), False)
+                                }
+                                
+                                res_upd = None
+                                if r_id is not None:
+                                    res_upd = safe_supabase_call(
+                                        lambda client, uid=r_id, p=update_payload: client.table("user_accounts").update(p).eq("id", uid).execute()
+                                    )
+                                if (not res_upd or not res_upd.data) and r_name:
+                                    res_upd = safe_supabase_call(
+                                        lambda client, uname=r_name, p=update_payload: client.table("user_accounts").update(p).eq("name", uname).execute()
+                                    )
+                                
+                                if res_upd and res_upd.data:
+                                    update_success_count += 1
+
+                            if "editor_user_accounts_perms" in st.session_state:
+                                del st.session_state["editor_user_accounts_perms"]
+                            get_staff_df_db.clear()
                             st.cache_data.clear()
-                            st.success("✅ Đã cập nhật quyền hạn chi tiết thành công!")
-                            st.rerun()
+                            
+                            if update_success_count > 0:
+                                st.success(f"✅ Đã cập nhật quyền hạn chi tiết thành công cho {update_success_count} nhân sự!")
+                                st.rerun()
+                            else:
+                                st.error("⚠️ Không thể ghi dữ liệu xuống bảng `user_accounts` trên Supabase! Vui lòng kiểm tra bảng `user_accounts` đã có đủ 4 cột `perm_input`, `perm_report`, `perm_attendance`, `perm_rules` và đã tắt RLS (hoặc mở quyền UPDATE) chưa.")
 
                     st.markdown("---")
                     
@@ -613,9 +682,9 @@ def render_main_content(current_menu_name):
                         if btn_update_pw:
                             if target_staff_pw != "--- Chọn nhân sự ---" and new_staff_pass:
                                 if len(new_staff_pass) >= 6:
-                                    supabase.table("user_accounts").update({
+                                    safe_supabase_call(lambda client: client.table("user_accounts").update({
                                         "password_hash": hash_password(new_staff_pass)
-                                    }).eq("name", target_staff_pw).execute()
+                                    }).eq("name", target_staff_pw).execute())
                                     st.success(f"✅ Đã đổi mật khẩu thành công cho **{target_staff_pw}**!")
                                 else:
                                     st.error("⚠️ Mật khẩu phải có ít nhất 6 ký tự!")
@@ -637,17 +706,20 @@ def render_main_content(current_menu_name):
                                     st.warning("⚠️ Vui lòng chọn nhân sự cần xóa!")
                                 else:
                                     try:
-                                        supabase.table("user_accounts").delete().eq("name", target_staff_del).execute()
+                                        safe_supabase_call(lambda client: client.table("user_accounts").delete().eq("name", target_staff_del).execute())
                                         try:
                                             supabase.table("staff").delete().eq("name", target_staff_del).execute()
                                         except Exception:
                                             pass
-                                        supabase.table("production_logs").delete().eq("nhan_su", target_staff_del).execute()
-                                        supabase.table("attendance").delete().eq("nhan_su", target_staff_del).execute()
-                                        supabase.table("error_logs").delete().eq("nhan_su", target_staff_del).execute()
+                                        safe_supabase_call(lambda client: client.table("production_logs").delete().eq("nhan_su", target_staff_del).execute())
+                                        safe_supabase_call(lambda client: client.table("attendance").delete().eq("nhan_su", target_staff_del).execute())
+                                        safe_supabase_call(lambda client: client.table("error_logs").delete().eq("nhan_su", target_staff_del).execute())
                                         
-                                        st.success(f"✅ Đã xóa thành công nhân sự **{target_staff_del}** cùng toàn bộ dữ liệu sản lượng, chấm công và lỗi liên quan!")
+                                        if "editor_user_accounts_perms" in st.session_state:
+                                            del st.session_state["editor_user_accounts_perms"]
+                                        get_staff_df_db.clear()
                                         st.cache_data.clear()
+                                        st.success(f"✅ Đã xóa thành công nhân sự **{target_staff_del}** cùng toàn bộ dữ liệu sản lượng, chấm công và lỗi liên quan!")
                                         st.rerun()
                                     except Exception as e:
                                         st.error(f"❌ Lỗi khi xóa nhân sự và dữ liệu liên quan: {e}")
