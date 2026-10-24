@@ -106,7 +106,7 @@ def get_staff_df_db():
         return pd.DataFrame(columns=["id", "name", "role"])
     try:
         def _query(client):
-            return client.table("user_accounts").select("id, name, role").execute()
+            return client.table("user_accounts").select("id, name, role").order("id", desc=False).execute()
         res = safe_supabase_call(_query)
         if res and res.data:
             df = pd.DataFrame(res.data)
@@ -123,7 +123,7 @@ def get_staff_list_db():
         return df["name"].dropna().tolist()
     return []
 
-@st.cache_data(ttl=600, show_spinner=False)
+# ĐÃ SỬA LỖI 1: Gỡ bỏ @st.cache_data khỏi hàm INSERT để đảm bảo luôn ghi dữ liệu mới vào DB
 def add_production_log_db(ngay, gio, nhan_su, hang_muc, anh, don_vi, so_luong, he_so, tong_diem, ghi_chu):
     try:
         try:
@@ -147,6 +147,7 @@ def add_production_log_db(ngay, gio, nhan_su, hang_muc, anh, don_vi, so_luong, h
         def _query(client):
             return client.table("production_logs").insert(data).execute()
         response = safe_supabase_call(_query)
+        st.cache_data.clear()
         return response
     except Exception as e:
         st.error(f"Lỗi database: {e}")
@@ -161,12 +162,18 @@ def get_production_logs_db(is_deleted=False, limit_rows=1000):
         res = safe_supabase_call(_query)
         if res and res.data:
             df = pd.DataFrame(res.data)
-            df = df.rename(columns={
+            # ĐÃ SỬA LỖI 4: Ánh xạ chuẩn cả "he_so_diem" và "he_so" sang "Hệ Số"
+            rename_dict = {
                 "id": "db_id", "ngay": "Ngày", "thoi_gian": "Thời Gian",
                 "nhan_su": "Nhân Sự", "hang_muc_cong_viec": "Hạng Mục Công Việc",
                 "hinh_anh_url": "Hình Ảnh", "don_vi": "Đơn Vị", "so_luong": "Số Lượng",
-                "he_so": "Hệ Số", "tong_diem": "Tổng Điểm", "ghi_chu": "Ghi Chú"
-            })
+                "tong_diem": "Tổng Điểm", "ghi_chu": "Ghi Chú"
+            }
+            if "he_so_diem" in df.columns:
+                rename_dict["he_so_diem"] = "Hệ Số"
+            elif "he_so" in df.columns:
+                rename_dict["he_so"] = "Hệ Số"
+            df = df.rename(columns=rename_dict)
             df.insert(0, "STT", range(1, len(df) + 1))
             return df
     except Exception:
@@ -182,12 +189,18 @@ def get_production_logs_by_date_range(start_date, end_date):
         res = safe_supabase_call(_query)
         if res and res.data:
             df = pd.DataFrame(res.data)
-            df = df.rename(columns={
+            # ĐÃ SỬA LỖI 4: Ánh xạ chuẩn cả "he_so_diem" và "he_so" sang "Hệ Số"
+            rename_dict = {
                 "id": "db_id", "ngay": "Ngày", "thoi_gian": "Thời Gian",
                 "nhan_su": "Nhân Sự", "hang_muc_cong_viec": "Hạng Mục Công Việc",
                 "hinh_anh_url": "Hình Ảnh", "don_vi": "Đơn Vị", "so_luong": "Số Lượng",
-                "he_so": "Hệ Số", "tong_diem": "Tổng Điểm", "ghi_chu": "Ghi Chú"
-            })
+                "tong_diem": "Tổng Điểm", "ghi_chu": "Ghi Chú"
+            }
+            if "he_so_diem" in df.columns:
+                rename_dict["he_so_diem"] = "Hệ Số"
+            elif "he_so" in df.columns:
+                rename_dict["he_so"] = "Hệ Số"
+            df = df.rename(columns=rename_dict)
             return df
     except Exception:
         pass
@@ -243,9 +256,9 @@ def save_app_settings_db(settings_dict):
     if supabase is None:
         return None
     try:
-        settings_dict["id"] = 1
+        payload = {"id": 1, **settings_dict}
         def _query(client):
-            return client.table("app_settings").upsert(settings_dict).execute()
+            return client.table("app_settings").upsert(payload).execute()
         response = safe_supabase_call(_query)
         load_app_settings_db.clear()
         st.cache_data.clear()
@@ -262,6 +275,7 @@ def update_production_log_deleted_status(db_ids, is_deleted):
             def _query(client):
                 return client.table("production_logs").update({"is_deleted": is_deleted}).eq("id", db_id).execute()
             safe_supabase_call(_query)
+        st.cache_data.clear()
         return True
     except Exception as e:
         st.error(f"Lỗi khi cập nhật trạng thái xóa: {e}")
@@ -403,6 +417,7 @@ def add_attendance_log_db(ngay, nhan_su, gio_vao):
         def _query(client):
             return client.table("attendance").insert(data).execute()
         response = safe_supabase_call(_query)
+        st.cache_data.clear()
         return response
     except Exception as e:
         st.error(f"Lỗi Check-in: {e}")
@@ -420,6 +435,7 @@ def update_attendance_checkout_db(db_id, gio_ra, so_phut, ghi_chu=""):
         def _query(client):
             return client.table("attendance").update(data).eq("id", db_id).execute()
         response = safe_supabase_call(_query)
+        st.cache_data.clear()
         return response
     except Exception as e:
         st.error(f"Lỗi Check-out: {e}")
@@ -483,6 +499,7 @@ def add_error_log_with_images_db(ngay, nhan_su, phan_loai_loi, so_luong, ghi_chu
         def _query(client):
             return client.table("error_logs").insert(data).execute()
         response = safe_supabase_call(_query)
+        st.cache_data.clear()
         return response
     except Exception as e:
         st.error(f"Lỗi ghi nhận báo cáo lỗi: {e}")
@@ -513,7 +530,8 @@ def save_error_categories_db(categories_list):
         def _query(client):
             return client.table("error_settings").upsert(data).execute()
         response = safe_supabase_call(_query)
-        load_error_categories_db.clear()
+        # ĐÃ SỬA LỖI 2: Gọi đúng tên hàm get_error_categories_db.clear() thay vì load_error_categories_db
+        get_error_categories_db.clear()
         st.cache_data.clear()
         return response
     except Exception as e:
@@ -659,6 +677,7 @@ def update_production_log_record_db(db_id, hang_muc, so_luong, ghi_chu=""):
         def _query(client):
             return client.table("production_logs").update(data).eq("id", db_id).execute()
         res = safe_supabase_call(_query)
+        st.cache_data.clear()
         return res
     except Exception as e:
         st.error(f"Lỗi cập nhật bản ghi sản lượng: {e}")
