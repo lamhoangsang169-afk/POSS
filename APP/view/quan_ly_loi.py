@@ -225,7 +225,6 @@ def render_quan_ly_loi(current_menu_name):
         st.info(f"📅 Khoảng ngày có: {total_records} bản ghi lỗi")
 
         if total_records > 0:
-            # Tính toán tổng số lượng lỗi và tổng điểm của các bản ghi sau khi lọc
             total_qty_filtered = 0.0
             total_points_filtered = 0.0
             
@@ -246,7 +245,6 @@ def render_quan_ly_loi(current_menu_name):
                     t_val = q_val * h_val
                 total_points_filtered += t_val
 
-            # Hiển thị thanh thông báo tổng kết màu xanh dương nhạt (giống hình mẫu yêu cầu)
             st.markdown(
                 f"""
                 <div style="background-color: #d1ecf1; border: 1px solid #bee5eb; padding: 12px; border-radius: 8px; text-align: center; font-size: 1.05rem; font-weight: bold; color: #0c5460; margin-bottom: 15px; margin-top: 10px;">
@@ -314,4 +312,54 @@ def render_quan_ly_loi(current_menu_name):
                             f"""
                             <div style="background: rgba(255,255,255,0.85); padding: 10px 14px; border-radius: 8px; border: 1px solid rgba(0,0,0,0.1); margin-bottom: 4px; font-size: 0.9rem;">
                                 <b>STT: {stt_hien_thi} (ID: {db_id if db_id else 'None'})</b> &nbsp;|&nbsp; 📅 <b>Ngày:</b> {ngay_val} &nbsp;|&nbsp; 👤 <b>Nhân sự:</b> {nhan_su_val}<br>
-                                📌 <b>Loại lỗi:</b> <span style="color: #d9534f; font-weight: bold;">{phan_loai_val}</span> &nbsp;|&nbsp; 📦 <b>Số lượng:
+                                📌 <b>Loại lỗi:</b> <span style="color: #d9534f; font-weight: bold;">{phan_loai_val}</span> &nbsp;|&nbsp; 📦 <b>Số lượng:</b> {so_luong_val} &nbsp;|&nbsp; ⚙️ <b>Hệ số:</b> {he_so_val} &nbsp;|&nbsp; 🏆 <b>Tổng điểm:</b> <span style="color: #0284c7; font-weight: bold;">{tong_diem_val:,.1f} điểm</span><br>
+                                💬 <i>Ghi chú:</i> {ghi_chu_val if ghi_chu_val and str(ghi_chu_val).lower() != 'nan' else 'Không có ghi chú'}
+                            </div>
+                            """, 
+                            unsafe_allow_html=True
+                        )
+                        
+                        if st.checkbox(f"Chọn xóa bản ghi STT {stt_hien_thi}", key=f"chk_loi_item_{idx}"):
+                            selected_items.append({
+                                "db_id": db_id,
+                                "ngay": str(ngay_val),
+                                "nhan_su": str(nhan_su_val),
+                                "phan_loai": str(phan_loai_val),
+                                "so_luong": float(so_luong_val) if pd.notna(so_luong_val) else 0.0
+                            })
+                            
+                    with row_c2:
+                        if img_url_val and isinstance(img_url_val, str) and img_url_val.strip():
+                            urls = [u.strip() for u in img_url_val.split(",") if u.strip()]
+                            if urls:
+                                sub_cols = st.columns(min(len(urls), 4), gap="small")
+                                for i, u in enumerate(urls):
+                                    with sub_cols[i]:
+                                        try:
+                                            if u.startswith("http://") or u.startswith("https://"):
+                                                st.image(u, width=40)
+                                            else:
+                                                st.caption("⚠️ Không ảnh")
+                                            
+                                            size_str = get_cached_image_size(u)
+                                            st.markdown(f"<div style='text-align: center; font-size: 0.72rem; color: #64748b; margin-top: -4px;'>{size_str}</div>", unsafe_allow_html=True)
+                                        except Exception:
+                                            st.caption("❌ Lỗi")
+                        else:
+                            st.markdown("<small style='color: gray;'>Không ảnh</small>", unsafe_allow_html=True)
+
+                    st.markdown("---")
+
+                if btn_del_selected:
+                    if selected_items:
+                        try:
+                            for item in selected_items:
+                                if item["db_id"] is not None:
+                                    db.safe_supabase_call(lambda client, did=int(item["db_id"]): client.table("error_logs").delete().eq("id", did).execute())
+                                else:
+                                    db.safe_supabase_call(lambda client, it=item: client.table("error_logs").delete()
+                                        .eq("ngay", it["ngay"])
+                                        .eq("nhan_su", it["nhan_su"])
+                                        .eq("phan_loai_loi", it["phan_loai"])
+                                        .eq("so_luong", it["so_luong"])
+                                        .
