@@ -36,7 +36,7 @@ def show_image_dialog(img_url):
         st.rerun()
 
 def render_quan_ly_loi(current_menu_name):
-    # Khởi tạo session state cho ngày tháng an toàn (không bị reset gắt gao mỗi lần rerun)
+    # Khởi tạo session state cho ngày tháng an toàn
     if "loi_start_date" not in st.session_state:
         st.session_state.loi_start_date = datetime.date.today()
     if "loi_end_date" not in st.session_state:
@@ -80,11 +80,17 @@ def render_quan_ly_loi(current_menu_name):
             key="uploader_loi_images"
         )
             
-        col_s1, col_s2 = st.columns([1, 2])
+        col_s1, col_s2, col_s3 = st.columns([1, 1, 2])
         with col_s1:
-            so_luong_loi = st.number_input("Số lượng", min_value=0.0, value=0.0, step=0.1, format="%.2f", key="num_so_luong_loi")
+            so_luong_loi = st.number_input("Số lượng lỗi", min_value=0.0, value=0.0, step=0.1, format="%.2f", key="num_so_luong_loi")
         with col_s2:
+            he_so_diem = st.number_input("Hệ số (Điểm/lỗi)", min_value=0.0, value=1.0, step=0.1, format="%.2f", key="num_he_so_loi")
+        with col_s3:
             ghi_chu_loi = st.text_input("Ghi chú", placeholder="Nhập ghi chú nguyên nhân / hướng khắc phục...", key="txt_ghi_chu_loi")
+            
+        # Hiển thị tạm tính trực quan ngay trong form
+        tong_diem_tam_tinh = so_luong_loi * he_so_diem
+        st.markdown(f"📊 **Tạm tính tổng điểm lỗi:** `{so_luong_loi} × {he_so_diem} = **{tong_diem_tam_tinh:,.2f} điểm**`")
             
         st.markdown("<br>", unsafe_allow_html=True)
         submitted = st.form_submit_button("🚨 Ghi Nhận Lỗi Sản Xuất", use_container_width=True)
@@ -99,18 +105,24 @@ def render_quan_ly_loi(current_menu_name):
             if uploaded_images:
                 uploaded_urls = db.upload_multiple_images_to_storage(uploaded_images)
             
+            # Tính tổng điểm
+            tong_diem_ghi_nhan = so_luong_loi * he_so_diem
+            
+            # Gọi hàm thêm vào database (hỗ trợ truyền thêm hệ số và tổng điểm nếu database có hỗ trợ)
             response = db.add_error_log_with_images_db(
                 ngay=ngay_phat_sinh,
                 nhan_su=nhan_su_phat_hien,
                 phan_loai_loi=phan_loai_loi,
                 so_luong=so_luong_loi,
                 ghi_chu=ghi_chu_loi,
-                images_base64_str=uploaded_urls
+                images_base64_str=uploaded_urls,
+                he_so_diem=he_so_diem,
+                tong_diem=tong_diem_ghi_nhan
             )
             
             if response is not None:
                 st.cache_data.clear()
-                st.success("✅ Đã ghi nhận báo cáo lỗi và lưu ảnh lên Supabase Storage thành công!")
+                st.success("✅ Đã ghi nhận báo cáo lỗi, tính điểm và lưu lên hệ thống thành công!")
                 st.rerun()
 
     # ==================== PHẦN TÙY CHỈNH DANH MỤC LỖI ====================
@@ -251,6 +263,20 @@ def render_quan_ly_loi(current_menu_name):
                     nhan_su_val = row.get('Nhân Sự', '')
                     phan_loai_val = row.get('Phân Loại Lỗi', '')
                     so_luong_val = row.get('Số Lượng', 0)
+                    
+                    # Lấy hệ số và tổng điểm nếu có trong DataFrame, nếu chưa có thì mặc định tính hệ số = 1.0
+                    he_so_val = row.get('Hệ Số Điểm', row.get('he_so_diem', 1.0))
+                    try:
+                        he_so_val = float(he_so_val) if pd.notna(he_so_val) else 1.0
+                    except:
+                        he_so_val = 1.0
+
+                    tong_diem_val = row.get('Tổng Điểm', row.get('tong_diem', float(so_luong_val) * he_so_val))
+                    try:
+                        tong_diem_val = float(tong_diem_val) if pd.notna(tong_diem_val) else float(so_luong_val) * he_so_val
+                    except:
+                        tong_diem_val = float(so_luong_val) * he_so_val
+
                     ghi_chu_val = row.get('Ghi Chú', '')
                     img_url_val = row.get("Số Ảnh Đính Kèm", "")
 
@@ -260,7 +286,7 @@ def render_quan_ly_loi(current_menu_name):
                             f"""
                             <div style="background: rgba(255,255,255,0.85); padding: 10px 14px; border-radius: 8px; border: 1px solid rgba(0,0,0,0.1); margin-bottom: 4px; font-size: 0.9rem;">
                                 <b>STT: {stt_hien_thi} (ID: {db_id if db_id else 'None'})</b> &nbsp;|&nbsp; 📅 <b>Ngày:</b> {ngay_val} &nbsp;|&nbsp; 👤 <b>Nhân sự:</b> {nhan_su_val}<br>
-                                📌 <b>Loại lỗi:</b> <span style="color: #d9534f; font-weight: bold;">{phan_loai_val}</span> &nbsp;|&nbsp; 📦 <b>Số lượng:</b> {so_luong_val}<br>
+                                📌 <b>Loại lỗi:</b> <span style="color: #d9534f; font-weight: bold;">{phan_loai_val}</span> &nbsp;|&nbsp; 📦 <b>Số lượng:</b> {so_luong_val} &nbsp;|&nbsp; ⚙️ <b>Hệ số:</b> {he_so_val} &nbsp;|&nbsp; 🏆 <b>Tổng điểm:</b> <span style="color: #0284c7; font-weight: bold;">{tong_diem_val:,.1f} điểm</span><br>
                                 💬 <i>Ghi chú:</i> {ghi_chu_val if ghi_chu_val and str(ghi_chu_val).lower() != 'nan' else 'Không có ghi chú'}
                             </div>
                             """, 
