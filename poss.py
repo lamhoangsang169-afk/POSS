@@ -317,4 +317,7 @@ def get_user_permissions(identifier):
         if res and res.data and len(res.data) > 0:
             row = res.data[0]
             return {
-                "role
+                "role": row.get("role", "Staff") if pd.notna(row.get("role")) else "Staff",
+                "perm_input": bool(row.get("perm_input")) if pd.notna(row.get("perm_input")) else False,
+                "perm_report": bool(row.get("perm_report")) if pd.notna(row.get("perm_report")) else False,
+                "perm_attendance": bool(row.get("perm_attendance")) if pd.
