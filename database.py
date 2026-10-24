@@ -527,4 +527,106 @@ def get_error_categories_db():
 def save_error_categories_db(categories_list):
     if supabase is None:
         return None
-    try
+    try:
+        data = {"id": 1, "categories_json": categories_list}
+        def _query(client):
+            return client.table("error_settings").upsert(data).execute()
+        response = safe_supabase_call(_query)
+        get_error_categories_db.clear()
+        st.cache_data.clear()
+        return response
+    except Exception as e:
+        st.error(f"Lỗi lưu danh mục lỗi: {e}")
+        return None
+
+def delete_storage_files_by_date_range(start_date, end_date):
+    if supabase is None:
+        return 0, "Chưa kết nối Supabase"
+    
+    deleted_count = 0
+    try:
+        def _query(client):
+            return client.table("production_logs")\
+                .select("hinh_anh_url")\
+                .gte("ngay", start_date.strftime("%Y-%m-%d"))\
+                .lte("ngay", end_date.strftime("%Y-%m-%d"))\
+                .execute()
+        res = safe_supabase_call(_query)
+            
+        if not res or not res.data:
+            return 0, "Không tìm thấy tệp ảnh nào trong khoảng thời gian này."
+
+        file_paths_to_delete = []
+        for row in res.data:
+            img_url = row.get("hinh_anh_url")
+            if img_url:
+                for u in img_url.split(","):
+                    u = u.strip()
+                    if "production_images/" in u:
+                        path_part = u.split("production_images/")[-1]
+                        file_paths_to_delete.append(path_part)
+
+        if file_paths_to_delete:
+            supabase.storage.from_("production_images").remove(file_paths_to_delete)
+            deleted_count = len(file_paths_to_delete)
+            
+            def _update_query(client):
+                return client.table("production_logs")\
+                    .update({"hinh_anh_url": None})\
+                    .gte("ngay", start_date.strftime("%Y-%m-%d"))\
+                    .lte("ngay", end_date.strftime("%Y-%m-%d"))\
+                    .execute()
+            safe_supabase_call(_update_query)
+
+        return deleted_count, f"Đã xóa thành công {deleted_count} tệp ảnh."
+    except Exception as e:
+        return 0, f"Lỗi khi xóa ảnh theo ngày: {e}"
+
+def update_all_historical_production_scores_db():
+    if supabase is None:
+        return False
+    try:
+        rules_res = supabase.table("rules").select("*").execute()
+        if not rules_res.data:
+            return False
+        
+        rule_map = {}
+        for r in rules_res.data:
+            h_muc_chuan = str(r.get("hang_muc_cong_viec") or r.get("hang_muc") or "").strip()
+            key_lowercase = h_muc_chuan.lower()
+            h_so = r.get("he_so_diem") if r.get("he_so_diem") is not None else r.get("he_so", 1.0)
+            
+            try:
+                he_so_float = float(str(h_so).replace(",", ".").strip())
+            except:
+                he_so_float = 1.0
+                
+            if key_lowercase:
+                rule_map[key_lowercase] = {
+                    "ten_chuan": h_muc_chuan,
+                    "he_so": he_so_float
+                }
+
+        logs_res = supabase.table("production_logs").select("*").eq("is_deleted", False).execute()
+        if not logs_res.data:
+            return True
+
+        for log in logs_res.data:
+            log_id = log.get("id")
+            log_task = str(log.get("hang_muc_cong_viec", "")).strip().lower()
+            
+            try:
+                so_luong = float(str(log.get("so_luong", 0)).replace(",", ".").strip())
+            except:
+                so_luong = 0.0
+
+            if log_task in rule_map:
+                new_info = rule_map[log_task]
+                new_ten = new_info["ten_chuan"]
+                new_he_so = new_info["he_so"]
+                new_tong_diem = round(so_luong * new_he_so, 2)
+                
+                supabase.table("production_logs").update({
+                    "hang_muc_cong_viec": new_ten,
+                    "he_so_diem": new_he_so,
+                    "tong_diem": new_tong_
