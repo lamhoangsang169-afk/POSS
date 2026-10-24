@@ -244,4 +244,119 @@ if not st.session_state.logged_in:
         with tab_admin:
             with st.form("login_admin_form"):
                 email_input = st.text_input("📧 Email Admin", placeholder="lamhoangsang169@gmail.com")
-                password_admin = st.text
+                password_admin = st.text_input("🔑 Mật khẩu", type="password", placeholder="Nhập mật khẩu...", key="pw_admin")
+                remember_admin = st.checkbox("📌 Ghi nhớ đăng nhập", value=True, key="rem_admin")
+                
+                if st.form_submit_button("🚀 Đăng Nhập Quản Trị Viên", use_container_width=True):
+                    if not email_input or not password_admin:
+                        st.error("⚠️ Vui lòng nhập đầy đủ Email và Mật khẩu!")
+                    elif supabase is None:
+                        st.error("⚠ Chưa kết nối được tới cơ sở dữ liệu!")
+                    else:
+                        try:
+                            clean_email = email_input.strip()
+                            res = supabase.auth.sign_in_with_password({
+                                "email": clean_email,
+                                "password": password_admin.strip()
+                            })
+                            if res and res.user:
+                                st.session_state.logged_in = True
+                                st.session_state.user_identifier = res.user.email
+                                if remember_admin:
+                                    st.query_params["auth_user"] = res.user.email
+                                st.success("✅ Đăng nhập Admin thành công!")
+                                st.rerun()
+                            else:
+                                st.error("❌ Email hoặc mật khẩu Admin không chính xác!")
+                        except Exception as e:
+                            st.error(f"❌ Lỗi đăng nhập: {e}")
+            
+        with tab_staff:
+            with st.form("login_staff_form"):
+                staff_list_opt = ["--- Chọn họ và tên ---"] + get_staff_list_db()
+                login_name = st.selectbox("👤 Họ và tên nhân sự", staff_list_opt)
+                password_staff = st.text_input("🔑 Mật khẩu", type="password", placeholder="Nhập mật khẩu...", key="pw_staff")
+                remember_staff = st.checkbox("📌 Ghi nhớ đăng nhập", value=True, key="rem_staff")
+                
+                if st.form_submit_button("🚀 Đăng Nhập Nhân Viên", use_container_width=True):
+                    if login_name == "--- Chọn họ và tên ---" or not password_staff:
+                        st.error("⚠️ Vui lòng chọn họ tên và nhập mật khẩu!")
+                    elif supabase is None:
+                        st.error("⚠️ Chưa kết nối được tới cơ sở dữ liệu!")
+                    else:
+                        try:
+                            res = supabase.table("user_accounts").select("*").eq("name", login_name).execute()
+                            if res.data and len(res.data) > 0:
+                                user_record = res.data[0]
+                                if user_record["password_hash"] == hash_password(password_staff):
+                                    st.session_state.logged_in = True
+                                    st.session_state.user_identifier = login_name
+                                    if remember_staff:
+                                        st.query_params["auth_user"] = login_name
+                                    st.success("✅ Đăng nhập thành công!")
+                                    st.rerun()
+                                else:
+                                    st.error("❌ Mật khẩu không chính xác!")
+                            else:
+                                st.error("❌ Tài khoản chưa được Quản trị viên cấp mật khẩu!")
+                        except Exception as e:
+                            st.error(f"❌ Lỗi đăng nhập: {e}")
+        st.markdown("</div>", unsafe_allow_html=True)
+    st.stop()
+
+# ==================== PHÂN QUYỀN TÀI KHOẢN ====================
+def get_user_permissions(identifier):
+    default_perms = {"role": "Staff", "perm_input": False, "perm_report": False, "perm_attendance": True, "perm_rules": False}
+    if not identifier or supabase is None:
+        return default_perms
+    clean_id = str(identifier).strip().lower()
+    if clean_id == "lamhoangsang169@gmail.com":
+        return {"role": "Admin", "perm_input": True, "perm_report": True, "perm_attendance": True, "perm_rules": True}
+    try:
+        res = safe_supabase_call(lambda client: client.table("user_accounts").select("*").eq("name", identifier).execute())
+        if res and res.data and len(res.data) > 0:
+            row = res.data[0]
+            return {
+                "role": row.get("role", "Staff") if pd.notna(row.get("role")) else "Staff",
+                "perm_input": bool(row.get("perm_input")) if pd.notna(row.get("perm_input")) else False,
+                "perm_report": bool(row.get("perm_report")) if pd.notna(row.get("perm_report")) else False,
+                "perm_attendance": bool(row.get("perm_attendance")) if pd.notna(row.get("perm_attendance")) else True,
+                "perm_rules": bool(row.get("perm_rules")) if pd.notna(row.get("perm_rules")) else False
+            }
+    except Exception:
+        pass
+    return default_perms
+
+user_perms = get_user_permissions(st.session_state.user_identifier)
+current_user_role = user_perms["role"]
+
+# ==================== KHỞI TẠO & ĐỒNG BỘ CẤU HÌNH TỪ DATABASE ====================
+st.session_state.staff_list = get_staff_list_db()
+if "rules_df" not in st.session_state:
+    try:
+        st.session_state.rules_df = get_rules_db()
+    except Exception:
+        st.session_state.rules_df = pd.DataFrame()
+
+db_settings = load_app_settings_db()
+
+if not db_settings:
+    db_settings = {
+        "primary_color": "#ff4b4b",
+        "bg_color": "#ffffff",
+        "sidebar_bg": "#f0f2f6",
+        "sidebar_opacity": 0.9,
+        "text_color": "#31333F"
+    }
+    try:
+        save_app_settings_db(db_settings)
+    except Exception:
+        pass
+
+st.session_state.primary_color = db_settings.get("primary_color", "#ff4b4b")
+st.session_state.bg_color = db_settings.get("bg_color", "#ffffff")
+st.session_state.sidebar_bg = db_settings.get("sidebar_bg", "#f0f2f6")
+
+val_opacity = db_settings.get("sidebar_opacity", 0.9)
+try:
+    st.session_state
