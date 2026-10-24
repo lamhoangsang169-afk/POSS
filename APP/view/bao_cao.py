@@ -172,7 +172,7 @@ def render_bao_cao(current_menu_name):
                     
                     public_report_url = supabase.storage.from_(bucket_reports).get_public_url(unique_filename)
                     
-                    # 2. Lưu trực tiếp vào bảng 'report_files' trên Supabase để đồng bộ sang Thư Mục Báo Cáo
+                    # 2. Lưu trực tiếp vào bảng 'report_files' trên Supabase (có bắt lỗi an toàn nếu chưa tạo bảng)
                     def _insert_report_db(client):
                         return client.table("report_files").insert({
                             "name": unique_filename,
@@ -185,7 +185,7 @@ def render_bao_cao(current_menu_name):
                     if res_db:
                         st.success(f"✅ Đã lưu báo cáo lên Cloud và đồng bộ vào thư mục thành công! Tên file: `{unique_filename}`")
                     else:
-                        st.warning(f"⚠️ Đã tải file lên Storage nhưng chưa ghi được vào bảng cơ sở dữ liệu. Tên file: `{unique_filename}`")
+                        st.warning(f"⚠️ Đã tải file lên Storage nhưng chưa ghi được vào bảng `report_files`. Tên file: `{unique_filename}`")
                         
                 except Exception as e:
                     st.error(f"❌ Lỗi tải lên Cloud Storage: {e}")
