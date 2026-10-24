@@ -629,4 +629,57 @@ def update_all_historical_production_scores_db():
                 supabase.table("production_logs").update({
                     "hang_muc_cong_viec": new_ten,
                     "he_so_diem": new_he_so,
-                    "tong_diem": new_tong_
+                    "tong_diem": new_tong_diem
+                }).eq("id", log_id).execute()
+                
+        return True
+    except Exception as e:
+        st.error(f"⚠️ Lỗi đồng bộ điểm lịch sử: {e}")
+        return False
+
+def update_production_log_record_db(db_id, hang_muc, so_luong, ghi_chu=""):
+    if supabase is None:
+        return None
+    try:
+        rules_res = supabase.table("rules").select("*").execute()
+        he_so = 1.0
+        don_vi = "Cái"
+        
+        if rules_res and rules_res.data:
+            target_task = str(hang_muc).strip().lower()
+            for r in rules_res.data:
+                r_task = str(r.get("hang_muc_cong_viec") or r.get("hang_muc") or "").strip().lower()
+                if r_task == target_task:
+                    h_so_val = r.get("he_so_diem") if r.get("he_so_diem") is not None else r.get("he_so", 1.0)
+                    try:
+                        he_so = float(str(h_so_val).replace(",", ".").strip())
+                    except:
+                        he_so = 1.0
+                    d_vi_val = r.get("don_vi") or r.get("unit") or "Cái"
+                    don_vi = str(d_vi_val).strip()
+                    break
+        
+        try:
+            qty_float = float(str(so_luong).replace(",", ".").strip())
+        except:
+            qty_float = 0.0
+            
+        tong_diem = round(qty_float * he_so, 2)
+        
+        data = {
+            "hang_muc_cong_viec": str(hang_muc).strip(),
+            "don_vi": don_vi,
+            "so_luong": qty_float,
+            "he_so_diem": he_so,
+            "tong_diem": tong_diem,
+            "ghi_chu": str(ghi_chu).strip() if pd.notna(ghi_chu) else ""
+        }
+        
+        def _query(client):
+            return client.table("production_logs").update(data).eq("id", db_id).execute()
+        res = safe_supabase_call(_query)
+        st.cache_data.clear()
+        return res
+    except Exception as e:
+        st.error(f"Lỗi cập nhật bản ghi sản lượng: {e}")
+        return None
