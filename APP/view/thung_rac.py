@@ -2,8 +2,6 @@
 import os
 import sys
 
-# ==================== SỬA LỖI ĐƯỜNG DẪN IMPORT (BẮT BUỘC) ====================
-# Ép Python tìm ngược ra thư mục gốc để thấy file database.py và utils.py
 current_file_dir = os.path.dirname(os.path.abspath(__file__))
 root_project_dir = os.path.dirname(os.path.dirname(current_file_dir))
 
@@ -19,9 +17,9 @@ from database import (
 
 def render_thung_rac(current_menu_name, current_user_role):
     col_trash_h1, col_trash_h2 = st.columns([3, 1])
-    with col_att_h1 if 'col_att_h1' in locals() else col_trash_h1:
+    with col_trash_h1:
         st.header(current_menu_name)
-    with col_att_h2 if 'col_att_h2' in locals() else col_trash_h2:
+    with col_trash_h2:
         if st.button("🔄 Làm mới dữ liệu", use_container_width=True, key="btn_refresh_trash"):
             st.cache_data.clear()
             st.rerun()
