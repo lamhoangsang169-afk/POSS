@@ -90,7 +90,7 @@ def render_dinh_muc_cong_viec(current_menu_name, current_user_role, user_perms):
                 if supabase is not None:
                     with st.spinner("⏳ Đang đồng bộ dữ liệu sửa đổi lên Supabase..."):
                         try:
-                            editor_state = st.session_state["rules_data_editor"]
+                            editor_state = st.session_state.get("rules_data_editor", {})
                             
                             # XỬ LÝ HÀNG XÓA
                             if "deleted_rows" in editor_state and editor_state["deleted_rows"]:
@@ -98,39 +98,49 @@ def render_dinh_muc_cong_viec(current_menu_name, current_user_role, user_perms):
                                     row_id = display_df.iloc[row_idx]["id"]
                                     supabase.table("rules").delete().eq("id", row_id).execute()
                             
-                            # XỬ LÝ HÀNG THÊM MỚI & CẬP NHẬT
-                            for idx, row in edited_df.iterrows():
-                                h_muc = row.get("Hạng Mục Công Việc", "")
-                                d_vi = row.get("Đơn Vị", "Cái")
-                                hs_diem = row.get("Hệ Số Điểm", 1.0)
-                                g_chu = row.get("Ghi Chú", "")
-                                r_id = row.get("id")
+                            # Hàm kiểm tra và ép kiểu ID hợp lệ (xử lý cả 1, 1.0, "1")
+                            def parse_valid_id(val):
+                                if pd.isna(val) or val is None:
+                                    return None
+                                s = str(val).strip()
+                                if not s or s.startswith("arg_") or s.lower() in ["none", "nan"]:
+                                    return None
+                                try:
+                                    return int(float(s))
+                                except Exception:
+                                    return None
 
-                                if pd.notna(h_muc) and str(h_muc).strip():
+                            for idx, row in edited_df.iterrows():
+                                h_muc = str(row.get("Hạng Mục Công Việc", "")).strip()
+                                d_vi = str(row.get("Đơn Vị", "Cái")).strip()
+                                hs_diem = row.get("Hệ Số Điểm", 1.0)
+                                g_chu = str(row.get("Ghi Chú", "")).strip() if pd.notna(row.get("Ghi Chú")) else ""
+                                clean_id = parse_valid_id(row.get("id"))
+
+                                if h_muc:
                                     try:
                                         hs_diem = float(str(hs_diem).replace(",", ".").strip())
-                                    except:
+                                    except Exception:
                                         hs_diem = 1.0
 
-                                    if pd.isna(r_id) or str(r_id).strip() == "" or str(r_id).startswith("arg_") or str(r_id).isdigit() is False:
-                                        # Thêm mới
-                                        supabase.table("rules").insert({
-                                            "hang_muc_cong_viec": str(h_muc).strip(),
-                                            "don_vi": str(d_vi).strip(),
-                                            "he_so_diem": hs_diem,
-                                            "ghi_chu": str(g_chu).strip() if pd.notna(g_chu) else ""
-                                        }).execute()
+                                    payload = {
+                                        "hang_muc_cong_viec": h_muc,
+                                        "don_vi": d_vi,
+                                        "he_so_diem": hs_diem,
+                                        "ghi_chu": g_chu
+                                    }
+
+                                    if clean_id is None:
+                                        # Thêm mới nếu chưa có ID
+                                        supabase.table("rules").insert(payload).execute()
                                     else:
-                                        # Cập nhật dòng cũ
-                                        supabase.table("rules").update({
-                                            "hang_muc_cong_viec": str(h_muc).strip(),
-                                            "don_vi": str(d_vi).strip(),
-                                            "he_so_diem": hs_diem,
-                                            "ghi_chu": str(g_chu).strip() if pd.notna(g_chu) else ""
-                                        }).eq("id", int(r_id)).execute()
+                                        # Cập nhật theo đúng ID
+                                        supabase.table("rules").update(payload).eq("id", clean_id).execute()
+                                        # Cập nhật bổ trợ theo tên hạng mục để xóa sạch hệ số cũ còn sót lại
+                                        supabase.table("rules").update({"he_so_diem": hs_diem}).eq("hang_muc_cong_viec", h_muc).execute()
 
                             st.cache_data.clear()
-                            st.success("✅ Lưu thay đổi định mức thành công!")
+                            st.success("✅ Đã lưu định mức mới thành công vào cơ sở dữ liệu!")
                             st.rerun()
                         except Exception as e:
                             st.error(f"❌ Lỗi khi lưu dữ liệu định mức: {e}")
@@ -149,12 +159,12 @@ def render_dinh_muc_cong_viec(current_menu_name, current_user_role, user_perms):
         # === KHỐI NÚT BẤM ĐỒNG BỘ ĐIỂM LỊCH SỬ ===
         st.markdown("---")
         st.markdown("#### 🔄 Đồng Bộ Điểm Lịch Sử")
-        st.info("💡 Sau khi bạn thay đổi hệ số điểm hoặc tên hạng mục ở trên, hãy bấm nút dưới đây để hệ thống tự động cập nhật lại tên, hệ số và điểm số cho toàn bộ các báo cáo cũ trong lịch sử.")
+        st.info("💡 Sau khi bạn bấm '📝 Lưu Thay Đổi Định Mức' ở trên, hãy bấm nút dưới đây để hệ thống tự động cập nhật lại tên, hệ số và điểm số cho toàn bộ các báo cáo cũ trong lịch sử.")
 
         if st.button("🚀 Cập nhật lại toàn bộ điểm lịch sử theo định mức mới", use_container_width=True, type="primary", key="btn_sync_history_scores"):
             if update_all_historical_production_scores_db is not None:
                 status_container = st.empty()
-                status_container.info("⏳ Đang quét cơ sở dữ liệu và tính toán điểm mới...")
+                status_container.info("⏳ Đang quét cơ sở dữ liệu và tính toán điểm mới theo định mức đã lưu...")
                 
                 success, msg = update_all_historical_production_scores_db()
                 status_container.empty()
