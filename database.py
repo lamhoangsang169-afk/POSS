@@ -1,6 +1,7 @@
 import time
 import datetime
 import io
+import os
 from PIL import Image
 import streamlit as st
 import pandas as pd
@@ -8,18 +9,20 @@ from supabase import create_client, Client
 
 @st.cache_resource
 def init_supabase():
+    url = st.secrets.get("SUPABASE_URL") or os.getenv("SUPABASE_URL")
+    key = st.secrets.get("SUPABASE_KEY") or os.getenv("SUPABASE_KEY")
+    
+    # Dự phòng thông tin kết nối nếu chưa cấu hình secrets.toml
+    if not url:
+        url = "https://mnwyewgsxvpjwnpmgyhj.supabase.co"
+    if not key:
+        key = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1ud3lld2dzeHZwanducG1neWhqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTA3MjMwNjgsImV4cCI6MjEwNjI5OTA2OH0.eeTU1a16zY5c4XHr7YobwRRJXstgkQjt3lyIosUMVQk"
+        
     try:
-        url = st.secrets.get("SUPABASE_URL", "https://mnwyewgsxvpjwnpmgyhj.supabase.co")
-        key = st.secrets.get("SUPABASE_KEY", "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1ud3lld2dzeHZwanducG1neWhqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTA3MjMwNjgsImV4cCI6MjEwNjI5OTA2OH0.eeTU1a16zY5c4XHr7YobwRRJXstgkQjt3lyIosUMVQk")
         return create_client(url, key)
-    except Exception as e:
-        try:
-            url = "https://mnwyewgsxvpjwnpmgyhj.supabase.co"
-            key = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1ud3lld2dzeHZwanducG1neWhqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTA3MjMwNjgsImV4cCI6MjEwNjI5OTA2OH0.eeTU1a16zY5c4XHr7YobwRRJXstgkQjt3lyIosUMVQk"
-            return create_client(url, key)
-        except Exception as ex:
-            st.error(f"Lỗi khởi tạo Supabase: {ex}")
-            return None
+    except Exception as ex:
+        st.error(f"Lỗi khởi tạo Supabase: {ex}")
+        return None
 
 supabase = init_supabase()
 
@@ -144,12 +147,14 @@ def add_production_log_db(ngay, gio, nhan_su, hang_muc, anh, don_vi, so_luong, h
         def _query(client):
             return client.table("production_logs").insert(data).execute()
         response = safe_supabase_call(_query)
-        st.cache_data.clear()
+        get_production_logs_db.clear()
+        get_production_logs_by_date_range.clear()
         return response
     except Exception as e:
         st.error(f"Lỗi database: {e}")
         return None
 
+@st.cache_data(ttl=15, show_spinner=False)
 def get_production_logs_db(is_deleted=False, limit_rows=1000):
     if supabase is None:
         return pd.DataFrame()
@@ -176,6 +181,7 @@ def get_production_logs_db(is_deleted=False, limit_rows=1000):
         pass
     return pd.DataFrame()
 
+@st.cache_data(ttl=15, show_spinner=False)
 def get_production_logs_by_date_range(start_date, end_date):
     if supabase is None:
         return pd.DataFrame()
@@ -212,13 +218,13 @@ def get_total_production_count_db():
     except Exception:
         return 0
 
-@st.cache_data(ttl=600, show_spinner=False)
-def get_attendance_db():
+@st.cache_data(ttl=30, show_spinner=False)
+def get_attendance_db(limit_rows=300):
     if supabase is None:
         return pd.DataFrame()
     try:
         def _query(client):
-            return client.table("attendance").select("*").order("id", desc=True).limit(100).execute()
+            return client.table("attendance").select("*").order("id", desc=True).limit(limit_rows).execute()
         res = safe_supabase_call(_query)
         if res and res.data:
             df = pd.DataFrame(res.data)
@@ -228,6 +234,26 @@ def get_attendance_db():
                 "so_phut_lam_viec": "Số Phút Làm Việc", "ghi_chu": "Ghi Chú"
             })
             df.insert(0, "STT", range(1, len(df) + 1))
+            return df
+    except Exception:
+        pass
+    return pd.DataFrame()
+
+def get_active_attendance_db():
+    """Lấy riêng tất cả ca làm việc chưa kết thúc (không bị giới hạn bởi limit)"""
+    if supabase is None:
+        return pd.DataFrame()
+    try:
+        def _query(client):
+            return client.table("attendance").select("*").eq("gio_ra_ca", "Chưa kết thúc").order("id", desc=True).execute()
+        res = safe_supabase_call(_query)
+        if res and res.data:
+            df = pd.DataFrame(res.data)
+            df = df.rename(columns={
+                "id": "db_id", "ngay": "Ngày", "nhan_su": "Nhân Sự",
+                "gio_vao_ca": "Giờ Vào Ca", "gio_ra_ca": "Giờ Ra Ca",
+                "so_phut_lam_viec": "Số Phút Làm Việc", "ghi_chu": "Ghi Chú"
+            })
             return df
     except Exception:
         pass
@@ -256,27 +282,28 @@ def save_app_settings_db(settings_dict):
             return client.table("app_settings").upsert(payload).execute()
         response = safe_supabase_call(_query)
         load_app_settings_db.clear()
-        st.cache_data.clear()
         return response
     except Exception as e:
         st.error(f"Lỗi khi lưu cài đặt ứng dụng: {e}")
         return None
 
 def update_production_log_deleted_status(db_ids, is_deleted):
+    """Cập nhật trạng thái xóa hàng loạt bằng IN query tối ưu"""
     if supabase is None or not db_ids:
         return None
     try:
-        for db_id in db_ids:
-            def _query(client):
-                return client.table("production_logs").update({"is_deleted": is_deleted}).eq("id", db_id).execute()
-            safe_supabase_call(_query)
-        st.cache_data.clear()
+        def _query(client):
+            return client.table("production_logs").update({"is_deleted": is_deleted}).in_("id", db_ids).execute()
+        safe_supabase_call(_query)
+        get_production_logs_db.clear()
+        get_production_logs_by_date_range.clear()
         return True
     except Exception as e:
         st.error(f"Lỗi khi cập nhật trạng thái xóa: {e}")
         return None
 
-def upload_multiple_images_to_storage(uploaded_files, bucket_name="production_images", max_size=(800, 600), target_kb=50):
+def upload_multiple_images_to_storage(uploaded_files, bucket_name="production_images", max_size=(800, 600), quality=78):
+    """Nén ảnh 1 lần tối ưu bộ nhớ, không chạy vòng lặp treo CPU"""
     if not uploaded_files or supabase is None:
         return ""
     
@@ -290,16 +317,9 @@ def upload_multiple_images_to_storage(uploaded_files, bucket_name="production_im
                 img = img.convert("RGB")
 
             img.thumbnail(max_size, Image.Resampling.LANCZOS)
-            quality = 85
             output_io = io.BytesIO()
             img.save(output_io, format="JPEG", quality=quality, optimize=True)
             compressed_file_bytes = output_io.getvalue()
-
-            while len(compressed_file_bytes) > target_kb * 1024 and quality > 20:
-                quality -= 10
-                output_io = io.BytesIO()
-                img.save(output_io, format="JPEG", quality=quality, optimize=True)
-                compressed_file_bytes = output_io.getvalue()
 
             clean_filename = file.name.rsplit('.', 1)[0].replace(' ', '_')
             unique_filename = f"{int(time.time())}_{clean_filename}.jpg"
@@ -324,7 +344,7 @@ def delete_images_from_storage_by_urls(image_urls_str, bucket_name="production_i
         urls = [u.strip() for u in str(image_urls_str).split(",") if u.strip()]
         file_paths_to_delete = []
         for url in urls:
-            if "storage/v1/object/public/" in url:
+            if f"/storage/v1/object/public/{bucket_name}/" in url:
                 parts = url.split(f"/storage/v1/object/public/{bucket_name}/")
                 if len(parts) > 1:
                     file_paths_to_delete.append(parts[1])
@@ -337,24 +357,29 @@ def delete_images_from_storage_by_urls(image_urls_str, bucket_name="production_i
         st.warning(f"⚠️ Lỗi khi xóa ảnh trên Supabase Storage: {e}")
 
 def permanent_delete_db(db_ids):
+    """Xóa vĩnh viễn theo lô, xử lý ảnh và bản ghi cùng lúc"""
     if supabase is None or not db_ids:
         return None
     try:
-        for db_id in db_ids:
-            def _query_sel(client):
-                return client.table("production_logs").select("hinh_anh_url").eq("id", db_id).execute()
-            res = safe_supabase_call(_query_sel)
+        def _query_sel(client):
+            return client.table("production_logs").select("hinh_anh_url").in_("id", db_ids).execute()
+        res = safe_supabase_call(_query_sel)
+        
+        if res and res.data:
+            all_urls = []
+            for r in res.data:
+                u = r.get("hinh_anh_url", "")
+                if u:
+                    all_urls.append(u)
+            if all_urls:
+                delete_images_from_storage_by_urls(",".join(all_urls), bucket_name="production_images")
+
+        def _query_del(client):
+            return client.table("production_logs").delete().in_("id", db_ids).execute()
+        safe_supabase_call(_query_del)
             
-            if res and res.data and len(res.data) > 0:
-                img_url = res.data[0].get("hinh_anh_url", "")
-                if img_url:
-                    delete_images_from_storage_by_urls(img_url, bucket_name="production_images")
-            
-            def _query_del(client):
-                return client.table("production_logs").delete().eq("id", db_id).execute()
-            safe_supabase_call(_query_del)
-            
-        st.cache_data.clear()
+        get_production_logs_db.clear()
+        get_production_logs_by_date_range.clear()
         return True
     except Exception as e:
         st.error(f"Lỗi khi xóa vĩnh viễn: {e}")
@@ -412,7 +437,7 @@ def add_attendance_log_db(ngay, nhan_su, gio_vao):
         def _query(client):
             return client.table("attendance").insert(data).execute()
         response = safe_supabase_call(_query)
-        st.cache_data.clear()
+        get_attendance_db.clear()
         return response
     except Exception as e:
         st.error(f"Lỗi Check-in: {e}")
@@ -430,13 +455,13 @@ def update_attendance_checkout_db(db_id, gio_ra, so_phut, ghi_chu=""):
         def _query(client):
             return client.table("attendance").update(data).eq("id", db_id).execute()
         response = safe_supabase_call(_query)
-        st.cache_data.clear()
+        get_attendance_db.clear()
         return response
     except Exception as e:
         st.error(f"Lỗi Check-out: {e}")
         return None
 
-@st.cache_data(ttl=600, show_spinner=False)
+@st.cache_data(ttl=300, show_spinner=False)
 def get_rules_db():
     if supabase is None:
         return pd.DataFrame()
@@ -459,7 +484,7 @@ def get_rules_db():
         st.error(f"Lỗi khi tải bảng định mức: {e}")
     return pd.DataFrame()
 
-@st.cache_data(ttl=600, show_spinner=False)
+@st.cache_data(ttl=60, show_spinner=False)
 def get_error_logs_db(limit_rows=1000):
     if supabase is None:
         return pd.DataFrame()
@@ -501,13 +526,13 @@ def add_error_log_with_images_db(ngay, nhan_su, phan_loai_loi, so_luong, ghi_chu
         def _query(client):
             return client.table("error_logs").insert(data).execute()
         response = safe_supabase_call(_query)
-        st.cache_data.clear()
+        get_error_logs_db.clear()
         return response
     except Exception as e:
         st.error(f"Lỗi ghi nhận báo cáo lỗi: {e}")
         return None
 
-@st.cache_data(ttl=10, show_spinner=False)
+@st.cache_data(ttl=60, show_spinner=False)
 def get_error_categories_db():
     default_categories = ["Sản phẩm hỏng", "Lỗi nguyên vật liệu", "Lỗi thao tác", "Lỗi máy móc / thiết bị", "Khác"]
     if supabase is None:
@@ -527,159 +552,4 @@ def get_error_categories_db():
 def save_error_categories_db(categories_list):
     if supabase is None:
         return None
-    try:
-        data = {"id": 1, "categories_json": categories_list}
-        def _query(client):
-            return client.table("error_settings").upsert(data).execute()
-        response = safe_supabase_call(_query)
-        get_error_categories_db.clear()
-        st.cache_data.clear()
-        return response
-    except Exception as e:
-        st.error(f"Lỗi lưu danh mục lỗi: {e}")
-        return None
-
-def delete_storage_files_by_date_range(start_date, end_date):
-    if supabase is None:
-        return 0, "Chưa kết nối Supabase"
-    
-    deleted_count = 0
-    try:
-        def _query(client):
-            return client.table("production_logs")\
-                .select("hinh_anh_url")\
-                .gte("ngay", start_date.strftime("%Y-%m-%d"))\
-                .lte("ngay", end_date.strftime("%Y-%m-%d"))\
-                .execute()
-        res = safe_supabase_call(_query)
-            
-        if not res or not res.data:
-            return 0, "Không tìm thấy tệp ảnh nào trong khoảng thời gian này."
-
-        file_paths_to_delete = []
-        for row in res.data:
-            img_url = row.get("hinh_anh_url")
-            if img_url:
-                for u in img_url.split(","):
-                    u = u.strip()
-                    if "production_images/" in u:
-                        path_part = u.split("production_images/")[-1]
-                        file_paths_to_delete.append(path_part)
-
-        if file_paths_to_delete:
-            supabase.storage.from_("production_images").remove(file_paths_to_delete)
-            deleted_count = len(file_paths_to_delete)
-            
-            def _update_query(client):
-                return client.table("production_logs")\
-                    .update({"hinh_anh_url": None})\
-                    .gte("ngay", start_date.strftime("%Y-%m-%d"))\
-                    .lte("ngay", end_date.strftime("%Y-%m-%d"))\
-                    .execute()
-            safe_supabase_call(_update_query)
-
-        return deleted_count, f"Đã xóa thành công {deleted_count} tệp ảnh."
-    except Exception as e:
-        return 0, f"Lỗi khi xóa ảnh theo ngày: {e}"
-
-def update_all_historical_production_scores_db():
-    if supabase is None:
-        return False
-    try:
-        rules_res = supabase.table("rules").select("*").execute()
-        if not rules_res.data:
-            return False
-        
-        rule_map = {}
-        for r in rules_res.data:
-            h_muc_chuan = str(r.get("hang_muc_cong_viec") or r.get("hang_muc") or "").strip()
-            key_lowercase = h_muc_chuan.lower()
-            h_so = r.get("he_so_diem") if r.get("he_so_diem") is not None else r.get("he_so", 1.0)
-            
-            try:
-                he_so_float = float(str(h_so).replace(",", ".").strip())
-            except:
-                he_so_float = 1.0
-                
-            if key_lowercase:
-                rule_map[key_lowercase] = {
-                    "ten_chuan": h_muc_chuan,
-                    "he_so": he_so_float
-                }
-
-        logs_res = supabase.table("production_logs").select("*").eq("is_deleted", False).execute()
-        if not logs_res.data:
-            return True
-
-        for log in logs_res.data:
-            log_id = log.get("id")
-            log_task = str(log.get("hang_muc_cong_viec", "")).strip().lower()
-            
-            try:
-                so_luong = float(str(log.get("so_luong", 0)).replace(",", ".").strip())
-            except:
-                so_luong = 0.0
-
-            if log_task in rule_map:
-                new_info = rule_map[log_task]
-                new_ten = new_info["ten_chuan"]
-                new_he_so = new_info["he_so"]
-                new_tong_diem = round(so_luong * new_he_so, 2)
-                
-                supabase.table("production_logs").update({
-                    "hang_muc_cong_viec": new_ten,
-                    "he_so_diem": new_he_so,
-                    "tong_diem": new_tong_diem
-                }).eq("id", log_id).execute()
-                
-        return True
-    except Exception as e:
-        st.error(f"⚠️ Lỗi đồng bộ điểm lịch sử: {e}")
-        return False
-
-def update_production_log_record_db(db_id, hang_muc, so_luong, ghi_chu=""):
-    if supabase is None:
-        return None
-    try:
-        rules_res = supabase.table("rules").select("*").execute()
-        he_so = 1.0
-        don_vi = "Cái"
-        
-        if rules_res and rules_res.data:
-            target_task = str(hang_muc).strip().lower()
-            for r in rules_res.data:
-                r_task = str(r.get("hang_muc_cong_viec") or r.get("hang_muc") or "").strip().lower()
-                if r_task == target_task:
-                    h_so_val = r.get("he_so_diem") if r.get("he_so_diem") is not None else r.get("he_so", 1.0)
-                    try:
-                        he_so = float(str(h_so_val).replace(",", ".").strip())
-                    except:
-                        he_so = 1.0
-                    d_vi_val = r.get("don_vi") or r.get("unit") or "Cái"
-                    don_vi = str(d_vi_val).strip()
-                    break
-        
-        try:
-            qty_float = float(str(so_luong).replace(",", ".").strip())
-        except:
-            qty_float = 0.0
-            
-        tong_diem = round(qty_float * he_so, 2)
-        
-        data = {
-            "hang_muc_cong_viec": str(hang_muc).strip(),
-            "don_vi": don_vi,
-            "so_luong": qty_float,
-            "he_so_diem": he_so,
-            "tong_diem": tong_diem,
-            "ghi_chu": str(ghi_chu).strip() if pd.notna(ghi_chu) else ""
-        }
-        
-        def _query(client):
-            return client.table("production_logs").update(data).eq("id", db_id).execute()
-        res = safe_supabase_call(_query)
-        st.cache_data.clear()
-        return res
-    except Exception as e:
-        st.error(f"Lỗi cập nhật bản ghi sản lượng: {e}")
-        return None
+    try
