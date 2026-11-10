@@ -109,7 +109,7 @@ def render_dinh_muc_cong_viec(current_menu_name, current_user_role, user_perms):
                                 if pd.notna(h_muc) and str(h_muc).strip():
                                     try:
                                         hs_diem = float(str(hs_diem).replace(",", ".").strip())
-                                    except:
+                                    except Exception:
                                         hs_diem = 1.0
 
                                     if pd.isna(r_id) or str(r_id).strip() == "" or str(r_id).startswith("arg_") or str(r_id).isdigit() is False:
@@ -138,31 +138,3 @@ def render_dinh_muc_cong_viec(current_menu_name, current_user_role, user_perms):
         with col_btn2:
             if confirm_delete_all:
                 if st.button("🗑️ Xóa Toàn Bộ Định Mức", use_container_width=True, type="primary", key="btn_del_all_rules_confirm"):
-                    try:
-                        supabase.table("rules").delete().neq("id", -1).execute()
-                        st.cache_data.clear()
-                        st.success("✅ Đã xóa toàn bộ bảng định mức thành công!")
-                        st.rerun()
-                    except Exception as e:
-                        st.error(f"❌ Lỗi xóa toàn bộ định mức: {e}")
-
-        # === KHỐI NÚT BẤM ĐỒNG BỘ ĐIỂM LỊCH SỬ ===
-        st.markdown("---")
-        st.markdown("#### 🔄 Đồng Bộ Điểm Lịch Sử")
-        st.info("💡 Sau khi bạn thay đổi hệ số điểm hoặc tên hạng mục ở trên, hãy bấm nút dưới đây để hệ thống tự động cập nhật lại tên, hệ số và điểm số cho toàn bộ các báo cáo cũ trong lịch sử.")
-
-        if st.button("🚀 Cập nhật lại toàn bộ điểm lịch sử theo định mức mới", use_container_width=True, type="primary", key="btn_sync_history_scores"):
-            if update_all_historical_production_scores_db is not None:
-                status_container = st.empty()
-                status_container.info("⏳ Đang quét cơ sở dữ liệu và tính toán điểm mới...")
-                
-                success, msg = update_all_historical_production_scores_db()
-                status_container.empty()
-                
-                if success:
-                    st.success(f"✅ {msg}")
-                    st.info("👉 Bạn có thể chuyển sang menu **1. Nhập Sản Lượng** để kiểm tra lại các bản ghi cũ.")
-                else:
-                    st.error(f"❌ {msg}")
-            else:
-                st.error("⚠️ Không tìm thấy hàm `update_all_historical_production_scores_db` trong `database.py`.")
