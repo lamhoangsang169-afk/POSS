@@ -153,12 +153,16 @@ def render_dinh_muc_cong_viec(current_menu_name, current_user_role, user_perms):
 
         if st.button("🚀 Cập nhật lại toàn bộ điểm lịch sử theo định mức mới", use_container_width=True, type="primary", key="btn_sync_history_scores"):
             if update_all_historical_production_scores_db is not None:
-                with st.spinner("⏳ Đang quét và đồng bộ lại tên, hệ số và tổng điểm cho toàn bộ báo cáo lịch sử..."):
-                    success, msg = update_all_historical_production_scores_db()
-                    if success:
-                        st.success(f"✅ {msg}")
-                        st.info("💡 Bạn hãy chuyển sang menu **1. Nhập Sản Lượng** để kiểm tra lại điểm số các bản ghi cũ.")
-                    else:
-                        st.error(f"❌ {msg}")
+                status_container = st.empty()
+                status_container.info("⏳ Đang quét cơ sở dữ liệu và tính toán điểm mới...")
+                
+                success, msg = update_all_historical_production_scores_db()
+                status_container.empty()
+                
+                if success:
+                    st.success(f"✅ {msg}")
+                    st.info("👉 Bạn có thể chuyển sang menu **1. Nhập Sản Lượng** để kiểm tra lại các bản ghi cũ.")
+                else:
+                    st.error(f"❌ {msg}")
             else:
                 st.error("⚠️ Không tìm thấy hàm `update_all_historical_production_scores_db` trong `database.py`.")
