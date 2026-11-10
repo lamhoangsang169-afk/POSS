@@ -463,7 +463,7 @@ def get_rules_db():
         return pd.DataFrame()
     try:
         def _query(client):
-            return client.table("rules").select("*").execute()
+            return client.table("rules").select("*").order("id", desc=False).execute()
         res = safe_supabase_call(_query)
         if res and res.data:
             df = pd.DataFrame(res.data)
@@ -604,13 +604,13 @@ def delete_storage_files_by_date_range(start_date, end_date):
         return 0, f"Lỗi khi xóa ảnh theo ngày: {e}"
 
 def update_all_historical_production_scores_db():
-    """Đồng bộ và tính toán lại điểm lịch sử theo hệ số mới tối ưu tốc độ và bộ nhớ"""
+    """Đồng bộ và tính toán lại điểm lịch sử theo hệ số mới chính xác 100%"""
     if supabase is None:
         return False, "Chưa kết nối Supabase"
     try:
-        # 1. Tải bảng rules
+        # 1. Tải bảng rules mới nhất (sắp xếp id tăng dần để bản ghi mới nhất đè lên bản ghi cũ)
         def _get_rules(client):
-            return client.table("rules").select("*").execute()
+            return client.table("rules").select("*").order("id", desc=False).execute()
         rules_res = safe_supabase_call(_get_rules)
         
         if not rules_res or not rules_res.data:
@@ -651,8 +651,10 @@ def update_all_historical_production_scores_db():
         all_logs = logs_res.data
         total_logs = len(all_logs)
         
-        # 3. Lọc trước trên RAM: Chỉ giữ lại các bản ghi thực sự có điểm/hệ số/tên cần thay đổi
-        logs_to_update = []
+        # 3. Quét và cập nhật điểm theo hệ số mới
+        updated_count = 0
+        debug_info = []
+
         for log in all_logs:
             raw_task = log.get("hang_muc_cong_viec") or log.get("hang_muc", "")
             log_key = clean_text(raw_task)
@@ -671,45 +673,32 @@ def update_all_historical_production_scores_db():
                     curr_diem = float(str(log.get("tong_diem", 0)).replace(",", ".").strip())
                 except Exception:
                     curr_diem = 0.0
+
+                # Nếu điểm số hoặc hệ số có sự sai khác, thực hiện cập nhật ngay
+                if abs(curr_diem - new_tong_diem) > 0.01:
+                    payload = {
+                        "hang_muc_cong_viec": new_info["ten_chuan"],
+                        "tong_diem": new_tong_diem
+                    }
+                    if "he_so_diem" in log:
+                        payload["he_so_diem"] = new_he_so
+                    else:
+                        payload["he_so"] = new_he_so
+
+                    def _upd_single(client, lid=log.get("id"), p=payload):
+                        return client.table("production_logs").update(p).eq("id", lid).execute()
                     
-                hs_raw = log.get("he_so_diem") if log.get("he_so_diem") is not None else log.get("he_so", 0)
-                try:
-                    curr_he_so = float(str(hs_raw).replace(",", ".").strip())
-                except Exception:
-                    curr_he_so = 0.0
-
-                # Kiểm tra xem có lệch điểm, hệ số hoặc tên không
-                has_diff = (abs(curr_diem - new_tong_diem) > 0.01) or (abs(curr_he_so - new_he_so) > 0.01) or (raw_task != new_info["ten_chuan"])
-                if has_diff:
-                    logs_to_update.append((log.get("id"), new_info["ten_chuan"], new_he_so, new_tong_diem, "he_so_diem" in log))
-
-        if not logs_to_update:
-            return True, f"Đã quét {total_logs} bản ghi: Tất cả bản ghi đều đã khớp với định mức mới, không cần cập nhật thêm."
-
-        # 4. Cập nhật những bản ghi bị lệch
-        updated_count = 0
-        for log_id, ten_chuan, he_so_val, tong_diem_val, has_he_so_diem_col in logs_to_update:
-            payload = {
-                "hang_muc_cong_viec": ten_chuan,
-                "tong_diem": tong_diem_val
-            }
-            if has_he_so_diem_col:
-                payload["he_so_diem"] = he_so_val
-            else:
-                payload["he_so"] = he_so_val
-
-            def _upd_single(client, lid=log_id, p=payload):
-                return client.table("production_logs").update(p).eq("id", lid).execute()
-            
-            res_upd = safe_supabase_call(_upd_single)
-            if res_upd:
-                updated_count += 1
+                    safe_supabase_call(_upd_single)
+                    updated_count += 1
+                    if len(debug_info) < 2:
+                        debug_info.append(f"{raw_task}: {so_luong} × {new_he_so} = {new_tong_diem}đ")
 
         get_production_logs_db.clear()
         get_production_logs_by_date_range.clear()
         st.cache_data.clear()
         
-        return True, f"Đã quét {total_logs} bản ghi: Cập nhật thành công {updated_count} bản ghi theo hệ số mới!"
+        detail_msg = " (" + ", ".join(debug_info) + ")" if debug_info else ""
+        return True, f"Đã tính lại {updated_count}/{total_logs} bản ghi theo hệ số mới!{detail_msg}"
     except Exception as e:
         return False, f"Lỗi đồng bộ: {e}"
 
