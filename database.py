@@ -2,6 +2,7 @@ import time
 import datetime
 import io
 import os
+import unicodedata
 from PIL import Image
 import streamlit as st
 import pandas as pd
@@ -12,7 +13,6 @@ def init_supabase():
     url = st.secrets.get("SUPABASE_URL") or os.getenv("SUPABASE_URL")
     key = st.secrets.get("SUPABASE_KEY") or os.getenv("SUPABASE_KEY")
     
-    # Dự phòng thông tin kết nối nếu chưa cấu hình secrets.toml
     if not url:
         url = "https://mnwyewgsxvpjwnpmgyhj.supabase.co"
     if not key:
@@ -610,26 +610,28 @@ def delete_storage_files_by_date_range(start_date, end_date):
 def update_all_historical_production_scores_db():
     """Đồng bộ và tính toán lại điểm lịch sử theo hệ số mới chính xác 100%"""
     if supabase is None:
-        return False
+        return False, "Chưa kết nối Supabase"
     try:
         def _get_rules(client):
             return client.table("rules").select("*").execute()
         rules_res = safe_supabase_call(_get_rules)
         
         if not rules_res or not rules_res.data:
-            return False
-        
-        def normalize_task_name(name):
-            if not name:
+            return False, "Bảng định mức (rules) đang trống!"
+
+        def clean_text(s):
+            if not s:
                 return ""
-            return " ".join(str(name).strip().lower().split())
+            s = str(s).replace("\xa0", " ").strip()
+            s = unicodedata.normalize("NFC", s)
+            return " ".join(s.lower().split())
 
         rule_map = {}
         for r in rules_res.data:
             h_muc_chuan = str(r.get("hang_muc_cong_viec") or r.get("hang_muc") or "").strip()
-            norm_key = normalize_task_name(h_muc_chuan)
-            h_so = r.get("he_so_diem") if r.get("he_so_diem") is not None else r.get("he_so", 1.0)
+            norm_key = clean_text(h_muc_chuan)
             
+            h_so = r.get("he_so_diem") if r.get("he_so_diem") is not None else r.get("he_so", 1.0)
             try:
                 he_so_float = float(str(h_so).replace(",", ".").strip())
             except Exception:
@@ -646,20 +648,23 @@ def update_all_historical_production_scores_db():
         logs_res = safe_supabase_call(_get_logs)
         
         if not logs_res or not logs_res.data:
-            return True
+            return True, "Không có bản ghi sản lượng nào để tính lại."
+
+        updated_count = 0
+        total_logs = len(logs_res.data)
 
         for log in logs_res.data:
             log_id = log.get("id")
             raw_task = log.get("hang_muc_cong_viec") or log.get("hang_muc", "")
-            log_task_norm = normalize_task_name(raw_task)
+            log_key = clean_text(raw_task)
             
             try:
                 so_luong = float(str(log.get("so_luong", 0)).replace(",", ".").strip())
             except Exception:
                 so_luong = 0.0
 
-            if log_task_norm in rule_map:
-                new_info = rule_map[log_task_norm]
+            if log_key in rule_map:
+                new_info = rule_map[log_key]
                 new_ten = new_info["ten_chuan"]
                 new_he_so = new_info["he_so"]
                 new_tong_diem = round(so_luong * new_he_so, 2)
@@ -677,14 +682,17 @@ def update_all_historical_production_scores_db():
 
                 def _upd_log(client, lid=log_id, p=update_payload):
                     return client.table("production_logs").update(p).eq("id", lid).execute()
-                safe_supabase_call(_upd_log)
                 
+                safe_supabase_call(_upd_log)
+                updated_count += 1
+
         get_production_logs_db.clear()
         get_production_logs_by_date_range.clear()
-        return True
+        st.cache_data.clear()
+        
+        return True, f"Đã quét {total_logs} bản ghi: Cập nhật thành công {updated_count} bản ghi theo hệ số mới!"
     except Exception as e:
-        st.error(f"⚠️ Lỗi đồng bộ điểm lịch sử: {e}")
-        return False
+        return False, f"Lỗi đồng bộ: {e}"
 
 def update_production_log_record_db(db_id, hang_muc, so_luong, ghi_chu=""):
     if supabase is None:
@@ -722,14 +730,3 @@ def update_production_log_record_db(db_id, hang_muc, so_luong, ghi_chu=""):
             "he_so_diem": he_so,
             "tong_diem": tong_diem,
             "ghi_chu": str(ghi_chu).strip() if pd.notna(ghi_chu) else ""
-        }
-        
-        def _query(client):
-            return client.table("production_logs").update(data).eq("id", db_id).execute()
-        res = safe_supabase_call(_query)
-        get_production_logs_db.clear()
-        get_production_logs_by_date_range.clear()
-        return res
-    except Exception as e:
-        st.error(f"Lỗi cập nhật bản ghi sản lượng: {e}")
-        return None
