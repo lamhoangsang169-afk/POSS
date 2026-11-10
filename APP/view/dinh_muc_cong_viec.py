@@ -43,15 +43,12 @@ def render_dinh_muc_cong_viec(current_menu_name, current_user_role, user_perms):
     if not rules_df.empty:
         display_df = rules_df.copy()
         
-        # Đổi tên cột id khóa chính sang 'id' viết thường hiển thị giống ảnh mẫu
         if "db_id" in display_df.columns:
             display_df = display_df.rename(columns={"db_id": "id"})
         
-        # Tự động chèn cột số thứ tự STT viết hoa hiển thị động ở vị trí số 2
         if "STT" not in display_df.columns:
             display_df.insert(1, "STT", range(1, len(display_df) + 1))
         
-        # Cơ chế quét tìm và đồng bộ cột hạng mục công việc
         task_col_real = None
         for col in display_df.columns:
             if str(col).lower().strip() in ["hạng mục công việc", "hang_muc_cong_viec", "hang_muc", "hạng mục"]:
@@ -65,7 +62,6 @@ def render_dinh_muc_cong_viec(current_menu_name, current_user_role, user_perms):
         final_columns = [c for c in columns_order if c in display_df.columns]
         display_df = display_df[final_columns]
         
-        # === NÂNG CẤP TÍNH NĂNG CHỈNH SỬA TRỰC TIẾP TRÊN BẢNG ===
         edited_df = st.data_editor(
             display_df,
             use_container_width=True,
@@ -158,12 +154,11 @@ def render_dinh_muc_cong_viec(current_menu_name, current_user_role, user_perms):
         if st.button("🚀 Cập nhật lại toàn bộ điểm lịch sử theo định mức mới", use_container_width=True, type="primary", key="btn_sync_history_scores"):
             if update_all_historical_production_scores_db is not None:
                 with st.spinner("⏳ Đang quét và đồng bộ lại tên, hệ số và tổng điểm cho toàn bộ báo cáo lịch sử..."):
-                    success = update_all_historical_production_scores_db()
+                    success, msg = update_all_historical_production_scores_db()
                     if success:
-                        st.cache_data.clear()
-                        st.success("✅ Đã đồng bộ thành công tên hạng mục, hệ số và tổng điểm cho toàn bộ báo cáo lịch sử trong hệ thống!")
-                        st.rerun()
+                        st.success(f"✅ {msg}")
+                        st.info("💡 Bạn hãy chuyển sang menu **1. Nhập Sản Lượng** để kiểm tra lại điểm số các bản ghi cũ.")
                     else:
-                        st.error("❌ Có lỗi xảy ra trong quá trình đồng bộ lịch sử. Vui lòng kiểm tra lại kết nối Database!")
+                        st.error(f"❌ {msg}")
             else:
-                st.error("⚠️️ Không tìm thấy hàm `update_all_historical_production_scores_db` trong `database.py`. Vui lòng kiểm tra lại tệp `database.py`.")
+                st.error("⚠️ Không tìm thấy hàm `update_all_historical_production_scores_db` trong `database.py`.")
