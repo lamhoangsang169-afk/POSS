@@ -128,7 +128,7 @@ def add_production_log_db(ngay, gio, nhan_su, hang_muc, anh, don_vi, so_luong, h
     try:
         try:
             tong_diem = round(float(str(tong_diem).replace(",", ".").strip()), 2)
-        except:
+        except Exception:
             pass
 
         data = {
@@ -604,9 +604,11 @@ def delete_storage_files_by_date_range(start_date, end_date):
         return 0, f"Lỗi khi xóa ảnh theo ngày: {e}"
 
 def update_all_historical_production_scores_db():
+    """Đồng bộ và tính toán lại điểm lịch sử theo hệ số mới tối ưu tốc độ và bộ nhớ"""
     if supabase is None:
         return False, "Chưa kết nối Supabase"
     try:
+        # 1. Tải bảng rules
         def _get_rules(client):
             return client.table("rules").select("*").execute()
         rules_res = safe_supabase_call(_get_rules)
@@ -638,6 +640,7 @@ def update_all_historical_production_scores_db():
                     "he_so": he_so_float
                 }
 
+        # 2. Lấy dữ liệu sản lượng
         def _get_logs(client):
             return client.table("production_logs").select("*").eq("is_deleted", False).execute()
         logs_res = safe_supabase_call(_get_logs)
@@ -645,40 +648,61 @@ def update_all_historical_production_scores_db():
         if not logs_res or not logs_res.data:
             return True, "Không có bản ghi sản lượng nào để tính lại."
 
-        updated_count = 0
-        total_logs = len(logs_res.data)
-
-        for log in logs_res.data:
-            log_id = log.get("id")
+        all_logs = logs_res.data
+        total_logs = len(all_logs)
+        
+        # 3. Lọc trước trên RAM: Chỉ giữ lại các bản ghi thực sự có điểm/hệ số/tên cần thay đổi
+        logs_to_update = []
+        for log in all_logs:
             raw_task = log.get("hang_muc_cong_viec") or log.get("hang_muc", "")
             log_key = clean_text(raw_task)
             
-            try:
-                so_luong = float(str(log.get("so_luong", 0)).replace(",", ".").strip())
-            except Exception:
-                so_luong = 0.0
-
             if log_key in rule_map:
                 new_info = rule_map[log_key]
-                new_ten = new_info["ten_chuan"]
                 new_he_so = new_info["he_so"]
+                try:
+                    so_luong = float(str(log.get("so_luong", 0)).replace(",", ".").strip())
+                except Exception:
+                    so_luong = 0.0
+                
                 new_tong_diem = round(so_luong * new_he_so, 2)
                 
-                update_payload = {
-                    "hang_muc_cong_viec": new_ten,
-                    "tong_diem": new_tong_diem
-                }
-                if "he_so_diem" in log:
-                    update_payload["he_so_diem"] = new_he_so
-                elif "he_so" in log:
-                    update_payload["he_so"] = new_he_so
-                else:
-                    update_payload["he_so_diem"] = new_he_so
+                try:
+                    curr_diem = float(str(log.get("tong_diem", 0)).replace(",", ".").strip())
+                except Exception:
+                    curr_diem = 0.0
+                    
+                hs_raw = log.get("he_so_diem") if log.get("he_so_diem") is not None else log.get("he_so", 0)
+                try:
+                    curr_he_so = float(str(hs_raw).replace(",", ".").strip())
+                except Exception:
+                    curr_he_so = 0.0
 
-                def _upd_log(client, lid=log_id, p=update_payload):
-                    return client.table("production_logs").update(p).eq("id", lid).execute()
-                
-                safe_supabase_call(_upd_log)
+                # Kiểm tra xem có lệch điểm, hệ số hoặc tên không
+                has_diff = (abs(curr_diem - new_tong_diem) > 0.01) or (abs(curr_he_so - new_he_so) > 0.01) or (raw_task != new_info["ten_chuan"])
+                if has_diff:
+                    logs_to_update.append((log.get("id"), new_info["ten_chuan"], new_he_so, new_tong_diem, "he_so_diem" in log))
+
+        if not logs_to_update:
+            return True, f"Đã quét {total_logs} bản ghi: Tất cả bản ghi đều đã khớp với định mức mới, không cần cập nhật thêm."
+
+        # 4. Cập nhật những bản ghi bị lệch
+        updated_count = 0
+        for log_id, ten_chuan, he_so_val, tong_diem_val, has_he_so_diem_col in logs_to_update:
+            payload = {
+                "hang_muc_cong_viec": ten_chuan,
+                "tong_diem": tong_diem_val
+            }
+            if has_he_so_diem_col:
+                payload["he_so_diem"] = he_so_val
+            else:
+                payload["he_so"] = he_so_val
+
+            def _upd_single(client, lid=log_id, p=payload):
+                return client.table("production_logs").update(p).eq("id", lid).execute()
+            
+            res_upd = safe_supabase_call(_upd_single)
+            if res_upd:
                 updated_count += 1
 
         get_production_logs_db.clear()
@@ -705,7 +729,7 @@ def update_production_log_record_db(db_id, hang_muc, so_luong, ghi_chu=""):
                     h_so_val = r.get("he_so_diem") if r.get("he_so_diem") is not None else r.get("he_so", 1.0)
                     try:
                         he_so = float(str(h_so_val).replace(",", ".").strip())
-                    except:
+                    except Exception:
                         he_so = 1.0
                     d_vi_val = r.get("don_vi") or r.get("unit") or "Cái"
                     don_vi = str(d_vi_val).strip()
@@ -713,7 +737,7 @@ def update_production_log_record_db(db_id, hang_muc, so_luong, ghi_chu=""):
         
         try:
             qty_float = float(str(so_luong).replace(",", ".").strip())
-        except:
+        except Exception:
             qty_float = 0.0
             
         tong_diem = round(qty_float * he_so, 2)
