@@ -25,6 +25,7 @@ utils_module = load_module_from_path("utils", utils_path)
 
 VN_TIMEZONE = utils_module.VN_TIMEZONE
 get_attendance_db = db_module.get_attendance_db
+get_active_attendance_db = getattr(db_module, "get_active_attendance_db", None)
 add_attendance_log_db = db_module.add_attendance_log_db
 update_attendance_checkout_db = db_module.update_attendance_checkout_db
 
@@ -42,19 +43,22 @@ def render_cham_cong(current_menu_name, current_user_role):
             st.cache_data.clear()
             st.rerun()
 
-    # Lấy lịch sử chấm công từ database
+    # Lấy lịch sử chấm công và danh sách các ca chưa kết thúc
     att_df = get_attendance_db()
+    
+    if get_active_attendance_db is not None:
+        active_att_df = get_active_attendance_db()
+    else:
+        active_att_df = att_df[att_df["Giờ Ra Ca"] == "Chưa kết thúc"] if not att_df.empty else pd.DataFrame()
 
     # --- 1. KHỐI TRẠNG THÁI HOẠT ĐỘNG NHÂN SỰ ---
     st.markdown("### 🔴 Trạng Thái Nhân Sự Hiện Tại")
     staff_list = st.session_state.get("staff_list", ["Nguyễn Hữu Khang Tôn Đức", "Nguyễn Đức Anh Tiến", "Trần Gia Bảo", "Gold"])
     
-    # Tìm xem ai chưa bấm Check-out (đang hoạt động)
     active_staff_now = []
-    if not att_df.empty:
-        active_staff_now = att_df[att_df["Giờ Ra Ca"] == "Chưa kết thúc"]["Nhân Sự"].tolist()
+    if not active_att_df.empty and "Nhân Sự" in active_att_df.columns:
+        active_staff_now = active_att_df["Nhân Sự"].dropna().unique().tolist()
 
-    # Hiển thị danh sách màu sắc như hình mẫu
     for staff in staff_list:
         if staff in active_staff_now:
             st.markdown(f"🟢 **{staff}** - Đang hoạt động (Trong ca làm việc)")
@@ -94,19 +98,28 @@ def render_cham_cong(current_menu_name, current_user_role):
                 elif selected_staff not in active_staff_now:
                     st.error(f"⚠️ Nhân sự **{selected_staff}** hiện chưa bấm Vào ca, không thể bấm Kết thúc!")
                 else:
-                    # Tìm bản ghi đang mở để tính số phút và cập nhật giờ ra
-                    row_open = att_df[(att_df["Nhân Sự"] == selected_staff) & (att_df["Giờ Ra Ca"] == "Chưa kết thúc")].iloc[0]
+                    # Lấy bản ghi ca trực đang mở gần nhất của nhân sự
+                    row_open = active_att_df[active_att_df["Nhân Sự"] == selected_staff].iloc[0]
                     db_id = row_open["db_id"]
-                    gio_vao_str = row_open["Giờ Vào Ca"]
+                    gio_vao_str = str(row_open["Giờ Vào Ca"]).strip()
+                    ngay_vao_str = str(row_open["Ngày"]).strip()
                     
-                    # Tính toán số phút làm việc thực tế
+                    # Tính toán số phút làm việc chính xác (tính cả trường hợp vào ca đêm qua ngày)
                     try:
-                        t_vao = datetime.datetime.strptime(gio_vao_str, "%H:%M:%S")
-                        t_ra = datetime.datetime.strptime(current_time_str, "%H:%M:%S")
-                        so_phut = int((t_ra - t_vao).total_seconds() / 60)
-                        if so_phut < 0: so_phut = 0
-                    except:
-                        so_phut = 0
+                        # Kết hợp cả ngày và giờ để xử lý ca xuyên đêm
+                        dt_vao = datetime.datetime.strptime(f"{ngay_vao_str} {gio_vao_str}", "%Y-%m-%d %H:%M:%S")
+                        dt_ra = now_vn.replace(tzinfo=None)
+                        so_phut = int((dt_ra - dt_vao).total_seconds() / 60)
+                        if so_phut < 0:
+                            so_phut = 0
+                    except Exception:
+                        # Fallback nếu format ngày/giờ có ký tự lạ
+                        try:
+                            t_vao = datetime.datetime.strptime(gio_vao_str, "%H:%M:%S")
+                            t_ra = datetime.datetime.strptime(current_time_str, "%H:%M:%S")
+                            so_phut = max(0, int((t_ra - t_vao).total_seconds() / 60))
+                        except Exception:
+                            so_phut = 0
 
                     update_attendance_checkout_db(db_id, current_time_str, so_phut, ghi_chu)
                     st.success(f"🛑 Đã Check-out thành công cho **{selected_staff}** lúc {current_time_str}! Tổng thời gian: **{so_phut} phút**.")
