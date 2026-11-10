@@ -240,7 +240,7 @@ def get_attendance_db(limit_rows=300):
     return pd.DataFrame()
 
 def get_active_attendance_db():
-    """Lấy riêng tất cả ca làm việc chưa kết thúc (không bị giới hạn bởi limit)"""
+    """Lấy danh sách các ca làm việc chưa bấm kết thúc"""
     if supabase is None:
         return pd.DataFrame()
     try:
@@ -303,7 +303,7 @@ def update_production_log_deleted_status(db_ids, is_deleted):
         return None
 
 def upload_multiple_images_to_storage(uploaded_files, bucket_name="production_images", max_size=(800, 600), quality=78):
-    """Nén ảnh 1 lần tối ưu bộ nhớ, không chạy vòng lặp treo CPU"""
+    """Nén ảnh 1 lần tối ưu bộ nhớ, không lặp while treo CPU"""
     if not uploaded_files or supabase is None:
         return ""
     
@@ -608,54 +608,76 @@ def delete_storage_files_by_date_range(start_date, end_date):
         return 0, f"Lỗi khi xóa ảnh theo ngày: {e}"
 
 def update_all_historical_production_scores_db():
+    """Đồng bộ và tính toán lại điểm lịch sử theo hệ số mới chính xác 100%"""
     if supabase is None:
         return False
     try:
-        rules_res = supabase.table("rules").select("*").execute()
-        if not rules_res.data:
+        def _get_rules(client):
+            return client.table("rules").select("*").execute()
+        rules_res = safe_supabase_call(_get_rules)
+        
+        if not rules_res or not rules_res.data:
             return False
         
+        def normalize_task_name(name):
+            if not name:
+                return ""
+            return " ".join(str(name).strip().lower().split())
+
         rule_map = {}
         for r in rules_res.data:
             h_muc_chuan = str(r.get("hang_muc_cong_viec") or r.get("hang_muc") or "").strip()
-            key_lowercase = h_muc_chuan.lower()
+            norm_key = normalize_task_name(h_muc_chuan)
             h_so = r.get("he_so_diem") if r.get("he_so_diem") is not None else r.get("he_so", 1.0)
             
             try:
                 he_so_float = float(str(h_so).replace(",", ".").strip())
-            except:
+            except Exception:
                 he_so_float = 1.0
                 
-            if key_lowercase:
-                rule_map[key_lowercase] = {
+            if norm_key:
+                rule_map[norm_key] = {
                     "ten_chuan": h_muc_chuan,
                     "he_so": he_so_float
                 }
 
-        logs_res = supabase.table("production_logs").select("*").eq("is_deleted", False).execute()
-        if not logs_res.data:
+        def _get_logs(client):
+            return client.table("production_logs").select("*").eq("is_deleted", False).execute()
+        logs_res = safe_supabase_call(_get_logs)
+        
+        if not logs_res or not logs_res.data:
             return True
 
         for log in logs_res.data:
             log_id = log.get("id")
-            log_task = str(log.get("hang_muc_cong_viec", "")).strip().lower()
+            raw_task = log.get("hang_muc_cong_viec") or log.get("hang_muc", "")
+            log_task_norm = normalize_task_name(raw_task)
             
             try:
                 so_luong = float(str(log.get("so_luong", 0)).replace(",", ".").strip())
-            except:
+            except Exception:
                 so_luong = 0.0
 
-            if log_task in rule_map:
-                new_info = rule_map[log_task]
+            if log_task_norm in rule_map:
+                new_info = rule_map[log_task_norm]
                 new_ten = new_info["ten_chuan"]
                 new_he_so = new_info["he_so"]
                 new_tong_diem = round(so_luong * new_he_so, 2)
                 
-                supabase.table("production_logs").update({
+                update_payload = {
                     "hang_muc_cong_viec": new_ten,
-                    "he_so_diem": new_he_so,
                     "tong_diem": new_tong_diem
-                }).eq("id", log_id).execute()
+                }
+                if "he_so_diem" in log:
+                    update_payload["he_so_diem"] = new_he_so
+                elif "he_so" in log:
+                    update_payload["he_so"] = new_he_so
+                else:
+                    update_payload["he_so_diem"] = new_he_so
+
+                def _upd_log(client, lid=log_id, p=update_payload):
+                    return client.table("production_logs").update(p).eq("id", lid).execute()
+                safe_supabase_call(_upd_log)
                 
         get_production_logs_db.clear()
         get_production_logs_by_date_range.clear()
