@@ -172,8 +172,6 @@ def get_production_logs_db(is_deleted=False, limit_rows=1000):
             }
             if "he_so_diem" in df.columns:
                 rename_dict["he_so_diem"] = "Hệ Số"
-            elif "he_so" in df.columns:
-                rename_dict["he_so"] = "Hệ Số"
             df = df.rename(columns=rename_dict)
             df.insert(0, "STT", range(1, len(df) + 1))
             return df
@@ -199,8 +197,6 @@ def get_production_logs_by_date_range(start_date, end_date):
             }
             if "he_so_diem" in df.columns:
                 rename_dict["he_so_diem"] = "Hệ Số"
-            elif "he_so" in df.columns:
-                rename_dict["he_so"] = "Hệ Số"
             df = df.rename(columns=rename_dict)
             return df
     except Exception:
@@ -349,7 +345,7 @@ def delete_images_from_storage_by_urls(image_urls_str, bucket_name="production_i
                 file_paths_to_delete.append(url.split("/")[-1])
                 
         if file_paths_to_delete:
-            supabase.storage.from_(bucket_name).remove(file_paths_to_delete)
+            supabase.storage.from_("production_images").remove(file_paths_to_delete)
     except Exception as e:
         st.warning(f"⚠️ Lỗi khi xóa ảnh trên Supabase Storage: {e}")
 
@@ -604,7 +600,7 @@ def delete_storage_files_by_date_range(start_date, end_date):
         return 0, f"Lỗi khi xóa ảnh theo ngày: {e}"
 
 def update_all_historical_production_scores_db():
-    """Đồng bộ điểm lịch sử: quét 5000 bản ghi mới nhất từ hôm nay trở về trước"""
+    """Đồng bộ điểm lịch sử: quét 5000 bản ghi mới nhất và chỉ cập nhật cột he_so_diem"""
     if supabase is None:
         return False, "Chưa kết nối Supabase"
     try:
@@ -640,10 +636,10 @@ def update_all_historical_production_scores_db():
                     "he_so": he_so_float
                 }
 
-        # 2. Lấy 5000 bản ghi mới nhất (sắp xếp id giảm dần để bắt trúng các bản ghi hôm nay)
+        # 2. Lấy 5000 bản ghi mới nhất
         def _get_logs(client):
             return client.table("production_logs")\
-                .select("id, hang_muc_cong_viec, so_luong, tong_diem, he_so_diem, he_so")\
+                .select("id, hang_muc_cong_viec, so_luong, tong_diem, he_so_diem")\
                 .eq("is_deleted", False)\
                 .order("id", desc=True)\
                 .limit(5000)\
@@ -680,13 +676,12 @@ def update_all_historical_production_scores_db():
                 except Exception:
                     curr_diem = 0.0
 
-                # Nếu điểm số bị lệch, ép cập nhật lại ngay
+                # Nếu điểm số bị lệch, ép cập nhật lại
                 if abs(curr_diem - new_tong_diem) > 0.01:
                     payload = {
                         "hang_muc_cong_viec": new_info["ten_chuan"],
                         "tong_diem": new_tong_diem,
-                        "he_so_diem": new_he_so,
-                        "he_so": new_he_so
+                        "he_so_diem": new_he_so
                     }
 
                     def _upd_single(client, lid=log_id, p=payload):
