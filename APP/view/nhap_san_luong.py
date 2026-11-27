@@ -14,7 +14,6 @@ if root_project_dir not in sys.path:
 
 from utils import VN_TIMEZONE
 from database import (
-    get_production_logs_db,
     get_production_logs_by_date_range,
     add_production_log_db,
     update_production_log_deleted_status,
