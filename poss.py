@@ -22,16 +22,19 @@ os.environ["PYTHONPATH"] = current_dir
 def load_view_module(module_name):
     file_path = os.path.join(view_dir, f"{module_name}.py")
     try:
+        if not os.path.exists(file_path):
+            st.error(f"❌ Không tìm thấy tệp `{file_path}`")
+            return None
         spec = importlib.util.spec_from_file_location(module_name, file_path)
         if spec and spec.loader:
             mod = importlib.util.module_from_spec(spec)
-            sys.modules[module_name] = mod
             spec.loader.exec_module(mod)
+            sys.modules[module_name] = mod
             return mod
     except Exception as e:
         st.error(f"❌ Lỗi chi tiết khi nạp module `{module_name}`: {e}")
         print(f"Không thể nạp module {module_name} từ {file_path}: {e}")
-    return None
+    return sys.modules.get(module_name)
 
 # Nạp chính xác các tệp từ thư mục APP/view/
 nhap_san_luong = load_view_module("nhap_san_luong")
@@ -948,12 +951,15 @@ with st.sidebar:
         st.markdown("### ⚙️ Cấu Hình Hệ Thống\n(Admin)")
         if st.button("🎨 Cài Đặt Giao Diện", use_container_width=True):
             st.session_state.current_menu = "🎨 Cài Đặt Giao Diện"
+            st.session_state.radio_selection = "🎨 Cài Đặt Giao Diện"
             st.rerun()
         if st.button("🛡️ Quản Lý Tài Khoản & Phân Quyền", use_container_width=True):
             st.session_state.current_menu = "🛡️ Quản Lý Tài Khoản & Phân Quyền"
+            st.session_state.radio_selection = "🛡️ Quản Lý Tài Khoản & Phân Quyền"
             st.rerun()
         if st.button("🧹 Làm Sạch Dữ Liệu", use_container_width=True):
             st.session_state.current_menu = "🧹 Làm Sạch Dữ Liệu"
+            st.session_state.radio_selection = "🧹 Làm Sạch Dữ Liệu"
             st.rerun()
 
     st.markdown("---")
