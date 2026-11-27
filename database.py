@@ -184,11 +184,34 @@ def get_production_logs_by_date_range(start_date, end_date):
     if supabase is None:
         return pd.DataFrame()
     try:
-        def _query(client):
-            return client.table("production_logs").select("*").eq("is_deleted", False).gte("ngay", str(start_date)).lte("ngay", str(end_date)).execute()
-        res = safe_supabase_call(_query)
-        if res and res.data:
-            df = pd.DataFrame(res.data)
+        all_rows = []
+        batch_size = 1000
+        offset = 0
+
+        while True:
+            def _query(client, s=offset, e=offset + batch_size - 1):
+                return (
+                    client.table("production_logs")
+                    .select("*")
+                    .eq("is_deleted", False)
+                    .gte("ngay", str(start_date))
+                    .lte("ngay", str(end_date))
+                    .order("id", desc=True)
+                    .range(s, e)
+                    .execute()
+                )
+            res = safe_supabase_call(_query)
+            batch_data = res.data if res and res.data else []
+            if not batch_data:
+                break
+
+            all_rows.extend(batch_data)
+            if len(batch_data) < batch_size:
+                break
+            offset += len(batch_data)
+
+        if all_rows:
+            df = pd.DataFrame(all_rows)
             rename_dict = {
                 "id": "db_id", "ngay": "Ngày", "thoi_gian": "Thời Gian",
                 "nhan_su": "Nhân Sự", "hang_muc_cong_viec": "Hạng Mục Công Việc",
@@ -198,6 +221,7 @@ def get_production_logs_by_date_range(start_date, end_date):
             if "he_so_diem" in df.columns:
                 rename_dict["he_so_diem"] = "Hệ Số"
             df = df.rename(columns=rename_dict)
+            df.insert(0, "STT", range(1, len(df) + 1))
             return df
     except Exception:
         pass
