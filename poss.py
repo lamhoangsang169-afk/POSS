@@ -1475,4 +1475,3 @@ with st.sidebar:
 
 # ==================== GỌI THỰC THI HIỂN THỊ NỘI DUNG ====================
 render_main_content(st.session_state.current_menu)
-```[cite: 3, 16]
