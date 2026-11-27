@@ -1476,5 +1476,3 @@ with st.sidebar:
 # ==================== GỌI THỰC THI HIỂN THỊ NỘI DUNG ====================
 render_main_content(st.session_state.current_menu)
 ```[cite: 3, 16]
-
-Bạn có muốn mình kiểm tra thêm tốc độ tải hoặc cách tổ chức dữ liệu ở view nào cụ thể (như `bao_cao` hay `cham_cong`) không?
