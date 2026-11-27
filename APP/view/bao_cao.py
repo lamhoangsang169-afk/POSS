@@ -38,7 +38,14 @@ def convert_minutes_to_work_days(total_minutes, minutes_per_day=480):
         return f"{remaining_minutes} phút"
 
 def render_bao_cao(current_menu_name):
-    st.subheader(f"📊 {current_menu_name}")
+    col_bc_h1, col_bc_h2 = st.columns([3, 1])
+    with col_bc_h1:
+        title_text = current_menu_name if "📊" in str(current_menu_name) else f"📊 {current_menu_name}"
+        st.subheader(title_text)
+    with col_bc_h2:
+        if st.button("🔄 Làm mới dữ liệu", use_container_width=True, key="btn_refresh_bao_cao"):
+            st.cache_data.clear()
+            st.rerun()
     
     if "report_start_date" not in st.session_state:
         st.session_state.report_start_date = datetime.date.today()
