@@ -67,9 +67,7 @@ def render_production_table_fragment(raw_input_df, current_user_role, user_perms
             st.cache_data.clear()
             st.rerun()
 
-    if raw_input_df.empty:
-        st.info("Chưa có dữ liệu sản lượng.")
-        return
+    # Không return sớm khi raw_input_df rỗng vì dữ liệu sẽ được tải động theo khoảng ngày lọc bên dưới
 
     f_col1, f_col2, f_col3, f_col4, f_col5, f_col6 = st.columns([1.1, 1.1, 1.4, 1.3, 1.3, 1.2])
     
@@ -89,7 +87,9 @@ def render_production_table_fragment(raw_input_df, current_user_role, user_perms
             start_t, end_t = None, None
             
     with f_col4:
-        all_staff_opts = ["Tất cả"] + sorted(raw_input_df["Nhân Sự"].dropna().unique().tolist())
+        staff_from_df = raw_input_df["Nhân Sự"].dropna().unique().tolist() if not raw_input_df.empty and "Nhân Sự" in raw_input_df.columns else []
+        staff_from_session = st.session_state.get("staff_list", []) or []
+        all_staff_opts = ["Tất cả"] + sorted(list(set(staff_from_df + staff_from_session)))
         filter_staff = st.selectbox("Lọc theo Nhân Sự", all_staff_opts, key="f_staff_live")
 
     try:
@@ -292,7 +292,10 @@ def render_production_table_fragment(raw_input_df, current_user_role, user_perms
                         st.markdown("<small style='color: gray;'>Không ảnh</small>", unsafe_allow_html=True)
                 st.markdown("---")
     else:
-        st.info("Không tìm thấy bản ghi nào khớp bộ lọc.")
+        if df_pre_filter.empty:
+            st.info("Chưa có dữ liệu sản lượng trong khoảng ngày đã chọn.")
+        else:
+            st.info("Không tìm thấy bản ghi nào khớp bộ lọc.")
 
 
 # ==================== HÀM GỐC RENDER GIAO DIỆN CHÍNH ====================
