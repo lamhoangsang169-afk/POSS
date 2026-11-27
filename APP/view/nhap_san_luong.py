@@ -15,6 +15,7 @@ if root_project_dir not in sys.path:
 from utils import VN_TIMEZONE
 from database import (
     get_production_logs_db,
+    get_production_logs_by_date_range,
     add_production_log_db,
     update_production_log_deleted_status,
     upload_multiple_images_to_storage,
@@ -100,9 +101,13 @@ def render_production_table_fragment(raw_input_df, current_user_role, user_perms
     if not danh_sach_hang_muc: 
         danh_sach_hang_muc = ["Chưa có dữ liệu định mức"]
 
-    df_pre_filter = raw_input_df.copy()
-    df_pre_filter["Ngày_DT"] = pd.to_datetime(df_pre_filter["Ngày"], errors='coerce').dt.date
-    df_pre_filter = df_pre_filter[(df_pre_filter["Ngày_DT"] >= start_filter_date) & (df_pre_filter["Ngày_DT"] <= end_filter_date)]
+    df_pre_filter = get_production_logs_by_date_range(start_filter_date, end_filter_date)
+    if not df_pre_filter.empty:
+        df_pre_filter = df_pre_filter.copy()
+        df_pre_filter["Ngày_DT"] = pd.to_datetime(df_pre_filter["Ngày"], format="mixed", errors="coerce").dt.date
+        df_pre_filter = df_pre_filter[(df_pre_filter["Ngày_DT"] >= start_filter_date) & (df_pre_filter["Ngày_DT"] <= end_filter_date)]
+        if "db_id" in df_pre_filter.columns:
+            df_pre_filter = df_pre_filter.sort_values("db_id", ascending=False)
     
     if filter_staff != "Tất cả": 
         df_pre_filter = df_pre_filter[df_pre_filter["Nhân Sự"] == filter_staff]
@@ -425,5 +430,4 @@ def render_nhap_san_luong(*args, **kwargs):
 
     st.markdown("---")
 
-    raw_input_df = get_production_logs_db(is_deleted=False, limit_rows=2000)
-    render_production_table_fragment(raw_input_df, current_user_role, user_perms)
+    render_production_table_fragment(pd.DataFrame(), current_user_role, user_perms)
